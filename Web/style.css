@@ -1,0 +1,150 @@
+body {
+    margin: 0;
+    background: #555;
+    color: white;
+    font-family: sans-serif;
+    display: flex;
+    height: 100vh;
+    overflow: scroll;
+}
+
+#titles {
+    width: 30px;
+    background: #ccc;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: stretch;
+    padding: 0;
+}
+
+.section-vertical-title {
+    writing-mode: vertical-lr;
+    text-orientation: mixed;
+    font-size: 16px;
+    font-weight: normal;
+    color: #555;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+}
+
+#toolbar {
+    width: 100px;
+    background: white;
+    padding: 10px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.button-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.divider {
+    height: 1px;
+    background: #eee;
+    margin: 5px 0;
+}
+
+button {
+    width: 80%;
+    padding: 8px;
+    font-size: 14px;
+    background: #bbb;
+    border: none;
+    color: white;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+    button:hover {
+        background: #aaa;
+    }
+
+    button.active {
+        background: #666;
+    }
+
+.atom-btn.active {
+    background: linear-gradient(to right, #E0AECE,#EFCBAE);
+}
+
+.bond-btn.active {
+    background: linear-gradient(to right, #ACC12E,#7DC187);
+}
+
+.mode-btn.active {
+    background: linear-gradient(to right, #5998C1,#877AC1);
+}
+
+#moveBtn:hover {
+    cursor: move;
+}
+
+#deleteBtn {
+    background: #884444;
+}
+
+    #deleteBtn:hover {
+        background: #995555;
+    }
+
+#canvas {
+    flex: 1;
+    overflow: hidden;
+}
+
+svg {
+    width: 100%;
+    height: 100%;
+    cursor: crosshair;
+}
+
+    svg.move-cursor {
+        cursor: move;
+    }
+
+    svg.lasso-cursor {
+        cursor: cell;
+    }
+
+    svg .selectable-atom {
+        stroke: transparent;
+        fill: transparent;
+        stroke-width: 2;
+        cursor: pointer;
+    }
+
+        svg .selectable-atom.selected {
+            stroke: #FFFF00;
+        }
+
+    svg .selectable-bond {
+        stroke: transparent;
+        stroke-width: 8;
+        cursor: pointer;
+    }
+
+        svg .selectable-bond.selected {
+            stroke: #FFFF00;
+        }
+
+    svg text {
+        user-select: none;
+        pointer-events: none;
+    }
+
+#selectionRect {
+    fill: rgba(100, 150, 255, 0.2);
+    stroke: rgb(100, 150, 255);
+    stroke-width: 1;
+    stroke-dasharray: 5,5;
+}
