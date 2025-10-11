@@ -1,3 +1,4 @@
+// script.js
 const colors = {
     C: '#FFFFFF',
     H: '#A9A9A9',
@@ -22,6 +23,7 @@ let dragTargetId = null;
 let dragStartOffset = { x: 0, y: 0 };
 let isDraggingSelection = false;
 
+// 确保在 HTML 文件中定义了 svg 元素
 const svg = document.getElementById('svg');
 const canvas = document.getElementById('canvas');
 
@@ -152,7 +154,7 @@ function draw() {
         const endX = a2.x - endOffset * Math.cos(angle);
         const endY = a2.y - endOffset * Math.sin(angle);
 
-        const strokeColor = selectedBonds.has(b.id) ? HIGHLIGHT_COLOR : colors.C;
+        const strokeColor = selectedBonds.has(b.id) ? 'rgb(255, 255, 0)' : colors.C; // 键的高亮颜色
 
         // 绘制点击热区
         const hotspot = document.createElementNS('http://www.w3.org/2000/svg', 'line');
@@ -196,6 +198,11 @@ function draw() {
         clickableCircle.setAttribute('r', ATOM_RADIUS);
         clickableCircle.setAttribute('class', `selectable-atom${selectedAtoms.has(a.id) ? ' selected' : ''}`);
         clickableCircle.setAttribute('data-atom-id', a.id);
+        // 选中高亮，使用 HIGHLIGHT_COLOR (淡黄色)
+        if (selectedAtoms.has(a.id)) {
+            clickableCircle.setAttribute('stroke', 'rgb(255, 255, 0)');
+            clickableCircle.setAttribute('stroke-width', 2);
+        }
         svg.appendChild(clickableCircle);
 
         if (shouldDrawSymbol) {
@@ -328,7 +335,10 @@ function clearSelection() {
 }
 
 function isInsideSelectionBox(x, y) {
-    return x >= selectionBox.left && x <= selectionBox.right && y >= selectionBox.top && y <= selectionBox.bottom;
+    // 检查点是否在套索框内（稍微放大范围以便于点击）
+    const padding = 5;
+    return x >= selectionBox.left - padding && x <= selectionBox.right + padding &&
+        y >= selectionBox.top - padding && y <= selectionBox.bottom + padding;
 }
 
 function getMousePos(e) {
@@ -353,6 +363,35 @@ function updateCanvasCursor() {
     }
 }
 
+/**
+ * 删除所有选中的原子和键。
+ * 这是处理删除的核心逻辑，供按钮点击和键盘事件调用。
+ */
+function deleteSelectedElements() {
+    const atomsToDelete = new Set(selectedAtoms);
+    // bondsToDelete 包含所有被选中的键ID
+    const bondsToDelete = new Set(selectedBonds);
+    const bondsToRemove = new Set();
+
+    if (atomsToDelete.size === 0 && bondsToDelete.size === 0) return;
+
+    // 1. 如果原子被选中，则与其相连的键也应被删除
+    bonds.forEach(b => {
+        if (atomsToDelete.has(b.a1) || atomsToDelete.has(b.a2)) {
+            bondsToDelete.add(b.id);
+        }
+    });
+
+    // 2. 过滤掉要删除的键
+    bonds = bonds.filter(b => !bondsToDelete.has(b.id));
+
+    // 3. 过滤掉要删除的原子
+    atoms = atoms.filter(a => !atomsToDelete.has(a.id));
+
+    // 4. 清除当前选择并重绘
+    clearSelection();
+}
+
 // --- 鼠标事件监听 ---
 svg.addEventListener('mousedown', e => {
     const pos = getMousePos(e);
@@ -362,14 +401,21 @@ svg.addEventListener('mousedown', e => {
     const bondId = targetElem.getAttribute('data-bond-id');
 
     if (mode === 'lasso') {
+        // 检查是否在已有的选中框内点击，且有原子被选中
         if (selectedAtoms.size > 0 && isInsideSelectionBox(pos.x, pos.y)) {
             isDraggingSelection = true;
+            // 清除选择框的SVG元素，拖动时不需要显示它
+            if (selectionRect && selectionRect.parentNode) {
+                selectionRect.parentNode.removeChild(selectionRect);
+            }
         } else {
+            // 开始新的框选
             isSelecting = true;
             startX = pos.x;
             startY = pos.y;
-            if (selectionRect) {
-                svg.removeChild(selectionRect);
+            // 移除旧的选择框
+            if (selectionRect && selectionRect.parentNode) {
+                selectionRect.parentNode.removeChild(selectionRect);
             }
             selectionRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
             selectionRect.setAttribute('id', 'selectionRect');
@@ -378,10 +424,11 @@ svg.addEventListener('mousedown', e => {
             selectionRect.setAttribute('width', 0);
             selectionRect.setAttribute('height', 0);
             svg.appendChild(selectionRect);
-            clearSelection();
+            clearSelection(); // 开始新框选时清空旧选择
         }
     } else if (mode === 'move') {
         if (atomId) {
+            // 移动模式下点击原子，清除旧选择，并选中当前原子
             clearSelection();
             toggleSelectAtom(parseInt(atomId));
             isDraggingAtom = true;
@@ -460,6 +507,7 @@ svg.addEventListener('mousemove', e => {
         const targetElem = e.target;
         const atomId = targetElem.getAttribute('data-atom-id');
         const bondId = targetElem.getAttribute('data-bond-id');
+        const atomMapForHover = new Map(atoms.map(a => [a.id, a])); // 重新获取 atomMap，防止 draw() 外部调用时不存在
 
         if (atomId && !selectedAtoms.has(parseInt(atomId))) {
             const atom = atoms.find(a => a.id === parseInt(atomId));
@@ -477,8 +525,8 @@ svg.addEventListener('mousemove', e => {
         } else if (bondId && !selectedBonds.has(parseInt(bondId))) {
             const bond = bonds.find(b => b.id === parseInt(bondId));
             if (bond) {
-                const a1 = atoms.find(a => a.id === bond.a1);
-                const a2 = atoms.find(a => a.id === bond.a2);
+                const a1 = atomMapForHover.get(bond.a1);
+                const a2 = atomMapForHover.get(bond.a2);
                 if (!a1 || !a2) return;
                 const hoverLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
                 hoverLine.setAttribute('x1', a1.x);
@@ -514,37 +562,45 @@ svg.addEventListener('mouseup', e => {
             svg.removeChild(selectionRect);
             selectionRect = null;
         }
-        const endX = pos.x;
-        const endY = pos.y;
-        const left = Math.min(startX, endX);
-        const top = Math.min(startY, endY);
-        const width = Math.abs(startX - endX);
-        const height = Math.abs(startY - endY);
 
-        selectionBox.left = left;
-        selectionBox.top = top;
-        selectionBox.right = left + width;
-        selectionBox.bottom = top + height;
+        // 只有在发生了拖动行为时才进行框选，否则视为点击框外重置选择
+        if (dragDistance > CLICK_THRESHOLD) {
+            const endX = pos.x;
+            const endY = pos.y;
+            const left = Math.min(startX, endX);
+            const top = Math.min(startY, endY);
+            const width = Math.abs(startX - endX);
+            const height = Math.abs(startY - endY);
 
-        atoms.forEach(a => {
-            if (a.x >= left && a.x <= left + width && a.y >= top && a.y <= top + height) {
-                selectedAtoms.add(a.id);
+            selectionBox.left = left;
+            selectionBox.top = top;
+            selectionBox.right = left + width;
+            selectionBox.bottom = top + height;
+
+            atoms.forEach(a => {
+                if (a.x >= left && a.x <= left + width && a.y >= top && a.y <= top + height) {
+                    selectedAtoms.add(a.id);
+                }
+            });
+            bonds.forEach(b => {
+                const a1 = atoms.find(a => a.id === b.a1);
+                const a2 = atoms.find(a => a.id === b.a2);
+                if (!a1 || !a2) return;
+                if (selectedAtoms.has(a1.id) && selectedAtoms.has(a2.id)) {
+                    selectedBonds.add(b.id);
+                }
+            });
+        } else {
+            // 如果是点击，且不在选框内，则清空选择
+            if (!isInsideSelectionBox(pos.x, pos.y)) {
+                clearSelection();
             }
-        });
-        bonds.forEach(b => {
-            const a1 = atoms.find(a => a.id === b.a1);
-            const a2 = atoms.find(a => a.id === b.a2);
-            if (!a1 || !a2) return;
-            if (selectedAtoms.has(a1.id) && selectedAtoms.has(a2.id)) {
-                selectedBonds.add(b.id);
-            }
-        });
+        }
         draw();
     } else if (mode === 'move') {
         isDraggingAtom = false;
         dragTargetId = null;
-        // Clicking on an atom/bond handles selection, no need to do it here again
-        // The mousedown handler for move mode already handles clear+select.
+        // 移动模式下的点击选择已在 mousedown 中处理
         draw();
     } else if (mode === 'draw' && isDraggingAtom) {
         if (dragDistance < CLICK_THRESHOLD) {
@@ -586,6 +642,13 @@ svg.addEventListener('mouseleave', () => {
 document.querySelectorAll('#toolbar button').forEach(btn => {
     btn.addEventListener('click', () => {
         const modeButtons = document.querySelectorAll('.mode-btn');
+
+        // 删除按钮有单独的逻辑，不进行模式切换
+        if (btn.id === 'deleteBtn') {
+            deleteSelectedElements();
+            return;
+        }
+
         clearSelection();
 
         if (btn.classList.contains('mode-btn')) {
@@ -607,34 +670,11 @@ document.querySelectorAll('#toolbar button').forEach(btn => {
     });
 });
 
-document.getElementById('deleteBtn').addEventListener('click', () => {
-    const atomsToDelete = new Set(selectedAtoms);
-    const bondsToDelete = new Set(selectedBonds);
-    const atomsToRemove = new Set();
-    const bondsToRemove = new Set();
-
-    if (atomsToDelete.size === 0 && bondsToDelete.size === 0) return;
-
-    // 标记要删除的原子和键
-    atomsToDelete.forEach(id => atomsToRemove.add(id));
-    bondsToDelete.forEach(id => bondsToRemove.add(id));
-
-    // 如果删除了原子，则其相连的键也应被删除
-    bonds.forEach(b => {
-        if (atomsToRemove.has(b.a1) || atomsToRemove.has(b.a2)) {
-            bondsToRemove.add(b.id);
-        }
-    });
-
-    bonds = bonds.filter(b => !bondsToRemove.has(b.id));
-    atoms = atoms.filter(a => !atomsToRemove.has(a.id));
-
-    clearSelection();
-});
-
+// 键盘事件监听器，调用统一的删除函数
 document.addEventListener('keydown', e => {
     if (e.key === 'Delete' || e.key === 'Backspace') {
-        document.getElementById('deleteBtn').click();
+        e.preventDefault(); // 阻止浏览器回退等默认行为
+        deleteSelectedElements();
     }
 });
 

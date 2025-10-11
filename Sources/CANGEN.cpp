@@ -294,7 +294,7 @@ private:
 	int seq;
 	Atom e; //元素原子
 	bool isa;//是否芳香
-	int ccount; //连接数
+	int ccount; //连接数(等效非氢键数，双键+2，三键+3)
 	int nhbcount; //非氢键数
 	int chcount; //连接氢数
 	int minhcount;//最少氢数（来自SMILES格式限定）
@@ -1066,8 +1066,8 @@ int main()
 	//string b = "bcef1c31s2d1`23";
 	//cout << LCS(a, b);
 
-	string etb_filename = "./Tables/ElementsTable.csv";
-	string ptb_filename = "./Tables/PrimeNumber1000.csv";
+	string etb_filename = "File/Tables/ElementsTable.csv";
+	string ptb_filename = "File/Tables/PrimeNumber1000.csv";
 
 	PrintCmdSepTitle("元素周期表读取");
 
