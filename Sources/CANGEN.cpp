@@ -50,6 +50,7 @@
 
 #define ATOM_TITLE "Symbol,Number,Mass,Valence"
 #define MNODE_TITLE "Seq,Element,IsAroma,CCount,CHCount,NHBC,CharSym,CharVal"
+#define ADJ_TITLE "Seq1,Seq2,BondSym"
 
 using namespace std;
 
@@ -287,8 +288,10 @@ public:
 		}
 		return val.back();
 	}
+
 };
 
+//分子中原子节点
 class MNode {
 private:
 	int seq;
@@ -356,8 +359,13 @@ public:
 	//{
 	//	rank = r;
 	//}
+	friend ostream& operator<<(ostream& out, const MNode& m) {
+		out << m.seq << "," << m.e.GetSym() << "," << m.isa << "," << m.ccount << "," << m.chcount << "," << m.nhbcount << "," << m.csym << "," << m.cval<<endl;
+		return out;
+	}
 };
 
+//邻接表单行内单节点
 class PointTo {
 private:
 	string bondsym;
@@ -368,8 +376,13 @@ public:
 	void Print()const { cout << "-" << bondsym << "->" << dseq; }
 	int GetDesSeq()const { return dseq; }
 	string GetBondSymbol()const { return bondsym; }
+	friend ostream& operator<<(ostream& out, const PointTo& p) {
+		out << p.dseq<<","<<p.bondsym;
+		return out;
+	}
 };
 
+//邻接表单行
 class NodeBonds
 {
 	int nseq;
@@ -398,6 +411,13 @@ public:
 	{
 		vector<PointTo> p(d);
 		return p;
+	}
+	friend ostream& operator<<(ostream& out, const NodeBonds& n) {
+		for (auto& a : n.d)
+		{
+			out <<n.nseq<< "," << a<<endl;
+		}
+		return out;
 	}
 };
 
@@ -958,9 +978,18 @@ public:
 
 		return can_smiles;
 	}
-
 	string GetComSmiles()const { return com_smiles; }
-	string GetCanSmiles()const { return can_smiles; }
+	string GetCanSmiles() 
+	{
+		if (empty(can_smiles)) can_smiles=GenerateCanSmiles();
+		return can_smiles; 
+	}
+	vector <MNode> GetNodeTable()const {
+		return nodetb;
+	}
+	vector <NodeBonds> GetBondTable()const {
+		return bondtb;
+	}
 };
 
 
@@ -1046,6 +1075,18 @@ int ReadTable(string filename, string stdtitle, vector<T>& table, bool readtitle
 	cout << "文件" << filename << "加载完毕！\n共有 " << k << " 行 " << colsize << " 列记录!" << endl;
 	return k;
 }
+
+template<typename T>
+void WriteTable(string filename, string stdtitle, const  vector<T>& table,bool writetitle = YES)
+{
+	ofstream outFile(filename, ios::out);
+	if (writetitle) outFile << stdtitle <<endl;
+	for (auto &line:table)
+	{
+		outFile << line;
+	}
+	outFile.close();
+}
 void PrintCmdSepTitle(const string title, int sepwidth = SEP_WIDTH, const char fillsym = SEP_SYMBOL)
 {
 	int scount = max((sepwidth - title.length() - 6) / 2, 0);
@@ -1054,6 +1095,33 @@ void PrintCmdSepTitle(const string title, int sepwidth = SEP_WIDTH, const char f
 	cout << sum;
 }
 
+string GetCurrentTimeString() {
+	SYSTEMTIME st;
+	GetLocalTime(&st);  // 获取本地时间
+
+	ostringstream oss;
+
+	// 格式: YYYYMMDD_HHMMSS
+	oss << setfill('0')
+		<< setw(4) << st.wYear
+		<< setw(2) << st.wMonth
+		<< setw(2) << st.wDay
+		<< "_"
+		<< setw(2) << st.wHour
+		<< setw(2) << st.wMinute
+		<< setw(2) << st.wSecond;
+
+	return oss.str();
+}
+bool CreateFolder(const string folderpath)
+{
+    size_t convertedChars = 0;
+    wchar_t* folderPath = new wchar_t[folderpath.length() + 1];
+    mbstowcs_s(&convertedChars, folderPath, folderpath.length() + 1, folderpath.c_str(), _TRUNCATE);
+    bool issuccessful = CreateDirectory(folderPath, NULL);
+    delete[] folderPath;
+    return issuccessful;
+}
 int main()
 {
 
@@ -1068,6 +1136,7 @@ int main()
 
 	string etb_filename = "File/Tables/ElementsTable.csv";
 	string ptb_filename = "File/Tables/PrimeNumber1000.csv";
+	string output_folder = "File/Output";
 
 	PrintCmdSepTitle("元素周期表读取");
 
@@ -1143,6 +1212,35 @@ int main()
 
 		double duration = (stop.QuadPart - start.QuadPart) * 1000.0 / frequency.QuadPart;
 		std::cout << "\n(^-^)Time taken by function: " << duration << " ms" << std::endl;
+
+		cout << "是否要储存节点信息表及邻接表？(Y/N)";
+		char savechoice;
+		cin >> savechoice;
+		if (savechoice == 'Y' || savechoice == 'y')
+		{
+			string cs = c.GetCanSmiles();
+			Mole d(atomtable, cs);
+			const string folderpath = output_folder+"/"+cs;
+			if (!CreateFolder(folderpath)) {
+				cout << "文件夹创建失败！可能已存在。\n";
+				char savechoice2;
+				cin >> savechoice2;
+				cout << "是否要继续覆盖节点信息表及邻接表？(Y/N)";
+				if (!(savechoice2 == 'Y' || savechoice2 == 'y'))
+				{
+					continue;
+				}
+			}
+			string now_time = GetCurrentTimeString();
+			string atomtable_filename = folderpath +"/AtomTable.csv";
+			string bondtable_filename = folderpath +"/BondTable.csv";
+			PrintCmdSepTitle("节点表储存");
+			WriteTable<MNode>(atomtable_filename, MNODE_TITLE, d.GetNodeTable(), true);
+			cout << "节点表已储存至 " << atomtable_filename << endl;
+			PrintCmdSepTitle("邻接表储存");
+			WriteTable<NodeBonds>(bondtable_filename, ADJ_TITLE, d.GetBondTable(), true);
+			cout << "邻接表已储存至 " << bondtable_filename << endl;
+		}
 	}
 	return 0;
 }

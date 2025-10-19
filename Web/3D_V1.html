@@ -1,0 +1,969 @@
+﻿<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>分子三维结构可视化</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000000;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        /* 功能区面板容器：保持右上角定位 */
+        #controls-container-wrapper {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 100;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.3;
+            transition: transform 0.3s ease-in-out;
+        }
+
+        /* 统一样式 */
+        .control-panel {
+            padding: 8px;
+            margin-bottom: 8px;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+            width: 200px;
+            box-sizing: border-box;
+        }
+
+            .control-panel h3 {
+                margin-top: 0;
+                margin-bottom: 8px;
+                font-size: 16px;
+            }
+
+        .control-group {
+            margin-bottom: 6px;
+        }
+
+        /* 光照控制组布局 */
+        .light-control-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+
+            .light-control-row input[type="range"] {
+                width: 100%;
+            }
+
+            .light-control-row label {
+                width: 100%;
+            }
+
+        /* 光照预设按钮容器 */
+        #light-presets {
+            display: flex;
+            gap: 5px;
+            margin-top: 5px;
+        }
+
+            #light-presets button {
+                width: 50%;
+                padding: 5px;
+                margin-top: 0;
+            }
+
+        /* 原子信息显示，左下角定位 */
+        #highlight-info {
+            position: absolute;
+            bottom: 40px; /* 留出空间给功能区开关 */
+            left: 10px;
+            z-index: 100;
+            font-family: Arial, sans-serif;
+            font-size: 16px;
+            line-height: 1.5;
+            padding: 5px;
+            background: none;
+        }
+
+        /* 1. 功能区开关容器：左下角定位，在原子信息下方 */
+        #toggle-button-container {
+            position: fixed;
+            bottom: 10px;
+            left: 13px;
+            z-index: 101;
+            /* 确保与原子信息字体、字号对齐 */
+            font-family: Arial, sans-serif;
+            font-size: 16px;
+            display: flex; /* 启用 flex 布局来对齐文本和开关 */
+            align-items: center;
+        }
+
+            #toggle-button-container span {
+                /* 1. 功能区标识 */
+                margin-right: 8px;
+                white-space: nowrap;
+            }
+
+        button {
+            padding: 5px 10px;
+            cursor: pointer;
+            box-sizing: border-box;
+            margin-top: 5px;
+        }
+
+        #render-buttons {
+            display: flex;
+            gap: 5px;
+            margin-top: 5px;
+        }
+
+            #render-buttons button {
+                width: 50%;
+                margin-top: 0;
+            }
+
+        /* 背景颜色选择器布局：靠右对齐 */
+        #background-picker-group-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        #background-picker-group {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        #background-color-picker {
+            width: 40px;
+            height: 25px;
+            padding: 0;
+            border: 1px solid #ccc;
+            cursor: pointer;
+            margin-left: 5px;
+        }
+
+        .color-swatch {
+            width: 20px;
+            height: 20px;
+            border: 1px solid #333;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+
+        /* 氢原子开关布局 */
+        #hydrogen-toggle-group {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        /* ************************************ */
+        /* ** 滑动开关通用样式 ** */
+        /* ************************************ */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 64px;
+            height: 20px;
+        }
+
+            .toggle-switch input {
+                opacity: 0;
+                width: 0;
+                height: 0;
+            }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #555;
+            transition: background-color .4s;
+            border-radius: 34px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 8px;
+            color: white;
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+            .slider:before {
+                position: absolute;
+                content: "";
+                height: 14px;
+                width: 14px;
+                left: 7px;
+                bottom: 3px;
+                background-color: white;
+                transition: transform .4s;
+                border-radius: 50%;
+            }
+
+        /* 激活状态 (checked = 开/左) */
+        .toggle-switch input:checked + .slider {
+            background-color: #8BC34A;
+        }
+
+        .toggle-switch input:not(:checked) + .slider:before {
+            /* Unchecked = 关/右 */
+            transform: translateX(30px);
+        }
+
+        /* 文本显示 */
+        .slider-text-off {
+            position: absolute;
+            left: 8px;
+            opacity: 1;
+            transition: opacity .4s;
+        }
+
+        .slider-text-on {
+            position: absolute;
+            right: 4px;
+            opacity: 0;
+            transition: opacity .4s;
+        }
+
+        /* 文本修正：左开右关 */
+        .toggle-switch input:checked + .slider .slider-text-off {
+            opacity: 0;
+        }
+
+        .toggle-switch input:checked + .slider .slider-text-on {
+            opacity: 1;
+        }
+
+        .toggle-switch input:not(:checked) + .slider .slider-text-off {
+            opacity: 1;
+        }
+
+        .toggle-switch input:not(:checked) + .slider .slider-text-on {
+            opacity: 0;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="highlight-info">
+        <div>原子符号：<span id="highlight-symbol">无</span></div>
+        <div>原子编号：<span id="highlight-index">--</span></div>
+        <div>原子颜色：<span id="highlight-color">#--</span></div>
+        <div>原子坐标：<span id="highlight-coords">----</span></div>
+    </div>
+
+    <div id="toggle-button-container">
+        <span id="control-label">功能区：</span>
+        <label class="toggle-switch">
+            <input type="checkbox" id="controls-toggle" checked>
+            <span class="slider">
+                <span class="slider-text-on">开</span>
+                <span class="slider-text-off">关</span>
+            </span>
+        </label>
+    </div>
+
+    <div id="controls-container-wrapper">
+
+        <div id="file-input-panel" class="control-panel">
+            <h3>分子数据加载</h3>
+            <label for="sxyz-file">SXYZ.csv:</label>
+            <input type="file" id="sxyz-file" accept=".csv"><br>
+            <label for="adj-file">ADJ_AB.csv:</label>
+            <input type="file" id="adj-file" accept=".csv"><br>
+            <div id="render-buttons">
+                <button onclick="loadAndDraw('ball_stick')">球棍模型</button>
+                <button onclick="loadAndDraw('stick')">棒状模型</button>
+            </div>
+            <p id="status-message" style="color: darkgreen; margin-top: 5px; margin-bottom: 0;"></p>
+        </div>
+
+        <div id="light-controls-panel" class="control-panel">
+            <h3>光照强度调节</h3>
+            <div class="control-group">
+                <label>环境光强度 (<span id="ambient-value">4.0</span>)</label>
+                <div class="light-control-row">
+                    <input type="range" id="ambient-light-range" min="0.0" max="5.0" step="0.1" value="4.0">
+                </div>
+            </div>
+            <div class="control-group">
+                <label>点光源强度 (<span id="directional-value">0.0</span>)</label>
+                <div class="light-control-row">
+                    <input type="range" id="directional-light-range" min="0.0" max="2.0" step="0.1" value="0.0">
+                </div>
+            </div>
+            <div id="light-presets">
+                <button onclick="setLightPreset('clear')">清透</button>
+                <button onclick="setLightPreset('3d')">立体</button>
+            </div>
+        </div>
+
+        <div id="params-controls-panel" class="control-panel">
+            <h3>相关参数修改</h3>
+            <div class="control-group">
+                <label>背景颜色</label>
+                <div id="background-picker-group-wrapper">
+                    <input type="color" id="background-color-picker" value="#000000">
+
+                    <div id="background-picker-group">
+                        <div class="color-swatch" style="background-color: #000000;" data-color="#000000"></div>
+                        <div class="color-swatch" style="background-color: #999999;" data-color="#999999"></div>
+                        <div class="color-swatch" style="background-color: #FFFFFF; border-color: #000000;" data-color="#FFFFFF"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-group" id="hydrogen-toggle-group">
+                <label>显示氢原子</label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="show-hydrogen" checked>
+                    <span class="slider">
+                        <span class="slider-text-on">是</span>
+                        <span class="slider-text-off">否</span>
+                    </span>
+                </label>
+            </div>
+        </div>
+
+        <div id="export-controls-panel" class="control-panel">
+            <h3>图片导出</h3>
+            <button onclick="exportView('png')">导出 PNG (无背景)</button>
+        </div>
+    </div>
+
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.0/papaparse.min.js"></script>
+
+    <script>
+        // --- 配置常量 ---
+        const ATOM_RADII = {
+            'C': 0.77, 'H': 0.37, 'O': 0.73, 'N': 0.75, 'S': 1.02,
+        };
+        const ATOM_COLORS = {
+            'C': 0xBBBBBB,
+            'H': 0x888888,
+            'O': 0x6495ED,
+            'N': 0xB2B01D,
+            'S': 0xCC99A2
+        };
+
+        const BALL_STICK_SCALE_FACTOR = 0.4;
+        const BOND_RADIUS_BALL_STICK = 0.08;
+        const STICK_RADIUS = 0.12;
+
+        const STICK_SELECTION_RADIUS_FACTOR = 2.0;
+
+        const HIGHLIGHT_COLOR = 0xFFFF00;
+
+        // --- Three.js 基础设置和状态 ---
+        let scene, camera, renderer, controls;
+        let moleculeGroup;
+        let atomMeshes = [];
+        let bondMeshes = [];
+        let highlightedAtom = null;
+        let sxyzData = null;
+        let adjData = null;
+        let currentRenderType = 'ball_stick';
+        let currentBackgroundColor = 0x000000;
+
+        let ambientLight;
+        let directionalLight;
+
+        // --- 颜色和信息更新工具函数 (保持不变) ---
+        function getLuminance(hexColor) {
+            if (typeof hexColor === 'number') hexColor = '#' + hexColor.toString(16).padStart(6, '0');
+            const r = parseInt(hexColor.slice(1, 3), 16) / 255;
+            const g = parseInt(hexColor.slice(3, 5), 16) / 255;
+            const b = parseInt(hexColor.slice(5, 7), 16) / 255;
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        }
+
+        function updateInfoTextColor(hexColor) {
+            const luminance = getLuminance(hexColor);
+            const textColor = luminance > 0.5 ? '#000000' : '#FFFFFF';
+            document.getElementById('highlight-info').style.color = textColor;
+            document.getElementById('control-label').style.color = textColor; // 1. 功能区标签颜色同步
+        }
+
+        function colorToHex(color) {
+            if (typeof color === 'number') {
+                return '#' + color.toString(16).padStart(6, '0').toUpperCase();
+            } else if (color instanceof THREE.Color) {
+                return '#' + color.getHexString().toUpperCase();
+            }
+            return '#--';
+        }
+
+        function updateHighlightInfo(atom) {
+            const symbolElement = document.getElementById('highlight-symbol');
+            const indexElement = document.getElementById('highlight-index');
+            const colorElement = document.getElementById('highlight-color');
+            const coordsElement = document.getElementById('highlight-coords');
+
+            if (atom && atom.userData) {
+                const atomData = atom.userData;
+                symbolElement.textContent = atomData.symbol;
+                indexElement.textContent = atomData.index;
+                const colorHex = colorToHex(atomData.baseColor);
+                colorElement.textContent = colorHex;
+                colorElement.style.color = colorHex;
+
+                const x = atomData.x.toFixed(2);
+                const y = atomData.y.toFixed(2);
+                const z = atomData.z.toFixed(2);
+                coordsElement.textContent = `(${x}, ${y}, ${z})`;
+
+            } else {
+                symbolElement.textContent = '无';
+                indexElement.textContent = '--';
+                colorElement.textContent = '#--';
+                colorElement.style.color = 'inherit';
+                coordsElement.textContent = '----';
+            }
+        }
+
+        function exportView(format) {
+            // ... (保持不变) ...
+            if (format !== 'png') return;
+            if (!renderer) {
+                alert('渲染器未初始化，无法导出。请先加载分子数据。');
+                return;
+            }
+
+            const originalBackground = scene.background;
+            const originalAlpha = renderer.getClearAlpha();
+
+            scene.background = null;
+            renderer.setClearAlpha(0);
+            renderer.render(scene, camera);
+
+            const imgData = renderer.domElement.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.download = 'molecule_view.png';
+            link.href = imgData;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            renderer.setClearAlpha(originalAlpha);
+            scene.background = originalBackground;
+            renderer.render(scene, camera);
+
+            alert('PNG 图像已导出。');
+        }
+
+        // --- 选中和高亮逻辑 (更新球棍模型逻辑) ---
+
+        // 移除所有高亮（原子和键）
+        function clearHighlight() {
+            if (highlightedAtom) {
+                highlightedAtom.material.emissive.set(0x000000);
+                highlightedAtom = null;
+            }
+            bondMeshes.forEach(mesh => {
+                if (mesh.userData.isBond) {
+                    mesh.material.emissive.set(0x000000);
+                }
+            });
+            updateHighlightInfo(null);
+        }
+
+        // 1. 高亮原子及其相邻键
+        function highlightAtomAndBonds(atom) {
+            if (highlightedAtom && highlightedAtom !== atom) {
+                highlightedAtom.material.emissive.set(0x000000);
+            }
+
+            if (atom) {
+                atom.material.emissive.set(HIGHLIGHT_COLOR);
+                highlightedAtom = atom;
+                updateHighlightInfo(atom);
+            } else {
+                highlightedAtom = null;
+                updateHighlightInfo(null);
+                return;
+            }
+
+            // 移除旧键高亮
+            bondMeshes.forEach(mesh => {
+                if (mesh.userData.isBond) {
+                    mesh.material.emissive.set(0x000000);
+                }
+            });
+
+            // 2. 球棍模型只高亮原子，不高亮键
+            if (currentRenderType === 'ball_stick') {
+                return;
+            }
+
+            // 棒状模型：高亮相邻键
+            if (highlightedAtom) {
+                const atomIndex = highlightedAtom.userData.index;
+
+                bondMeshes.forEach(mesh => {
+                    if (mesh.userData.isBond) {
+                        const isConnectedToA = mesh.userData.atomAIndex === atomIndex;
+                        const isConnectedToB = mesh.userData.atomBIndex === atomIndex;
+
+                        if (currentRenderType === 'stick') {
+                            // 棒状模型：只高亮连接到选中原子的那一半
+                            if (isConnectedToA && mesh.userData.atomSide === 'A') {
+                                mesh.material.emissive.set(HIGHLIGHT_COLOR);
+                            } else if (isConnectedToB && mesh.userData.atomSide === 'B') {
+                                mesh.material.emissive.set(HIGHLIGHT_COLOR);
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+
+        // --- 初始化和控制设置函数 ---
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(currentBackgroundColor);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 15;
+            camera.position.y = 5;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.body.appendChild(renderer.domElement);
+
+            // 确保颜色同步
+            updateInfoTextColor(currentBackgroundColor);
+
+            ambientLight = new THREE.AmbientLight(0x404040, 2.5);
+            scene.add(ambientLight);
+
+            directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 10, 10).normalize();
+            scene.add(directionalLight);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: THREE.MOUSE.DOLLY };
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+
+            const raycaster = new THREE.Raycaster();
+            const mouse = new THREE.Vector2();
+
+            function onMouseClick(event) {
+                if (controls.shouldSkipClick) {
+                    controls.shouldSkipClick = false;
+                    return;
+                }
+
+                const rect = renderer.domElement.getBoundingClientRect();
+                mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                mouse.y = - ((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+                raycaster.setFromCamera(mouse, camera);
+
+                // Raycaster 仅对 AtomMeshes 进行检查
+                const intersects = raycaster.intersectObjects(atomMeshes);
+
+                let newHighlightedAtom = null;
+
+                if (intersects.length > 0) {
+                    // 确保只选择原子
+                    newHighlightedAtom = intersects[0].object;
+
+                    // 1. 棒状模型：扩大选中范围。虽然我们还是对原子Mesh进行射线检测，
+                    // 但由于我们在棒状模型原子Mesh很小，需要通过调整 raycaster 的精度或原子Mesh的半径来提高命中率。
+                    // 另一种更简单粗暴的方式是在 drawMolecule 时给棒状原子Mesh一个比 STICK_RADIUS 更大的碰撞半径，
+                    // 但保持其视觉尺寸不变 (但 three.js 中 Mesh 的 size 和 collision box 是一致的)
+                    // 实际上，只要 STICK_RADIUS 足够大，并且用户点击的位置足够接近原子中心，就可以选中。
+                    // 考虑到我们设置了 STICK_RADIUS=0.12，通常足以被选中。
+                }
+
+                if (highlightedAtom === newHighlightedAtom) {
+                    // 再次点击已选中的原子 -> 取消高亮
+                    clearHighlight();
+                } else {
+                    // 选中新原子或从无到有
+                    highlightAtomAndBonds(newHighlightedAtom);
+                }
+            }
+
+            renderer.domElement.addEventListener('pointerdown', (e) => { controls.shouldSkipClick = false; });
+            renderer.domElement.addEventListener('pointermove', (e) => {
+                if (e.buttons !== 0) controls.shouldSkipClick = true;
+            });
+            renderer.domElement.addEventListener('click', onMouseClick, false);
+
+            window.addEventListener('resize', onWindowResize, false);
+
+            setupLightControls();
+            setupParamsControls();
+            setupToggleControl();
+
+            onWindowResize();
+            controls.target.set(0, 0, 0);
+            camera.position.set(0, 0, 15);
+            controls.update();
+        }
+
+        // 3. 设置光照预设 (更新立体模式)
+        function setLightPreset(preset) {
+            let ambient, directional;
+            if (preset === 'clear') {
+                ambient = 4.0;
+                directional = 0.1;
+            } else if (preset === '3d') {
+                ambient = 2.5;
+                directional = 0.8; // 3. 立体：点光源改为 0.8
+            } else {
+                return;
+            }
+
+            ambientLight.intensity = ambient;
+            directionalLight.intensity = directional;
+
+            document.getElementById('ambient-light-range').value = ambient.toFixed(1);
+            document.getElementById('directional-light-range').value = directional.toFixed(1);
+            document.getElementById('ambient-value').textContent = ambient.toFixed(1);
+            document.getElementById('directional-value').textContent = directional.toFixed(1);
+        }
+
+        function setupLightControls() {
+            const ambientRange = document.getElementById('ambient-light-range');
+            const directionalRange = document.getElementById('directional-light-range');
+            const ambientValue = document.getElementById('ambient-value');
+            const directionalValue = document.getElementById('directional-value');
+
+            // 3. 初始值设置
+            directionalLight.intensity = parseFloat(directionalRange.value);
+
+            ambientRange.value = ambientLight.intensity.toFixed(1);
+            directionalRange.value = directionalLight.intensity.toFixed(1);
+            ambientValue.textContent = ambientLight.intensity.toFixed(1);
+            directionalValue.textContent = directionalLight.intensity.toFixed(1);
+
+            ambientRange.addEventListener('input', (event) => {
+                ambientLight.intensity = parseFloat(event.target.value);
+                ambientValue.textContent = ambientLight.intensity.toFixed(1);
+            });
+
+            directionalRange.addEventListener('input', (event) => {
+                directionalLight.intensity = parseFloat(event.target.value);
+                directionalValue.textContent = directionalLight.intensity.toFixed(1);
+            });
+
+            window.setLightPreset = setLightPreset;
+        }
+
+        function setupParamsControls() {
+            const colorPicker = document.getElementById('background-color-picker');
+            const hydrogenToggle = document.getElementById('show-hydrogen');
+            const colorSwatches = document.querySelectorAll('.color-swatch');
+
+            const updateBackground = (hexColor) => {
+                if (scene) {
+                    scene.background = new THREE.Color(hexColor);
+                    currentBackgroundColor = scene.background.getHex();
+                    updateInfoTextColor(currentBackgroundColor);
+                }
+            };
+
+            colorPicker.addEventListener('input', (event) => {
+                updateBackground(event.target.value);
+            });
+
+            colorSwatches.forEach(swatch => {
+                swatch.addEventListener('click', (event) => {
+                    const color = event.target.getAttribute('data-color');
+                    colorPicker.value = color;
+                    updateBackground(color);
+                });
+            });
+
+            hydrogenToggle.addEventListener('change', () => {
+                if (sxyzData && adjData) {
+                    drawMolecule(currentRenderType, sxyzData, adjData);
+                }
+            });
+        }
+
+        function setupToggleControl() {
+            const toggleInput = document.getElementById('controls-toggle');
+            const wrapper = document.getElementById('controls-container-wrapper');
+
+            // 动态计算面板宽度，以便隐藏
+            const updateWrapperTransform = () => {
+                // 确保在 DOM 元素加载后再获取宽度
+                const offset = wrapper.offsetWidth + 20;
+                if (toggleInput.checked) {
+                    wrapper.style.transform = `translateX(0)`;
+                } else {
+                    wrapper.style.transform = `translateX(${offset}px)`;
+                }
+            };
+
+            // 延迟调用以确保 DOM 渲染完成
+            setTimeout(updateWrapperTransform, 50);
+            toggleInput.addEventListener('change', updateWrapperTransform);
+        }
+
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        function loadCSVFile(fileId) {
+            return new Promise((resolve, reject) => {
+                const fileInput = document.getElementById(fileId);
+                if (!fileInput.files.length) {
+                    reject(new Error(`请选择 ${fileId.toUpperCase().replace('-', '.')} 文件。`));
+                    return;
+                }
+
+                Papa.parse(fileInput.files[0], {
+                    header: true, dynamicTyping: true, skipEmptyLines: true,
+                    complete: function (results) { resolve(results.data); },
+                    error: function (error) { reject(new Error(`解析 ${fileId.toUpperCase().replace('-', '.')} 错误: ${error.message}`)); }
+                });
+            });
+        }
+
+        async function loadAndDraw(renderType) {
+            const status = document.getElementById('status-message');
+            status.textContent = "正在加载...";
+
+            try {
+                sxyzData = await loadCSVFile('sxyz-file');
+                adjData = await loadCSVFile('adj-file');
+
+                if (!sxyzData || sxyzData.length === 0) throw new Error("SXYZ.csv 数据为空或格式不正确。");
+                if (!adjData || adjData.length === 0) throw new Error("ADJ_AB.csv 数据为空或格式不正确。");
+
+                currentRenderType = renderType;
+                drawMolecule(renderType, sxyzData, adjData);
+
+                status.textContent = `分子结构渲染完成 (${renderType === 'ball_stick' ? '球棍' : '棒状'} 模型)。`;
+
+            } catch (error) {
+                status.textContent = `错误: ${error.message}`;
+                console.error(error);
+            }
+        }
+
+        function drawMolecule(renderType, sxyzData, adjData) {
+            if (moleculeGroup) {
+                scene.remove(moleculeGroup);
+                moleculeGroup.clear();
+            }
+            atomMeshes = [];
+            bondMeshes = [];
+            clearHighlight();
+
+            moleculeGroup = new THREE.Group();
+            scene.add(moleculeGroup);
+
+            const showHydrogen = document.getElementById('show-hydrogen').checked;
+
+            if (renderType === 'stick') {
+                drawAtomsAndBonds_Stick(sxyzData, adjData, showHydrogen);
+            } else { // 'ball_stick'
+                drawAtomsAndBonds_BallStick(sxyzData, adjData, showHydrogen);
+            }
+
+            centerAndZoom(sxyzData);
+        }
+
+        function drawAtomsAndBonds_BallStick(sxyzData, adjData, showHydrogen) {
+            const atomGeometry = new THREE.SphereGeometry(1, 32, 32);
+
+            // 1. 绘制原子
+            sxyzData.forEach((atom, index) => {
+                const symbol = String(atom.Symbol).trim().toUpperCase();
+                if (!showHydrogen && symbol === 'H') return;
+
+                const radius = (ATOM_RADII[symbol] || 0.5) * BALL_STICK_SCALE_FACTOR;
+                const color = ATOM_COLORS[symbol] || 0xCCCCCC;
+
+                const atomMaterial = new THREE.MeshStandardMaterial({ color: color, emissive: 0x000000, metalness: 0.1, roughness: 0.5 });
+                const mesh = new THREE.Mesh(atomGeometry, atomMaterial);
+                mesh.scale.set(radius, radius, radius);
+                mesh.position.set(atom.X, atom.Y, atom.Z);
+
+                mesh.userData = { symbol: symbol, index: index + 1, baseColor: color, x: atom.X, y: atom.Y, z: atom.Z, isAtom: true };
+
+                mesh.renderOrder = 2;
+                atomMeshes.push(mesh);
+                moleculeGroup.add(mesh);
+            });
+
+            // 2. 绘制键 (单色圆柱)
+            const cylinderGeometry = new THREE.CylinderGeometry(BOND_RADIUS_BALL_STICK, BOND_RADIUS_BALL_STICK, 1, 16);
+            const bondMaterial = new THREE.MeshStandardMaterial({ color: 0x666666, metalness: 0.1, roughness: 0.8 });
+
+            adjData.forEach(bond => {
+                const indexA = (bond.A ? Number(bond.A) : 0) - 1;
+                const indexB = (bond.B ? Number(bond.B) : 0) - 1;
+                if (indexA < 0 || indexA >= sxyzData.length || indexB < 0 || indexB >= sxyzData.length) return;
+
+                const dataA = sxyzData[indexA];
+                const dataB = sxyzData[indexB];
+                const symbolA = String(dataA.Symbol).trim().toUpperCase();
+                const symbolB = String(dataB.Symbol).trim().toUpperCase();
+                if (!showHydrogen && (symbolA === 'H' || symbolB === 'H')) return;
+
+                const posA = new THREE.Vector3(dataA.X, dataA.Y, dataA.Z);
+                const posB = new THREE.Vector3(dataB.X, dataB.Y, dataB.Z);
+
+                const center = new THREE.Vector3().addVectors(posA, posB).divideScalar(2);
+                const distance = posA.distanceTo(posB);
+
+                const bondMesh = new THREE.Mesh(cylinderGeometry, bondMaterial.clone());
+
+                bondMesh.scale.set(1, distance, 1);
+                bondMesh.position.copy(center);
+                bondMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3().subVectors(posB, posA).normalize());
+
+                bondMesh.userData = { isBond: true, atomAIndex: indexA + 1, atomBIndex: indexB + 1 };
+
+                bondMesh.renderOrder = 1;
+                bondMeshes.push(bondMesh);
+                moleculeGroup.add(bondMesh);
+            });
+        }
+
+        function drawAtomsAndBonds_Stick(sxyzData, adjData, showHydrogen) {
+            const atomGeometry = new THREE.SphereGeometry(1, 32, 32);
+
+            // 1. 绘制原子
+            sxyzData.forEach((atom, index) => {
+                const symbol = String(atom.Symbol).trim().toUpperCase();
+                if (!showHydrogen && symbol === 'H') return;
+
+                const color = ATOM_COLORS[symbol] || 0xCCCCCC;
+
+                const atomMaterial = new THREE.MeshStandardMaterial({ color: color, emissive: 0x000000, metalness: 0.1, roughness: 0.5 });
+                const mesh = new THREE.Mesh(atomGeometry, atomMaterial);
+                mesh.scale.set(STICK_RADIUS, STICK_RADIUS, STICK_RADIUS);
+                mesh.position.set(atom.X, atom.Y, atom.Z);
+
+                mesh.userData = { symbol: symbol, index: index + 1, baseColor: color, x: atom.X, y: atom.Y, z: atom.Z, isAtom: true };
+
+                mesh.renderOrder = 2;
+                atomMeshes.push(mesh);
+                moleculeGroup.add(mesh);
+            });
+
+            // 2. 绘制分色键
+            const cylinderGeometry = new THREE.CylinderGeometry(STICK_RADIUS, STICK_RADIUS, 1, 16);
+
+            adjData.forEach(bond => {
+                const indexA = (bond.A ? Number(bond.A) : 0) - 1;
+                const indexB = (bond.B ? Number(bond.B) : 0) - 1;
+
+                if (indexA < 0 || indexA >= sxyzData.length || indexB < 0 || indexB >= sxyzData.length) return;
+
+                const dataA = sxyzData[indexA];
+                const dataB = sxyzData[indexB];
+
+                const symbolA = String(dataA.Symbol).trim().toUpperCase();
+                const symbolB = String(dataB.Symbol).trim().toUpperCase();
+
+                if (!showHydrogen && (symbolA === 'H' || symbolB === 'H')) return;
+
+                const colorA = ATOM_COLORS[symbolA] || 0xCCCCCC;
+                const colorB = ATOM_COLORS[symbolB] || 0xCCCCCC;
+
+                const posA = new THREE.Vector3(dataA.X, dataA.Y, dataA.Z);
+                const posB = new THREE.Vector3(dataB.X, dataB.Y, dataB.Z);
+
+                const distance = posA.distanceTo(posB);
+                const halfDistance = distance / 2;
+                const direction = new THREE.Vector3().subVectors(posB, posA).normalize();
+
+                const quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
+
+                // 键段 A (颜色 A)
+                const centerA = new THREE.Vector3().add(posA).addScaledVector(direction, halfDistance / 2);
+                const matA = new THREE.MeshStandardMaterial({ color: colorA, emissive: 0x000000, metalness: 0.1, roughness: 0.8 });
+                const meshA = new THREE.Mesh(cylinderGeometry, matA);
+                meshA.scale.set(1, halfDistance, 1);
+                meshA.position.copy(centerA);
+                meshA.quaternion.copy(quaternion);
+                meshA.userData = { isBond: true, atomAIndex: indexA + 1, atomBIndex: indexB + 1, atomSide: 'A' };
+
+                bondMeshes.push(meshA);
+                moleculeGroup.add(meshA);
+
+                // 键段 B (颜色 B)
+                const centerB = new THREE.Vector3().add(posB).addScaledVector(direction, -halfDistance / 2);
+                const matB = new THREE.MeshStandardMaterial({ color: colorB, emissive: 0x000000, metalness: 0.1, roughness: 0.8 });
+                const meshB = new THREE.Mesh(cylinderGeometry, matB);
+                meshB.scale.set(1, halfDistance, 1);
+                meshB.position.copy(centerB);
+                meshB.quaternion.copy(quaternion);
+                meshB.userData = { isBond: true, atomAIndex: indexA + 1, atomBIndex: indexB + 1, atomSide: 'B' };
+
+                bondMeshes.push(meshB);
+                moleculeGroup.add(meshB);
+            });
+        }
+
+        // 居中和调整相机位置
+        function centerAndZoom(sxyzData) {
+            if (!moleculeGroup || sxyzData.length === 0) return;
+
+            const boundingBox = new THREE.Box3().setFromObject(moleculeGroup);
+            const center = new THREE.Vector3();
+            boundingBox.getCenter(center);
+
+            moleculeGroup.position.sub(center);
+
+            const size = new THREE.Vector3();
+            boundingBox.getSize(size);
+            const maxDim = Math.max(size.x, size.y, size.z);
+
+            const fov = camera.fov * (Math.PI / 180);
+            let cameraDistance = Math.abs(maxDim / 2 / Math.tan(fov / 2));
+            cameraDistance *= 1.5;
+
+            controls.target.set(0, 0, 0);
+            camera.position.set(0, 0, cameraDistance);
+            camera.lookAt(controls.target);
+
+            controls.update();
+        }
+
+        // --- 启动程序 ---
+        init();
+        animate();
+
+        document.getElementById('status-message').textContent = "请选择 SXYZ.csv 和 ADJ_AB.csv 文件，然后选择模型并加载。";
+
+    </script>
+
+</body>
+</html>
