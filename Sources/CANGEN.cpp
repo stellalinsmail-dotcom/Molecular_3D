@@ -49,7 +49,7 @@
 #define SEP_SYMBOL '-'
 
 #define ATOM_TITLE "Symbol,Number,Mass,Valence"
-#define MNODE_TITLE "Seq,Element,IsAroma,CCount,CHCount,NHBC,CharSym,CharVal"
+#define MNODE_TITLE "Seq,Element,IsAroma,CCount,CHCount,NHBC,CharSym,CharVal,MType"
 #define ADJ_TITLE "Seq1,Seq2,BondSym"
 
 using namespace std;
@@ -304,10 +304,12 @@ private:
 	bool csym; //电荷符号
 	int cval; //电荷绝对值
 	unsigned int rank;
+	int mtype;
 
 public:
-	MNode(int sequence, Atom elem, bool isaroma, int connectcount = 0, int nonhygconcount = 0, int conhygcount = 0, int chargesym = 0, int chargeval = 0) :
-		seq(sequence), e(elem), isa(isaroma), ccount(connectcount + isaroma), nhbcount(nonhygconcount), csym(chargesym), cval(chargeval), chcount(conhygcount), rank(0), minhcount(0) {}
+	MNode(int sequence, Atom elem, bool isaroma, int connectcount = 0, int nonhygconcount = 0, int conhygcount = 0, int chargesym = 0, int chargeval = 0, int mmfftype = -1) :
+		seq(sequence), e(elem), isa(isaroma), ccount(connectcount + isaroma), nhbcount(nonhygconcount), csym(chargesym), cval(chargeval), chcount(conhygcount), mtype(mmfftype), rank(0), minhcount(0) {
+	}
 	~MNode() {}
 	void AddNonHydBond(string bondsymbol)
 	{
@@ -336,7 +338,7 @@ public:
 			PrintTableTitle(MNODE_TITLE);
 			cout << endl;
 		}
-		cout << seq << sep << e.GetSym() << sep << isa << sep << ccount << sep << chcount << sep << nhbcount << sep << csym << sep << cval << endl;
+		cout << seq << sep << e.GetSym() << sep << isa << sep << ccount << sep << chcount << sep << nhbcount << sep << csym << sep << cval << sep << mtype << endl;
 	}
 	unsigned long int GetOriRank()
 	{
@@ -360,7 +362,7 @@ public:
 	//	rank = r;
 	//}
 	friend ostream& operator<<(ostream& out, const MNode& m) {
-		out << m.seq << "," << m.e.GetSym() << "," << m.isa << "," << m.ccount << "," << m.chcount << "," << m.nhbcount << "," << m.csym << "," << m.cval<<endl;
+		out << m.seq << "," << m.e.GetSym() << "," << m.isa << "," << m.ccount << "," << m.chcount << "," << m.nhbcount << "," << m.csym << "," << m.cval << "," << m.mtype << "," << endl;
 		return out;
 	}
 };
@@ -377,7 +379,7 @@ public:
 	int GetDesSeq()const { return dseq; }
 	string GetBondSymbol()const { return bondsym; }
 	friend ostream& operator<<(ostream& out, const PointTo& p) {
-		out << p.dseq<<","<<p.bondsym;
+		out << p.dseq << "," << p.bondsym;
 		return out;
 	}
 };
@@ -415,7 +417,7 @@ public:
 	friend ostream& operator<<(ostream& out, const NodeBonds& n) {
 		for (auto& a : n.d)
 		{
-			out <<n.nseq<< "," << a<<endl;
+			out << n.nseq << "," << a << endl;
 		}
 		return out;
 	}
@@ -567,19 +569,39 @@ bool SortTreeNodeCmp(TreeNode a, TreeNode b)
 	return a.GetAccordValue() < b.GetAccordValue();
 }
 
-void ProcessCircleNumber(vector<string>& s, vector<vector<int>>& v)
+void ProcessCircleNumber(vector<string>& s, vector<vector<int>>& v, const vector<int>& findcounttb)
 {
 	vector<string> str(v.size(), "");
-	for (int i = 0; i < v.size(); i++)
+	int circount = 1;
+	vector<int> newcirnum(v.size(), -1);
+	for (int i = 0; i < findcounttb.size(); i++)
 	{
-		sort(v[i].begin(), v[i].end());
-		for (auto& a : v[i])
+		int seq = findcounttb[i];
+		sort(v[seq].begin(), v[seq].end());
+		for (auto& a : v[seq])
 		{
-			if (a > 9) str[i] += "%";
-			str[i] += to_string(a);
+			if (newcirnum[a] == -1)
+			{
+				newcirnum[a] = circount;
+				circount++;
+			}
+			int b = newcirnum[a];
+			if (b > 9) str[seq] += "%";
+			str[seq] += to_string(b);
 		}
 	}
 	s = str;
+	//vector<string> str(v.size(), "");
+	//for (int i = 0; i < v.size(); i++)
+	//{
+	//	sort(v[i].begin(), v[i].end());
+	//	for (auto& a : v[i])
+	//	{
+	//		if (a > 9) str[i] += "%";
+	//		str[i] += to_string(a);
+	//	}
+	//}
+	//s = str;
 }
 string DeleteExtraBracket(string s)
 {
@@ -587,9 +609,9 @@ string DeleteExtraBracket(string s)
 	while (leftend < rightend)
 	{
 		rightend--;
-		if (s[rightend] == ')' && (rightend == slen-1 || s[rightend + 1] == ')'))
+		if (s[rightend] == ')' && (rightend == slen - 1 || s[rightend + 1] == ')'))
 		{
-			while (leftend< rightend &&s[leftend] != '(')
+			while (leftend < rightend && s[leftend] != '(')
 			{
 				leftend++;
 			}
@@ -904,19 +926,23 @@ public:
 		int circlecount = 0;
 		vector<vector<int>> circleint(nodetb.size());
 		vector<string> circlestr;
-		vector<bool> endtb(ranktb.size(), false);
+		vector<int> findcounttb(ranktb.size(), -1);
+		//vector<bool> endtb(ranktb.size(), false);
+		//一共两次遍历，第一次通过DFS遍历记录环的标准断开位置，第二次遍历生成can_smiles
 		for (int i = 0; i < 2; i++)
 		{
-			if (i==1)ProcessCircleNumber(circlestr, circleint);
+			if (i == 1)ProcessCircleNumber(circlestr, circleint,findcounttb);
 			vector<TreeNode> treetb;
 			treetb.push_back(TreeNode("-", 0, rootseq, true));
 
 			vector<bool> recordtb(ranktb.size(), false);//用于记录节点是否已被遍历
-			vector<int> fathertb(ranktb.size(), -1);//用于防止环的误判
-			//recordtb[rootseq] = true;
-			int leftbracketcount = 0;
+			vector<int> parenttb(ranktb.size(), -1);//用于防止环的误判
+			//recordtb[rootseq] = true;//
 
+			int leftbracketcount = 0;
+			
 			//int oldseq = -1;
+			int findcount = 0;
 			while (!treetb.empty())
 			{
 				TreeNode top(treetb.back());
@@ -925,6 +951,8 @@ public:
 
 				if (recordtb[topseq]) continue;
 				recordtb[topseq] = true;
+				findcounttb[findcount] = topseq;
+				findcount++;
 
 				vector<PointTo> ptb(bondtb[topseq].GetBonds());
 				vector<TreeNode> drtb;
@@ -935,10 +963,10 @@ public:
 					int dseq = a.GetDesSeq();
 					if (!recordtb[dseq])
 					{
-						fathertb[dseq] = topseq;
+						parenttb[dseq] = topseq;
 						drtb.push_back(TreeNode(a.GetBondSymbol(), ranktb[dseq], dseq));
 					}
-					else if (i == 0  && fathertb[topseq]!=dseq)
+					else if (i == 0 && parenttb[topseq] != dseq)
 					{
 						circlecount++;
 						circleint[topseq].push_back(circlecount);
@@ -955,34 +983,37 @@ public:
 					else if (top.GetBondSymbol() == TRIPLE_BOND) cs += TRIPLE_BOND;
 					if (nodetb[topseq].IsAroma()) cs += StringLower(nodetb[topseq].GetSym());
 					else cs += nodetb[topseq].GetSym();
-					
+
 					cs += circlestr[topseq];
 				}
 				if (drtb.empty())
 				{
 					//cout << "Empty! LeftBracketCount: "<< leftbracketcount<<endl;
-					if (i == 1) endtb[topseq] = true;
+					//if (i == 1) endtb[topseq] = true;
 					if (leftbracketcount != 0 && i == 1) { cs += ")"; leftbracketcount--; }
 					continue;
 				}
 				sort(drtb.begin(), drtb.end(), SortTreeNodeCmp);
-				drtb.back().SetFirstChild();//秩最低最高为主链
+				drtb.back().SetFirstChild();//秩最高为主链
+				//cout << "FirstChild: " << drtb.back().IsFirstChild() << endl;
 				for (int j = drtb.size() - 1; j >= 0; j--)
 				{
 					treetb.push_back(drtb[j]);//先遍历秩最低
 				}
 				//cout <<"左括号数：" << leftbracketcount << endl;
 			}
+			if (i == 1 && leftbracketcount != 0) cs += string(leftbracketcount, ')');
 		}
+
 		can_smiles = DeleteExtraBracket(cs);
 
 		return can_smiles;
 	}
 	string GetComSmiles()const { return com_smiles; }
-	string GetCanSmiles() 
+	string GetCanSmiles()
 	{
-		if (empty(can_smiles)) can_smiles=GenerateCanSmiles();
-		return can_smiles; 
+		if (empty(can_smiles)) can_smiles = GenerateCanSmiles();
+		return can_smiles;
 	}
 	vector <MNode> GetNodeTable()const {
 		return nodetb;
@@ -1077,11 +1108,11 @@ int ReadTable(string filename, string stdtitle, vector<T>& table, bool readtitle
 }
 
 template<typename T>
-void WriteTable(string filename, string stdtitle, const  vector<T>& table,bool writetitle = YES)
+void WriteTable(string filename, string stdtitle, const  vector<T>& table, bool writetitle = YES)
 {
 	ofstream outFile(filename, ios::out);
-	if (writetitle) outFile << stdtitle <<endl;
-	for (auto &line:table)
+	if (writetitle) outFile << stdtitle << endl;
+	for (auto& line : table)
 	{
 		outFile << line;
 	}
@@ -1097,7 +1128,7 @@ void PrintCmdSepTitle(const string title, int sepwidth = SEP_WIDTH, const char f
 
 string GetCurrentTimeString() {
 	SYSTEMTIME st;
-	GetLocalTime(&st);  // 获取本地时间
+	GetLocalTime(&st); // 获取本地时间
 
 	ostringstream oss;
 
@@ -1115,12 +1146,12 @@ string GetCurrentTimeString() {
 }
 bool CreateFolder(const string folderpath)
 {
-    size_t convertedChars = 0;
-    wchar_t* folderPath = new wchar_t[folderpath.length() + 1];
-    mbstowcs_s(&convertedChars, folderPath, folderpath.length() + 1, folderpath.c_str(), _TRUNCATE);
-    bool issuccessful = CreateDirectory(folderPath, NULL);
-    delete[] folderPath;
-    return issuccessful;
+	size_t convertedChars = 0;
+	wchar_t* folderPath = new wchar_t[folderpath.length() + 1];
+	mbstowcs_s(&convertedChars, folderPath, folderpath.length() + 1, folderpath.c_str(), _TRUNCATE);
+	bool issuccessful = CreateDirectory(folderPath, NULL);
+	delete[] folderPath;
+	return issuccessful;
 }
 int main()
 {
@@ -1220,7 +1251,7 @@ int main()
 		{
 			string cs = c.GetCanSmiles();
 			Mole d(atomtable, cs);
-			const string folderpath = output_folder+"/"+cs;
+			const string folderpath = output_folder + "/" + cs;
 			if (!CreateFolder(folderpath)) {
 				cout << "文件夹创建失败！可能已存在。\n";
 				char savechoice2;
@@ -1232,8 +1263,8 @@ int main()
 				}
 			}
 			string now_time = GetCurrentTimeString();
-			string atomtable_filename = folderpath +"/AtomTable.csv";
-			string bondtable_filename = folderpath +"/BondTable.csv";
+			string atomtable_filename = folderpath + "/AtomTable.csv";
+			string bondtable_filename = folderpath + "/BondTable.csv";
 			PrintCmdSepTitle("节点表储存");
 			WriteTable<MNode>(atomtable_filename, MNODE_TITLE, d.GetNodeTable(), true);
 			cout << "节点表已储存至 " << atomtable_filename << endl;
