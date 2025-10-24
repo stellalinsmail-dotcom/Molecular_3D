@@ -11,6 +11,8 @@
 #include <cmath>
 #include <windows.h>
 #include <iomanip>
+#include <set>
+//#include<map>
 
 using namespace std;
 
@@ -48,10 +50,92 @@ using namespace std;
 #define MNODE_TB_TITLE "Seq,Element,IsAroma,CCount,CHCount,NHBC,CharSym,CharVal,MType"
 #define ADJ_TB_TITLE "Seq1,Seq2,BondSym"
 
+// --- MMFF94 ---
+
+#define BS_TB_TITLE "BT,MTYPE_I,MTYPE_J,KB,R0,SOURCE"
+#define AB_TB_TITLE "ANGLE_TYPE,MTYPE_I,MTYPE_J,MTYPE_K,KA_IJK,THETA_0,COMMENT_ORIGIN"
+#define SB_TB_TITLE "SBT,MTYPE_I,MTYPE_J,MTYPE_K,KBA_IJK,KBA_KJI,SOURCE"
+#define OPB_TB_TITLE "MTYPE_I,MTYPE_J,MTYPE_K,MTYPE_L,KOOP,Source"
+#define TI_TB_TITLE	"TT,MTYPE_I,MTYPE_J,MTYPE_K,MTYPE_L,V1,V2,V3,Source"
+#define VDW_TB_TITLE "MTYPE,ALPHA_I,N_I,A_I,G_I,DA,SYMBOL,ORIGIN"
+
+#define BS_TB_SHORT_TITLE "MTYPE_I,MTYPE_J,KB,R0"
+#define AB_TB_SHORT_TITLE "MTYPE_I,MTYPE_J,MTYPE_K,KA_IJK,THETA_0"
+#define SB_TB_SHORT_TITLE "MTYPE_I,MTYPE_J,MTYPE_K,KBA_IJK,KBA_KJI"
+#define OPB_TB_SHORT_TITLE "MTYPE_I,MTYPE_J,MTYPE_K,MTYPE,KOOP"
+#define TI_TB_SHORT_TITLE "MTYPE_I,MTYPE_J,MTYPE_K,MTYPE_L,V1,V2,V3"
+#define VDW_TB_SHORT_TITLE "MTYPE,ALPHA_I,N_I,A_I,G_I"
+
+#define SP_SPTB_TITLE "Seq,R,Theta,Varphi"
+#define SP_RETB_TITLE "Seq,X,Y,Z"
+#define XYZ_TB_TITLE "X,Y,Z"
+
+#define MMFF_CSV_FOLDER "File/Values/MMFF94_CSV/"
+#define SP_FOLDER "File/Values/C_SP_CSV/"
+#define MMFF_OUTPUT_FOLDER "File/Output/"
+
+#define BS_FILENAME  "6_MMFFBOND.csv"
+#define AB_FILENAME "8_MMFFANG.csv"
+#define SB_FILENAME "9_MMFFSTBN.csv"
+#define OPB_FILENAME "11_MMFFOOP.csv"
+#define TI_FILENAME "12_MMFFTOR.csv"
+#define VDW_FILENAME "13_MMFFVDW.csv"
+
+#define PI 3.14159265358979323846
+#define PI_HALF 1.57079632679489661923
+#define PI_DOUBLE 6.2831853071795864769252
+#define cosd(x) cos(x * PI / 180.0)
+#define sind(x) sin(x * PI / 180.0)
+#define acosd(x) (180.0 / PI) * acos(x)
+
+
+#define Min3(a,b,c) min(min(a,b),c)
+#define Max3(a,b,c) max(max(a,b),c)
+#define Max4(a,b,c,d) max(max(a,b),max(c,d))
+#define Min4(a,b,c,d) min(min(a,b),min(c,d))
+
+#define CONST_PARAM_MAP const map<vector<int>, double>
+#define MTYPE_INDEX vector<int>
+#define FAST_TABLE_INDEX vector<int>
+#define MTYPE_SET set<int>
+#define ANGLE_TB vector<double>
+#define HASH_TB vector<int>
+#define ADJ_LIST vector<NodeBonds>
+#define R_TB vector<vector<double>>
+#define VAR_TB vector<vector<vector<double>>>
+#define CHI_TB vector<vector<vector<vector<double>>>>
+#define PHI_TB vector<vector<vector<vector<double>>>>
+
+#define V4_DTB vector<vector<vector<vector<double>>>>
+#define V3_DTB vector<vector<vector<double>>>
+#define V2_DTB vector<vector<double>>
+#define V1_DTB vector<double>
+
+#define RE_TB vector<vector<VDWProVal>>
+
+#define XYZ_TB vector<Vec3>
+
+#define BFS2_TB vector<vector<int>>
+
+#define F_BS FastMatrix2<BSLine, BSVal>
+#define F_AB FastMatrix3<ABLine, ABVal>
+#define F_SB FastMatrix3<SBLine, SBVal>
+#define F_OPB FastMatrix4<OPBLine, OPBVal>
+#define F_TI FastMatrix4<TILine, TIVal>
+#define F_VDW FastMatrix1<VDWLine, VDWVal>
+
+
+
+//#define ALL_SP_SPTB vector<vector<SP_SPLine>>    
+
+#define MAX_SP_SIZE 6
+#define MAX_ADJ_NODE_SIZE 6
+#define OPT_RATIO 0.618
+
 // --- 通用辅助函数 ---
 
 template<typename T>
-void CopyDynArray(T*& new_array,const T*& old_array, int asize)
+void CopyDynArray(T*& new_array, const T*& old_array, int asize)
 {
 	new_array = new T[asize];
 	for (int i = 0; i < asize; i++) new_array[i] = old_array[i];
@@ -128,13 +212,13 @@ void PrintCommonVector(const vector<T>& v, const string& sep = "\t")
 }
 
 template<class T>
-void PrintSpecialVector(const vector<T>& v, const string& sep = "\t",int max_row_count=-1)
+void PrintSpecialVector(const vector<T>& v, const string& sep = "\t", int max_row_count = -1)
 {
 	int rowcount = 0;
 	for (auto& a : v)
 	{
 		a.Print(sep);
-		if (max_row_count>0)
+		if (max_row_count > 0)
 		{
 			rowcount++;
 			if (rowcount >= max_row_count) break;
@@ -142,13 +226,32 @@ void PrintSpecialVector(const vector<T>& v, const string& sep = "\t",int max_row
 	}
 }
 
+template<typename T>
+void PrintSet(const set<T>& s, const string& sep = "\t", int max_row_count = -1)
+{
+	int rowcount = 0;
+	for (auto& element : s)
+	{
+		cout << element << sep << endl;
+		if (max_row_count > 0)
+		{
+			rowcount++;
+			if (rowcount >= max_row_count) break;
+		}
+	}
+}
+
+void PrintEnergy(double sum_E, double sum_eb, double sum_ea, double sum_eba, double sum_eoop, double sum_et, double sum_evdw);
+
+
+
 string GetCurrentTimeString();
 
 // ---表格读写函数 ---
 bool CreateFolder(const string folderpath);
 
 template<typename T>
-int ReadTable(string filename, string stdtitle, vector<T>& table,bool printyes=false)
+int ReadTable(string filename, string stdtitle, vector<T>& table, bool printyes = false)
 {
 	ifstream ifs;
 	ifs.open(filename, ios::in);
@@ -207,7 +310,7 @@ int ReadTable(string filename, string stdtitle, vector<T>& table,bool printyes=f
 	return k;
 }
 template<typename T>
-int ReadTableByTitle(string filename, string stdtitle, vector<T>& table,bool printyes=false)
+int ReadTableByTitle(string filename, string stdtitle, vector<T>& table, bool printyes = false)
 {
 	ifstream ifs;
 	ifs.open(filename, ios::in);
@@ -255,12 +358,13 @@ int ReadTableByTitle(string filename, string stdtitle, vector<T>& table,bool pri
 		{
 			getline(istr, str, ',');
 			stemp.push_back(str);
-			if (colsize==1)cout << str << endl;
+			if (colsize == 1)cout << str << endl;
 		}
 		T info(stemp, seq);
 		table.push_back(info);
-			//info.Print();
-			//cout << endl;
+		//info.Print();
+		//cout << endl;
+		k++;
 	}
 	ifs.close();
 	item.clear();
@@ -279,5 +383,51 @@ void WriteTable(string filename, string stdtitle, const  vector<T>& table, bool 
 	}
 	outFile.close();
 }
+
+//--- 字典打印输出 ---
+// 
+// 
+// template<typename T>
+// using PARAM_MAP = std::map<std::vector<int>, T>;
+//string repeat_str(const char* str, int n)
+//{
+//	string result = "";
+//	for (int i = 0; i < n; i++)
+//	{
+//		result += str;
+//	}
+//	return result;
+//}
+//template <typename TVal>
+//void PrintParamMap(const map<vector<int>, TVal>& m, const string& sep = "\t", int max_row_count = -1)
+//{
+//	int n = TVal().GetPCount();
+//	string title = "MType" + repeat_str(",Keys", n);
+//	PrintTableTitle(title, sep);
+//	int rowcount = 0;
+//	for (auto& pair : m)
+//	{
+//		cout << "(";
+//		PrintCommonVector(pair.first, ",");
+//		cout << ")" << sep << "(" << pair.second << ")" << endl;
+//		if (max_row_count > 0)
+//		{
+//			rowcount++;
+//			if (rowcount >= max_row_count) break;
+//		}
+//	}
+//}
+// 
+//template<typename TLine, typename TVal>
+//PARAM_MAP<TVal> CompressTableToMap(const vector<TLine>& table)
+//{
+//	PARAM_MAP<TVal> table_map;
+//	for (auto& line : table)
+//	{
+//		table_map[line.GetMTypeVec()] = line.GetVal();
+//		table_map[line.GetRevMTypeVec()] = line.GetVal();
+//	}
+//	return table_map;
+//}
 
 #endif // TYPES_H

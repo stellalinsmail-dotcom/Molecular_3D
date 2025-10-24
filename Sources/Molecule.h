@@ -85,10 +85,11 @@ public:
 	void AddNonHydBond(string bondsymbol);
 	void AddHydAtom(int n);
 	int CalConHyd();
-	bool IsAroma() { return isa; }
+	bool IsAroma() const{ return isa; }
 	void Print(string sep = "\t", bool title_state = TITLE_OFF)const;
 	unsigned long int GetOriRank();
-	string GetSym()const;
+	string GetSym()const {return e.GetSym();}
+	int GetCHCount()const { return  chcount; }
 
 	friend ostream& operator<<(ostream& out, const MNode& m);
 };
@@ -177,5 +178,8 @@ public:
 		return bondtb;
 	}
 };
+// --- ¸¨Öúº¯Êý ---
+vector<NodeBonds> AdjTbToBondTb(const vector<AdjLine>& ,const vector<MNode>&, bool is_short = YES);
+
 
 #endif // MOLECULE_H

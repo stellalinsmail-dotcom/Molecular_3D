@@ -11,8 +11,8 @@ MNode::MNode(const vector<string>& info, const vector<int>& titlenum)
 	e = Atom(info[titlenum[1]]);
 	isa = (info[titlenum[2]] == "1") ? true : false;
 	ccount = atoi(info[titlenum[3]].c_str());
-	nhbcount = atoi(info[titlenum[4]].c_str());
-	chcount = atoi(info[titlenum[5]].c_str());
+	chcount = atoi(info[titlenum[4]].c_str());
+	nhbcount = atoi(info[titlenum[5]].c_str());
 	csym = (info[titlenum[6]] == "1") ? true : false;
 	cval = atoi(info[titlenum[7]].c_str());
 	mtype = atoi(info[titlenum[8]].c_str());
@@ -59,12 +59,9 @@ unsigned long int MNode::GetOriRank()
 	rank = r;
 	return r;
 }
-string MNode::GetSym()const
-{
-	return e.GetSym();
-}
+
 ostream& operator<<(ostream& out, const MNode& m) {
-	out << m.seq << "," << m.e.GetSym() << "," << m.isa << "," << m.ccount << "," << m.chcount << "," << m.nhbcount << "," << m.csym << "," << m.cval << "," << m.mtype  << endl;
+	out << m.seq << "," << m.e.GetSym() << "," << m.isa << "," << m.ccount << "," << m.chcount << "," << m.nhbcount << "," << m.csym << "," << m.cval << "," << m.mtype << endl;
 	return out;
 }
 
@@ -90,6 +87,7 @@ void AdjLine::Print(string sep, bool title_state)const
 	}
 	cout << seq_i << sep << seq_j << sep << bondsym << endl;
 }
+
 
 // --- NodeBonds 实现 ---
 NodeBonds::NodeBonds(int nodeseq) :nseq(nodeseq) { d.clear(); }
@@ -430,7 +428,7 @@ void Mole::GetOriRankTable(vector<BinRank>& accordtb)
 		i++;
 	}
 }
-bool Mole::SortByBinRank(vector<BinRank>& accordtb, int startseq,bool printyes)
+bool Mole::SortByBinRank(vector<BinRank>& accordtb, int startseq, bool printyes)
 {
 	//cout << "Before: \n";
 	//PrintRank();
@@ -518,7 +516,7 @@ void Mole::MoleSortWithPN(vector<PrimeNumber>& ptb, bool printyes)
 	GetOriRankTable(oritb);
 	unsigned long int maxcount = nodetb.size() * log2(nodetb.size()), count = 1;
 	if (printyes) cout << "第" << count << "次排序：\n";
-	if (SortByBinRank(oritb,0,printyes)) return;
+	if (SortByBinRank(oritb, 0, printyes)) return;
 	if (printyes)cout << "\n第" << count + 1 << "次排序：\n";
 	while (count < maxcount && !ComplexSortByRank(ptb)) {
 		count++;
@@ -625,4 +623,49 @@ string Mole::GetCanSmiles()
 {
 	if (can_smiles.empty()) can_smiles = GenerateCanSmiles();
 	return can_smiles;
+}
+
+// --- 辅助函数实现 ---
+vector<NodeBonds> AdjTbToBondTb(const vector<AdjLine>& adj_tb, const vector<MNode>& mnode_tb, bool is_short)
+{
+	vector<NodeBonds> bond_tb;
+	int nhc = mnode_tb.size();
+
+	int ac = nhc;
+
+	if (!is_short) {
+		for (int i = 0; i < nhc; i++)
+		{
+			ac += mnode_tb[i].GetCHCount();
+		}
+	}
+	bond_tb.resize(ac, NodeBonds(0));
+	for (int i = 0; i < ac; i++)
+	{
+		bond_tb[i] = NodeBonds(i);
+	}
+	for (auto& line : adj_tb)
+	{
+		PointTo pto_j(line.GetBondSym(), line.GetSeqJ());
+		bond_tb[line.GetSeqI()].AddBond(pto_j);
+		//PointTo pto_i(line.GetBondSym(), line.GetSeqI());
+		//bond_tb[line.GetSeqJ()].AddBond(pto_i);
+	}
+	int now_hseq = nhc;
+	for (int i = 0; i < nhc; i++)
+	{
+		int chc = mnode_tb[i].GetCHCount();
+		for (int j = 0; j < chc; j++)
+		{
+			PointTo ch("-", now_hseq);
+			bond_tb[i].AddBond(ch);
+			if (!is_short)
+			{
+				PointTo hc("-", i);
+				bond_tb[now_hseq].AddBond(hc);
+			}
+			now_hseq++;
+		}
+	}
+	return bond_tb;
 }

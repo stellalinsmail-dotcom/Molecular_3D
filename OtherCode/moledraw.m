@@ -10,7 +10,7 @@ for j=1:nhc
     end
 end
 for i=1:size(xyz_tb,1)
-    text(xyz_tb(i,1),xyz_tb(i,2),xyz_tb(i,3),num2str(i));
+    text(xyz_tb(i,1),xyz_tb(i,2),xyz_tb(i,3),num2str(i-1));
 end
 axis equal
 grid on
