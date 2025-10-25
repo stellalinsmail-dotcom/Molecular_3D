@@ -169,6 +169,7 @@ void Mole::ProcessAtom(vector<MNode>& ntb, vector<NodeBonds>& btb, const vector<
 			if (c[endpos] == '+')chargeval++;
 			else chargeval--;
 			endpos--;
+			if (endpos < 0) return;
 		}
 	}
 	if (IsNumber(c[endpos])) { chcount += int(c[endpos] - '0'); endpos--; }
@@ -178,14 +179,18 @@ void Mole::ProcessAtom(vector<MNode>& ntb, vector<NodeBonds>& btb, const vector<
 	{
 		endpos--;
 		hexist = true;
+		if (endpos < 0) return;
 	}
 	if (IsNumber(c[endpos]))
 	{
 		endpos--;
 		hcount = int(c[endpos] - '0');
+		if (endpos < 0) return;
 	}
 	string esym = c.substr(startpos, endpos - startpos + 1);
 	Atom e(SearchAtom(etb, esym));
+
+	//e.Print();
 	//cout << "searCH: " << c.substr(startpos, endpos - startpos+1) << endl;
 	//etb[0].Print();
 	//cout << "Elem: ";

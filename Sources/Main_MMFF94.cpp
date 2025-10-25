@@ -24,9 +24,9 @@ string GetAdjTbPath(string can_smiles)
 {
 	return MMFF_OUTPUT_FOLDER + can_smiles + "/BondTable.csv";
 }
-string GetXYZTbPath(string can_smiles,int n)
+string GetXYZTbPath(string can_smiles, int n)
 {
-	return MMFF_OUTPUT_FOLDER + can_smiles + "/XYZ_"+to_string(n)+".csv";
+	return MMFF_OUTPUT_FOLDER + can_smiles + "/XYZ_" + to_string(n) + ".csv";
 }
 
 // --- MMFF94参数有效值类定义 ---
@@ -680,6 +680,42 @@ public:
 	}
 };
 
+class NeedCal {
+public:
+	bool eb;
+	bool ea;
+	bool eba;
+	bool eoop;
+	bool et;
+	bool evdw;
+	NeedCal(bool is_eb = true, bool is_ea = true, bool is_eba = true, bool is_eoop = true, bool is_et = true, bool is_evdw = true) :
+		eb(is_eb), ea(is_ea), eba(is_eba), et(is_et), eoop(is_eoop), evdw(is_evdw) {
+	}
+};
+
+struct EnergySolidParam
+{
+	F_BS bs_fast_tb;
+	F_AB ab_fast_tb;
+	F_SB sb_fast_tb;
+	F_OPB opb_fast_tb;
+	F_TI ti_fast_tb;
+	F_VDW vdw_fast_tb;
+	HASH_TB pro_htb;
+
+	BFS2_TB bfs_tb;
+	RE_TB re_tb;
+
+	ADJ_LIST short_adj_list;
+};
+struct EnergyVaryParam
+{
+	R_TB r_tb;
+	R_TB dr_tb;
+	VAR_TB dvar_tb;
+	PHI_TB phi_tb;
+	CHI_TB chi_tb;
+};
 
 // --- MMFF94参数表字典类快表定义 ---
 //
@@ -787,7 +823,7 @@ vector<double> GetAlphaSepTable(const ADJ_LIST short_adj_list)
 	vector<double> a(nhc, NAN);
 	for (int i = 0; i < nhc; i++)
 	{
-		a[i] =PI_HALF/( short_adj_list[i].GetBonds().size()-1);
+		a[i] = PI_HALF / (short_adj_list[i].GetBonds().size() - 1);
 	}
 	return a;
 
@@ -1266,16 +1302,22 @@ double CalEVDW(const ADJ_LIST& short_adj_list, const BFS2_TB& bfs_tb, const R_TB
 	return sum_evdw;
 }
 
-double CalSumEnergy(bool print_yes, const ADJ_LIST& short_adj_list, const R_TB& r_tb,
-	const R_TB& dr_tb, const VAR_TB& dvar_tb, const CHI_TB& chi_tb, const PHI_TB& phi_tb, const RE_TB& re_tb, const BFS2_TB& bfs_tb,
-	const F_BS& bs_fast_tb, const F_AB& ab_fast_tb, const F_SB& sb_fast_tb, const F_OPB& opb_fast_tb, const F_TI& ti_fast_tb, const HASH_TB& pro_htb)
+double CalSumEnergy(bool print_yes, NeedCal need_cal,
+	const EnergyVaryParam& evp, const EnergySolidParam& ft)
 {
-	double sum_eb = CalEB(short_adj_list, dr_tb, bs_fast_tb, pro_htb);
-	double sum_ea = CalEA(short_adj_list, dvar_tb, ab_fast_tb, pro_htb);
-	double sum_eba = CalEBA(short_adj_list, dr_tb, dvar_tb, sb_fast_tb, pro_htb);
-	double sum_eoop = CalEOOP(short_adj_list, chi_tb, opb_fast_tb, pro_htb);
-	double sum_et = CalET(short_adj_list, phi_tb, ti_fast_tb, pro_htb);
-	double sum_evdw = CalEVDW(short_adj_list, bfs_tb, r_tb, re_tb);
+	double sum_eb = 0;
+	double sum_ea = 0;
+	double sum_eba = 0;
+	double sum_eoop = 0;
+	double sum_et = 0;
+	double sum_evdw = 0;
+
+	if (need_cal.eb) sum_eb = CalEB(ft.short_adj_list, evp.dr_tb, ft.bs_fast_tb, ft.pro_htb);
+	if (need_cal.ea) sum_ea = CalEA(ft.short_adj_list, evp.dvar_tb, ft.ab_fast_tb, ft.pro_htb);
+	if (need_cal.eb) sum_eba = CalEBA(ft.short_adj_list, evp.dr_tb, evp.dvar_tb, ft.sb_fast_tb, ft.pro_htb);
+	if (need_cal.eoop) sum_eoop = CalEOOP(ft.short_adj_list, evp.chi_tb, ft.opb_fast_tb, ft.pro_htb);
+	if (need_cal.et) sum_et = CalET(ft.short_adj_list, evp.phi_tb, ft.ti_fast_tb, ft.pro_htb);
+	if (need_cal.evdw) sum_evdw = CalEVDW(ft.short_adj_list, ft.bfs_tb, evp.r_tb, ft.re_tb);
 
 	double sum_E = sum_eb + sum_ea + sum_eba + sum_eoop + sum_et + sum_evdw;
 	if (print_yes) PrintEnergy(sum_E, sum_eb, sum_ea, sum_eba, sum_eoop, sum_et, sum_evdw);
@@ -1284,7 +1326,7 @@ double CalSumEnergy(bool print_yes, const ADJ_LIST& short_adj_list, const R_TB& 
 }
 
 //--- 初始三维坐标生成 ---
-vector<Vec3> CalXYZ(const vector<double> alpha_tb, const  HASH_TB& pro_htb, const F_BS& bs_fast_tb,const ADJ_LIST& short_adj_list, SP_SpTable all_sp_tb)
+vector<Vec3> CalXYZ(const vector<double> alpha_tb, const  HASH_TB& pro_htb, const F_BS& bs_fast_tb, const ADJ_LIST& short_adj_list, SP_SpTable all_sp_tb)
 {
 	int ac = pro_htb.size();
 	int nhc = alpha_tb.size();
@@ -1352,32 +1394,42 @@ vector<Vec3> CalXYZ(const vector<double> alpha_tb, const  HASH_TB& pro_htb, cons
 
 }
 
-double CalSumEnergyByXYZ(bool print_yes, const vector<double> alpha_tb,SP_SpTable all_sp_tb,const ADJ_LIST& short_adj_list,  const BFS2_TB& bfs_tb, const RE_TB& re_tb,
-	const F_BS& bs_fast_tb, const F_AB& ab_fast_tb, const F_SB& sb_fast_tb, const F_OPB& opb_fast_tb, const F_TI& ti_fast_tb, const HASH_TB& pro_htb)
+double CalSumEnergyByXYZ(bool print_yes, const NeedCal& need_cal, const vector<double> alpha_tb, SP_SpTable all_sp_tb,
+	const EnergySolidParam& esp)
 {
-	vector<Vec3> xyz_tb = CalXYZ(alpha_tb, pro_htb, bs_fast_tb, short_adj_list, all_sp_tb);
+	vector<Vec3> xyz_tb = CalXYZ(alpha_tb, esp.pro_htb, esp.bs_fast_tb, esp.short_adj_list, all_sp_tb);
+
 
 	R_TB dr_tb, r_tb;
-	PreCalDRTb(r_tb, dr_tb, xyz_tb, short_adj_list, bs_fast_tb, pro_htb);
-
 	VAR_TB dvar_tb;
-	PreCalDVarTb(dvar_tb, xyz_tb, short_adj_list, ab_fast_tb, pro_htb);
-
 	PHI_TB phi_tb;
-	PreCalPhiTb(phi_tb, xyz_tb, short_adj_list);
-
 	CHI_TB chi_tb;
-	PreCalChiTb(chi_tb, xyz_tb, short_adj_list);
 
+	if (need_cal.eb || need_cal.eba || need_cal.evdw)
+	{
+		PreCalDRTb(r_tb, dr_tb, xyz_tb, esp.short_adj_list, esp.bs_fast_tb, esp.pro_htb);
+	}
+	if (need_cal.ea || need_cal.eba)
+	{
+		PreCalDVarTb(dvar_tb, xyz_tb, esp.short_adj_list, esp.ab_fast_tb, esp.pro_htb);
+	}
+	if (need_cal.et)
+	{
+		PreCalPhiTb(phi_tb, xyz_tb, esp.short_adj_list);
+	}
+	if (need_cal.eoop)
+	{
+		PreCalChiTb(chi_tb, xyz_tb, esp.short_adj_list);
+	}
 	if (print_yes)
 	{
 		PrintCmdSepTitle("三维坐标");
 		PrintSpecialVector(xyz_tb);
 	}
 
-	double sum_energy = CalSumEnergy(print_yes, short_adj_list, r_tb,
-		dr_tb, dvar_tb, chi_tb, phi_tb, re_tb, bfs_tb,
-		bs_fast_tb, ab_fast_tb, sb_fast_tb, opb_fast_tb, ti_fast_tb, pro_htb);
+	EnergyVaryParam evp{ r_tb,dr_tb,  dvar_tb,phi_tb,chi_tb };
+	double sum_energy = CalSumEnergy(print_yes, need_cal, evp, esp);
+
 	return sum_energy;
 }
 
@@ -1385,7 +1437,7 @@ double CalSumEnergyByXYZ(bool print_yes, const vector<double> alpha_tb,SP_SpTabl
 
 //--- 优化相关函数 ---
 template<typename T>
-bool JudgeStop( vector<T>new_tb, vector<T>old_tb, vector<T> sep_tb)
+bool JudgeStop(vector<T>new_tb, vector<T>old_tb, vector<T> sep_tb)
 {
 	int ssize = sep_tb.size();
 	for (int i = 0; i < ssize; i++)
@@ -1398,7 +1450,7 @@ bool JudgeStop( vector<T>new_tb, vector<T>old_tb, vector<T> sep_tb)
 	return true;
 }
 
-
+//类型识别
 
 
 
@@ -1486,12 +1538,9 @@ int main()
 	PrintSpecialVector(short_adj_list);
 
 
-
-
-
 	//---待修改的部分：根据分子节点类型，生成对应的MMFF94类型表---
 	vector<int> mtype_tb = { 1,1,1,5,5,5,5,5,5,5,5 };
-	
+
 
 
 
@@ -1510,6 +1559,9 @@ int main()
 	PrintCommonVector(pro_htb);
 
 
+	int ac = mtype_tb.size();
+	int nhc = short_adj_list.size();
+
 	F_BS bs_fast_tb(bs_tb, htb);
 	F_AB ab_fast_tb(ab_tb, htb);
 	F_SB sb_fast_tb(sb_tb, htb);
@@ -1517,14 +1569,13 @@ int main()
 	F_TI ti_fast_tb(ti_tb, htb);
 	F_VDW vdw_fast_tb(vdw_tb, htb);
 
-
-	int ac = mtype_tb.size();
-	int nhc =short_adj_list.size();
-
 	BFS2_TB bfs_tb = Bfs2(ac, short_adj_list);
 
 	RE_TB re_tb;
 	PreCalRETb(re_tb, mtype_set, vdw_fast_tb, pro_htb);
+
+
+	EnergySolidParam esp = { bs_fast_tb ,ab_fast_tb,sb_fast_tb,opb_fast_tb,ti_fast_tb,vdw_fast_tb,pro_htb,bfs_tb,re_tb,short_adj_list };
 
 	PrintCmdSepTitle("三维坐标生成及能量计算-记时");
 
@@ -1536,14 +1587,14 @@ int main()
 	LARGE_INTEGER start, stop;
 	QueryPerformanceCounter(&start);
 	//------------------------------**计时开始**------------------------------
-	
+
 	vector<double> old_alpha_tb = { 0,0, a3 };
-	vector<Vec3> xyz_tb = CalXYZ(old_alpha_tb,pro_htb, bs_fast_tb, long_adj_list, all_sp_tb);
+	vector<Vec3> xyz_tb = CalXYZ(old_alpha_tb, pro_htb, bs_fast_tb, long_adj_list, all_sp_tb);
 
 	PrintCmdSepTitle("三维坐标");
 	PrintSpecialVector(xyz_tb);
 
-	WriteTable(GetXYZTbPath(now_smiles,1), XYZ_TB_TITLE, xyz_tb);
+	WriteTable(GetXYZTbPath(now_smiles, 1), XYZ_TB_TITLE, xyz_tb);
 
 	R_TB dr_tb, r_tb;
 	PreCalDRTb(r_tb, dr_tb, xyz_tb, short_adj_list, bs_fast_tb, pro_htb);
@@ -1557,11 +1608,11 @@ int main()
 	CHI_TB chi_tb;
 	PreCalChiTb(chi_tb, xyz_tb, short_adj_list);
 
-	double sum_energy = CalSumEnergy(YES, short_adj_list, r_tb,
-		dr_tb, dvar_tb, chi_tb, phi_tb, re_tb, bfs_tb,
-		bs_fast_tb, ab_fast_tb, sb_fast_tb, opb_fast_tb, ti_fast_tb, pro_htb);
+	EnergyVaryParam evp{ r_tb,dr_tb,dvar_tb,phi_tb,chi_tb };
 
-	
+	double sum_energy = CalSumEnergy(YES, NeedCal(),evp,esp);
+
+
 
 	//------------------------------**根据能量优化参数**------------------------------
 
@@ -1571,15 +1622,16 @@ int main()
 	const double acc_angle = 1e-4;
 
 	double asep = PI_HALF;
-	vector<double> new_alpha_tb(nhc,PI);
+	vector<double> new_alpha_tb(nhc, PI);
 	new_alpha_tb[0] = 0;
 	vector<double> asep_tb = GetAlphaSepTable(short_adj_list);
 
 	PrintCmdSepTitle("sp_tb");
 	PrintCommonVector(asep_tb);
+	NeedCal alpha_need_cal(false, false, false, false, true, true);
 
 
-	while (!JudgeStop( new_alpha_tb, old_alpha_tb, asep_tb))
+	while (!JudgeStop(new_alpha_tb, old_alpha_tb, asep_tb))
 	{
 		old_alpha_tb = new_alpha_tb;
 		for (int i = 1; i < nhc; i++)
@@ -1591,8 +1643,7 @@ int main()
 			do {
 				new_alpha_tb[i] = now_angle;
 
-				double now_energy = CalSumEnergyByXYZ(NO, new_alpha_tb, all_sp_tb, short_adj_list, bfs_tb, re_tb,
-					bs_fast_tb, ab_fast_tb, sb_fast_tb, opb_fast_tb, ti_fast_tb, pro_htb);
+				double now_energy = CalSumEnergyByXYZ(NO, alpha_need_cal, new_alpha_tb, all_sp_tb,esp);
 				if (now_energy < min_energy)
 				{
 					min_energy = now_energy;
@@ -1602,19 +1653,19 @@ int main()
 				now_angle += now_asep;
 
 			} while (now_angle < PI_DOUBLE);
+			new_alpha_tb[i] = min_angle;
 		}
 	}
 	vector<Vec3> a_xyz_tb = CalXYZ(new_alpha_tb, pro_htb, bs_fast_tb, long_adj_list, all_sp_tb);
 
 	PrintCmdSepTitle("第一次优化后三维坐标");
 	PrintSpecialVector(a_xyz_tb);
-	WriteTable(GetXYZTbPath(now_smiles,2), XYZ_TB_TITLE, a_xyz_tb);
+	WriteTable(GetXYZTbPath(now_smiles, 2), XYZ_TB_TITLE, a_xyz_tb);
 
 	// --- alpha 第二次优化 精细 ---
 
 	double old_energy = INFINITY;
-	double new_energy = CalSumEnergyByXYZ(NO, new_alpha_tb, all_sp_tb, short_adj_list, bfs_tb, re_tb,
-		bs_fast_tb, ab_fast_tb, sb_fast_tb, opb_fast_tb, ti_fast_tb, pro_htb);
+	double new_energy = CalSumEnergyByXYZ(NO, alpha_need_cal, new_alpha_tb, all_sp_tb,esp);
 
 	cout << "\nE: " << new_energy << endl;
 
@@ -1623,7 +1674,7 @@ int main()
 	while (!JudgeStop<double>({ new_energy }, { old_energy }, { acc_energy }))
 	{
 		old_energy = new_energy;
-		for (int i=1;i<nhc;i++)
+		for (int i = 1; i < nhc; i++)
 		{
 			vector<double>now_alpha_tb = new_alpha_tb;
 			double left_angle = new_alpha_tb[i] - asep_tb[i];
@@ -1631,37 +1682,33 @@ int main()
 
 			now_alpha_tb[i] = left_angle;
 
-			double left_energy = CalSumEnergyByXYZ(NO, now_alpha_tb, all_sp_tb, short_adj_list, bfs_tb, re_tb,
-				bs_fast_tb, ab_fast_tb, sb_fast_tb, opb_fast_tb, ti_fast_tb, pro_htb);
+			double left_energy = CalSumEnergyByXYZ(NO, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
 
 			now_alpha_tb[i] = right_angle;
 
-			double right_energy = CalSumEnergyByXYZ(NO, now_alpha_tb, all_sp_tb, short_adj_list, bfs_tb, re_tb,
-				bs_fast_tb, ab_fast_tb, sb_fast_tb, opb_fast_tb, ti_fast_tb, pro_htb);
+			double right_energy = CalSumEnergyByXYZ(NO, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
 
 			double mid_energy = INFINITY;
 
 			while (!JudgeStop<double>({ left_energy }, { right_energy }, { acc_energy }) &&
 				!JudgeStop<double>({ left_angle }, { right_angle }, { acc_angle }))
 			{
-				double sep_angle =(right_angle-left_angle)* OPT_RATIO;
+				double sep_angle = (right_angle - left_angle) * OPT_RATIO;
 				double mid_left_angle = left_angle + sep_angle;
-				double mid_right_angle =right_angle - sep_angle;
-				
+				double mid_right_angle = right_angle - sep_angle;
+
 				now_alpha_tb[i] = mid_left_angle;
-				double mid_left_energy = CalSumEnergyByXYZ(NO, now_alpha_tb, all_sp_tb, short_adj_list, bfs_tb, re_tb,
-					bs_fast_tb, ab_fast_tb, sb_fast_tb, opb_fast_tb, ti_fast_tb, pro_htb);
+				double mid_left_energy = CalSumEnergyByXYZ(NO, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
 
 				now_alpha_tb[i] = mid_right_angle;
-				double mid_right_energy = CalSumEnergyByXYZ(NO, now_alpha_tb, all_sp_tb, short_adj_list, bfs_tb, re_tb,
-					bs_fast_tb, ab_fast_tb, sb_fast_tb, opb_fast_tb, ti_fast_tb, pro_htb);
+				double mid_right_energy = CalSumEnergyByXYZ(NO, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
 
 				if (left_energy < right_energy)
 				{
 					right_angle = mid_left_angle;
 					right_energy = mid_left_energy;
 				}
-				else 
+				else
 				{
 					left_angle = mid_right_angle;
 					left_energy = mid_right_energy;
@@ -1669,15 +1716,14 @@ int main()
 			}
 			new_alpha_tb[i] = (left_angle + right_angle) / 2;
 		}
-		new_energy= CalSumEnergyByXYZ(NO, new_alpha_tb, all_sp_tb, short_adj_list, bfs_tb, re_tb,
-			bs_fast_tb, ab_fast_tb, sb_fast_tb, opb_fast_tb, ti_fast_tb, pro_htb);
+		new_energy = CalSumEnergyByXYZ(NO, alpha_need_cal, new_alpha_tb, all_sp_tb, esp);
 	}
 
 	vector<Vec3> b_xyz_tb = CalXYZ(new_alpha_tb, pro_htb, bs_fast_tb, long_adj_list, all_sp_tb);
 	PrintCmdSepTitle("第二次优化三维坐标");
 	PrintSpecialVector(a_xyz_tb);
 	cout << "\nE: " << new_energy << endl;
-	WriteTable(GetXYZTbPath(now_smiles,3), XYZ_TB_TITLE, b_xyz_tb);
+	WriteTable(GetXYZTbPath(now_smiles, 3), XYZ_TB_TITLE, b_xyz_tb);
 
 	//------------------------------**计时结束**------------------------------
 	QueryPerformanceCounter(&stop);

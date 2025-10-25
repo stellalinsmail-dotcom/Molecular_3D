@@ -3,6 +3,24 @@
 #include "Molecule.h"
 
 
+
+string DeleteHydrogen(string smiles)
+{
+	int count = 0;
+	vector<int> delpos;
+	for (int i = 0; i < smiles.length(); i++)
+	{
+		if (smiles[i] == '[') count++;
+		if (smiles[i] == ']') count--;
+		if (count == 0 && (smiles[i] == 'H'||smiles[i] == 'h')) delpos.push_back(i);
+	}
+	for (int i = delpos.size() - 1; i >= 0; i--)
+	{
+		smiles.erase(delpos[i], 1);
+	}
+	return smiles;
+}
+
 int main()
 {
 
@@ -58,6 +76,14 @@ int main()
 		string smiles;
 		cin >> smiles;
 
+		smiles= DeleteHydrogen(smiles);
+
+		if (smiles.empty())
+		{
+			cout << "\n请输入有效格式!"<<endl;
+			continue;
+		}
+
 		LARGE_INTEGER frequency;
 		QueryPerformanceFrequency(&frequency);
 		LARGE_INTEGER start, stop;
@@ -94,34 +120,34 @@ int main()
 		double duration = (stop.QuadPart - start.QuadPart) * 1000.0 / frequency.QuadPart;
 		std::cout << "\n(^-^)Time taken by function: " << duration << " ms" << std::endl;
 
-		cout << "是否要储存节点信息表及邻接表？(Y/N)";
-		char savechoice;
-		cin >> savechoice;
-		if (savechoice == 'Y' || savechoice == 'y')
-		{
-			string cs = c.GetCanSmiles();
-			Mole d(atomtable, cs);
-			const string folderpath = output_folder + "/" + cs;
-			if (!CreateFolder(folderpath)) {
-				cout << "\nWarning: 文件夹创建失败！可能已存在。\n";
-				char savechoice2;
-				cout << "\n是否要继续覆盖节点信息表及邻接表？(Y/N)";
-				cin >> savechoice2;
-				if (!(savechoice2 == 'Y' || savechoice2 == 'y'))
-				{
-					continue;
-				}
-			}
-			string now_time = GetCurrentTimeString();
-			string atomtable_filename = folderpath + "/MNodeTable.csv";
-			string bondtable_filename = folderpath + "/BondTable.csv";
-			PrintCmdSepTitle("节点表储存");
-			WriteTable<MNode>(atomtable_filename, MNODE_TB_TITLE, d.GetNodeTable(), true);
-			cout << "节点表已储存至 " << atomtable_filename << endl;
-			PrintCmdSepTitle("邻接表储存");
-			WriteTable<NodeBonds>(bondtable_filename, ADJ_TB_TITLE, d.GetBondTable(), true);
-			cout << "邻接表已储存至 " << bondtable_filename << endl;
-		}
+		//cout << "是否要储存节点信息表及邻接表？(Y/N)";
+		//char savechoice;
+		//cin >> savechoice;
+		//if (savechoice == 'Y' || savechoice == 'y')
+		//{
+		//	string cs = c.GetCanSmiles();
+		//	Mole d(atomtable, cs);
+		//	const string folderpath = output_folder + "/" + cs;
+		//	if (!CreateFolder(folderpath)) {
+		//		cout << "\nWarning: 文件夹创建失败！可能已存在。\n";
+		//		char savechoice2;
+		//		cout << "\n是否要继续覆盖节点信息表及邻接表？(Y/N)";
+		//		cin >> savechoice2;
+		//		if (!(savechoice2 == 'Y' || savechoice2 == 'y'))
+		//		{
+		//			continue;
+		//		}
+		//	}
+		//	string now_time = GetCurrentTimeString();
+		//	string atomtable_filename = folderpath + "/MNodeTable.csv";
+		//	string bondtable_filename = folderpath + "/BondTable.csv";
+		//	PrintCmdSepTitle("节点表储存");
+		//	WriteTable<MNode>(atomtable_filename, MNODE_TB_TITLE, d.GetNodeTable(), true);
+		//	cout << "节点表已储存至 " << atomtable_filename << endl;
+		//	PrintCmdSepTitle("邻接表储存");
+		//	WriteTable<NodeBonds>(bondtable_filename, ADJ_TB_TITLE, d.GetBondTable(), true);
+		//	cout << "邻接表已储存至 " << bondtable_filename << endl;
+		//}
 	}
 	return 0;
 }
