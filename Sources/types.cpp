@@ -193,6 +193,91 @@ bool CreateFolder(const string folderpath)
 	delete[] folderPath;
 	return issuccessful;
 }
+void DeleteFolder(const string& folderpath) {
+	if (folderpath.empty()) {
+		cout << "错误：文件夹路径为空" << endl;
+		return;
+	}
+
+	// 将 UTF-8 std::string 转为 wide string（WinAPI 使用 UTF-16）
+	auto Utf8ToWide = [](const string& s)->wstring {
+		if (s.empty()) return wstring();
+		int req = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, nullptr, 0);
+		if (req == 0) return wstring();
+		wstring w(req, L'\0');
+		MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, &w[0], req);
+		if (!w.empty() && w.back() == L'\0') w.pop_back();
+		return w;
+		};
+
+	// 递归删除宽字符路径
+	function<void(const wstring&)> DeleteFolderWide = [&](const wstring& wfolder) {
+		// 检查是否存在
+		DWORD attr = GetFileAttributesW(wfolder.c_str());
+		if (attr == INVALID_FILE_ATTRIBUTES) return;
+
+		// 如果是符号链接/重解析点，直接删除目录（避免递归穿越）
+		if (attr & FILE_ATTRIBUTE_REPARSE_POINT) {
+			SetFileAttributesW(wfolder.c_str(), FILE_ATTRIBUTE_NORMAL);
+			RemoveDirectoryW(wfolder.c_str());
+			return;
+		}
+
+		// 构造查找模式：folder\*
+		std::wstring search = wfolder;
+		if (!search.empty() && (search.back() != L'\\' && search.back() != L'/')) search += L'\\';
+		search += L'*';
+
+		WIN32_FIND_DATAW ffd;
+		HANDLE hFind = FindFirstFileW(search.c_str(), &ffd);
+		if (hFind != INVALID_HANDLE_VALUE) {
+			do {
+				const std::wstring name = ffd.cFileName;
+				if (name == L"." || name == L"..") continue;
+
+				std::wstring full = wfolder;
+				if (!full.empty() && (full.back() != L'\\' && full.back() != L'/')) full += L'\\';
+				full += name;
+
+				if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+					// 递归删除子目录
+					DeleteFolderWide(full);
+				}
+				else {
+					// 先清除只读等属性，再删除文件
+					SetFileAttributesW(full.c_str(), FILE_ATTRIBUTE_NORMAL);
+					if (!DeleteFileW(full.c_str())) {
+						// 可选：打印错误代码
+						// cout << "无法删除文件: " << WideCharToMultiByte(CP_UTF8,0,full.c_str(),-1,...) << endl;
+					}
+				}
+			} while (FindNextFileW(hFind, &ffd));
+			FindClose(hFind);
+		}
+
+		// 删除目录自身（清除属性后删除）
+		SetFileAttributesW(wfolder.c_str(), FILE_ATTRIBUTE_NORMAL);
+		RemoveDirectoryW(wfolder.c_str());
+		};
+
+	std::wstring wpath = Utf8ToWide(folderpath);
+	// 去掉末尾斜杠（统一处理）
+	if (!wpath.empty() && (wpath.back() == L'\\' || wpath.back() == L'/')) wpath.pop_back();
+
+	// 检查是否存在并且确实是目录
+	DWORD finalAttr = GetFileAttributesW(wpath.c_str());
+	if (finalAttr == INVALID_FILE_ATTRIBUTES) {
+		cout << "删除失败：路径不存在: " << folderpath << endl;
+		return;
+	}
+	if (!(finalAttr & FILE_ATTRIBUTE_DIRECTORY)) {
+		cout << "删除失败：不是目录: " << folderpath << endl;
+		return;
+	}
+
+	DeleteFolderWide(wpath);
+	cout << "已尝试删除文件夹及其内容: " << folderpath << endl;
+}
 
 void PrintCmdSepTitle(const string title, int sepwidth, const char fillsym)
 {

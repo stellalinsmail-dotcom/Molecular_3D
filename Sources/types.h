@@ -12,7 +12,9 @@
 #include <windows.h>
 #include <iomanip>
 #include <set>
-//#include<map>
+#include <map>
+#include <functional>
+
 
 using namespace std;
 
@@ -58,6 +60,8 @@ using namespace std;
 #define OPB_TB_TITLE "MTYPE_I,MTYPE_J,MTYPE_K,MTYPE_L,KOOP,Source"
 #define TI_TB_TITLE	"TT,MTYPE_I,MTYPE_J,MTYPE_K,MTYPE_L,V1,V2,V3,Source"
 #define VDW_TB_TITLE "MTYPE,ALPHA_I,N_I,A_I,G_I,DA,SYMBOL,ORIGIN"
+#define MSYM_TB_TITLE "MSYMBOL,MTYPE,DEFINITION"
+
 
 #define BS_TB_SHORT_TITLE "MTYPE_I,MTYPE_J,KB,R0"
 #define AB_TB_SHORT_TITLE "MTYPE_I,MTYPE_J,MTYPE_K,KA_IJK,THETA_0"
@@ -65,6 +69,7 @@ using namespace std;
 #define OPB_TB_SHORT_TITLE "MTYPE_I,MTYPE_J,MTYPE_K,MTYPE,KOOP"
 #define TI_TB_SHORT_TITLE "MTYPE_I,MTYPE_J,MTYPE_K,MTYPE_L,V1,V2,V3"
 #define VDW_TB_SHORT_TITLE "MTYPE,ALPHA_I,N_I,A_I,G_I"
+#define	MSYM_TB_SHORT_TITLE "MSYMBOL,MTYPE"
 
 #define SP_SPTB_TITLE "Seq,R,Theta,Varphi"
 #define SP_RETB_TITLE "Seq,X,Y,Z"
@@ -81,6 +86,9 @@ using namespace std;
 #define TI_FILENAME "12_MMFFTOR.csv"
 #define VDW_FILENAME "13_MMFFVDW.csv"
 
+#define MSYM_FILENAME "1_MMFFSYMB.csv"
+
+
 #define PI 3.14159265358979323846
 #define PI_HALF 1.57079632679489661923
 #define PI_DOUBLE 6.2831853071795864769252
@@ -94,28 +102,37 @@ using namespace std;
 #define Max4(a,b,c,d) max(max(a,b),max(c,d))
 #define Min4(a,b,c,d) min(min(a,b),min(c,d))
 
-#define CONST_PARAM_MAP const map<vector<int>, double>
+//#define CONST_PARAM_MAP const map<vector<int>, double>
+
+
+#define MSYM_MAP map<string, int>
+#define MTYPE_TB vector<int>
 #define MTYPE_INDEX vector<int>
-#define FAST_TABLE_INDEX vector<int>
 #define MTYPE_SET set<int>
+
+
+#define MNODE_TB vector<MNode>
+
 #define ANGLE_TB vector<double>
 #define HASH_TB vector<int>
 #define ADJ_LIST vector<NodeBonds>
+#define XYZ_TB vector<Vec3>
+
+#define FAST_TABLE_INDEX vector<int>
 #define R_TB vector<vector<double>>
 #define VAR_TB vector<vector<vector<double>>>
 #define CHI_TB vector<vector<vector<vector<double>>>>
 #define PHI_TB vector<vector<vector<vector<double>>>>
+#define RE_TB vector<vector<VDWProVal>>
+#define BFS2_TB vector<vector<int>>
+
+
 
 #define V4_DTB vector<vector<vector<vector<double>>>>
 #define V3_DTB vector<vector<vector<double>>>
 #define V2_DTB vector<vector<double>>
 #define V1_DTB vector<double>
 
-#define RE_TB vector<vector<VDWProVal>>
-
-#define XYZ_TB vector<Vec3>
-
-#define BFS2_TB vector<vector<int>>
 
 #define F_BS FastMatrix2<BSLine, BSVal>
 #define F_AB FastMatrix3<ABLine, ABVal>
@@ -249,6 +266,8 @@ string GetCurrentTimeString();
 
 // ---±í¸ñ¶ÁÐ´º¯Êý ---
 bool CreateFolder(const string folderpath);
+
+void DeleteFolder(const string& folderpath);
 
 template<typename T>
 int ReadTable(string filename, string stdtitle, vector<T>& table, bool printyes = false)
@@ -418,16 +437,6 @@ void WriteTable(string filename, string stdtitle, const  vector<T>& table, bool 
 //	}
 //}
 // 
-//template<typename TLine, typename TVal>
-//PARAM_MAP<TVal> CompressTableToMap(const vector<TLine>& table)
-//{
-//	PARAM_MAP<TVal> table_map;
-//	for (auto& line : table)
-//	{
-//		table_map[line.GetMTypeVec()] = line.GetVal();
-//		table_map[line.GetRevMTypeVec()] = line.GetVal();
-//	}
-//	return table_map;
-//}
+
 
 #endif // TYPES_H

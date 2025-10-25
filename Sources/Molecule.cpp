@@ -351,7 +351,10 @@ Mole::Mole(const vector<Atom>& etb, const string& smiles) :com_smiles(smiles)
 	sortedtb = stb;
 	ranktb = rtb;
 }
-
+Mole::Mole(const vector<MNode>& now_nodetb, const  vector<NodeBonds>& now_bondtb):
+	nodetb(now_nodetb),bondtb(now_bondtb),sortedtb(vector<bool>(nodetb.size(), 0)), ranktb(vector<int>(nodetb.size(), 0))
+{
+}
 void Mole::PrintOriRank()
 {
 	int i = 0;
@@ -674,3 +677,21 @@ vector<NodeBonds> AdjTbToBondTb(const vector<AdjLine>& adj_tb, const vector<MNod
 	}
 	return bond_tb;
 }
+string DeleteHydrogen(string smiles)
+{
+	int count = 0;
+	vector<int> delpos;
+	for (int i = 0; i < smiles.length(); i++)
+	{
+		if (smiles[i] == '[') count++;
+		if (smiles[i] == ']') count--;
+		if (count == 0 && (smiles[i] == 'H' || smiles[i] == 'h')) delpos.push_back(i);
+	}
+	for (int i = delpos.size() - 1; i >= 0; i--)
+	{
+		smiles.erase(delpos[i], 1);
+	}
+	return smiles;
+}
+
+

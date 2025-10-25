@@ -155,6 +155,7 @@ private:
 
 public:
 	Mole(const vector<Atom>& etb, const string& smiles);
+	Mole(const vector<MNode>& now_nodetb, const  vector<NodeBonds>& bondtb);
 
 	void PrintOriRank();
 	void PrintNodeTable();
@@ -181,5 +182,5 @@ public:
 // --- ¸¨Öúº¯Êý ---
 vector<NodeBonds> AdjTbToBondTb(const vector<AdjLine>& ,const vector<MNode>&, bool is_short = YES);
 
-
+string DeleteHydrogen(string smiles);
 #endif // MOLECULE_H

@@ -2,7 +2,7 @@
 #include "Atom.h"
 #include "Molecule.h"
 #include "Matrix.h"
-//#include <map>
+
 
 using namespace std;
 
@@ -455,6 +455,8 @@ public:
 
 };
 
+
+
 // --- MMFF94参数表快表类定义 ---
 template<typename TLine, typename TVal>
 class FastMatrix1 {
@@ -691,6 +693,8 @@ public:
 	NeedCal(bool is_eb = true, bool is_ea = true, bool is_eba = true, bool is_eoop = true, bool is_et = true, bool is_evdw = true) :
 		eb(is_eb), ea(is_ea), eba(is_eba), et(is_et), eoop(is_eoop), evdw(is_evdw) {
 	}
+	NeedCal(const NeedCal& nc) :eb(nc.eb), ea(nc.ea), eba(nc.eba), et(nc.et), eoop(nc.eoop), evdw(nc.evdw) {
+	}
 };
 
 struct EnergySolidParam
@@ -823,7 +827,7 @@ vector<double> GetAlphaSepTable(const ADJ_LIST short_adj_list)
 	vector<double> a(nhc, NAN);
 	for (int i = 0; i < nhc; i++)
 	{
-		a[i] = PI_HALF / (short_adj_list[i].GetBonds().size() - 1);
+		a[i] = min(PI_HALF / (short_adj_list[i].GetBonds().size() - 1),PI_HALF/6);
 	}
 	return a;
 
@@ -1302,7 +1306,7 @@ double CalEVDW(const ADJ_LIST& short_adj_list, const BFS2_TB& bfs_tb, const R_TB
 	return sum_evdw;
 }
 
-double CalSumEnergy(bool print_yes, NeedCal need_cal,
+double CalSumEnergy(bool print_yes, const  NeedCal& need_cal,
 	const EnergyVaryParam& evp, const EnergySolidParam& ft)
 {
 	double sum_eb = 0;
@@ -1326,7 +1330,7 @@ double CalSumEnergy(bool print_yes, NeedCal need_cal,
 }
 
 //--- 初始三维坐标生成 ---
-vector<Vec3> CalXYZ(const vector<double> alpha_tb, const  HASH_TB& pro_htb, const F_BS& bs_fast_tb, const ADJ_LIST& short_adj_list, SP_SpTable all_sp_tb)
+vector<Vec3> CalXYZ(const vector<double> alpha_tb, const  HASH_TB& pro_htb, const F_BS& bs_fast_tb, const ADJ_LIST& short_adj_list, const SP_SpTable& all_sp_tb)
 {
 	int ac = pro_htb.size();
 	int nhc = alpha_tb.size();
@@ -1394,10 +1398,10 @@ vector<Vec3> CalXYZ(const vector<double> alpha_tb, const  HASH_TB& pro_htb, cons
 
 }
 
-double CalSumEnergyByXYZ(bool print_yes, const NeedCal& need_cal, const vector<double> alpha_tb, SP_SpTable all_sp_tb,
+double CalSumEnergyByXYZ(bool print_yes, XYZ_TB& xyz_tb, const NeedCal& need_cal, const vector<double>& alpha_tb, const SP_SpTable& all_sp_tb,
 	const EnergySolidParam& esp)
 {
-	vector<Vec3> xyz_tb = CalXYZ(alpha_tb, esp.pro_htb, esp.bs_fast_tb, esp.short_adj_list, all_sp_tb);
+	xyz_tb = CalXYZ(alpha_tb, esp.pro_htb, esp.bs_fast_tb, esp.short_adj_list, all_sp_tb);
 
 
 	R_TB dr_tb, r_tb;
@@ -1450,12 +1454,261 @@ bool JudgeStop(vector<T>new_tb, vector<T>old_tb, vector<T> sep_tb)
 	return true;
 }
 
-//类型识别
+
+vector<double> AlphaOpt(bool has_circle,double& alpha_energy, XYZ_TB& xyz_tb, const SP_SpTable all_sp_tb, const EnergySolidParam& esp)
+{
+	int nhc = esp.short_adj_list.size();
+	const double acc_energy = 1;
+	const double acc_angle = 1;
 
 
+	double asep = PI_HALF;
+	vector<double> old_alpha_tb(nhc, 0);
+	vector<double> new_alpha_tb(nhc, PI);
+	new_alpha_tb[0] = 0;
+	vector<double> asep_tb = GetAlphaSepTable(esp.short_adj_list);
+
+	//PrintCmdSepTitle("sp_tb");
+	//PrintCommonVector(asep_tb);
+	NeedCal alpha_need_cal;
+	if (!has_circle)
+	{
+		alpha_need_cal = NeedCal( false, false, false, false, true, true);
+	}
+	// --- alpha 第一次优化 粗略 ---
+	while (!JudgeStop(new_alpha_tb, old_alpha_tb, asep_tb))
+	{
+		old_alpha_tb = new_alpha_tb;
+		for (int i = 0; i < nhc; i++)
+		{
+			double now_asep = asep_tb[i];
+			double min_energy = INFINITY;
+			double min_angle = 0, now_angle = 0;
+
+			do {
+				new_alpha_tb[i] = now_angle;
+
+				double now_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, new_alpha_tb, all_sp_tb, esp);
+				if (now_energy < min_energy)
+				{
+					min_energy = now_energy;
+					min_angle = now_angle;
+				}
+
+				now_angle += now_asep;
+
+			} while (now_angle < PI_DOUBLE);
+			new_alpha_tb[i] = min_angle;
+		}
+	}
+	//vector<Vec3> a_xyz_tb = CalXYZ(new_alpha_tb, pro_htb, bs_fast_tb, long_adj_list, all_sp_tb);
+
+	//PrintCmdSepTitle("第一次优化后三维坐标");
+	//PrintSpecialVector(a_xyz_tb);
+	//WriteTable(GetXYZTbPath(now_smiles, 2), XYZ_TB_TITLE, a_xyz_tb);
+
+	// --- alpha 第二次优化 精细 ---
+	cout << "粗略优化完成，进入精细优化阶段..." << endl;
+
+	double old_energy = INFINITY;
+	double new_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, new_alpha_tb, all_sp_tb, esp);
+
+	//cout << "\nE: " << new_energy << endl;
+
+	old_alpha_tb = new_alpha_tb;
+
+	while (!JudgeStop<double>({ new_energy }, { old_energy }, { acc_energy }))
+	{
+		old_energy = new_energy;
+		for (int i = 0; i < nhc; i++)
+		{
+			vector<double>now_alpha_tb = new_alpha_tb;
+			double left_angle = new_alpha_tb[i] - asep_tb[i];
+			double right_angle = new_alpha_tb[i] + asep_tb[i];
+
+			now_alpha_tb[i] = left_angle;
+
+			double left_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
+
+			now_alpha_tb[i] = right_angle;
+
+			double right_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
+
+			double mid_energy = INFINITY;
+
+			while (!JudgeStop<double>({ left_energy }, { right_energy }, { acc_energy }) &&
+				!JudgeStop<double>({ left_angle }, { right_angle }, { acc_angle }))
+			{
+				double sep_angle = (right_angle - left_angle) * OPT_RATIO;
+				double mid_left_angle = left_angle + sep_angle;
+				double mid_right_angle = right_angle - sep_angle;
+
+				now_alpha_tb[i] = mid_left_angle;
+				double mid_left_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
+
+				now_alpha_tb[i] = mid_right_angle;
+				double mid_right_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
+
+				if (left_energy < right_energy)
+				{
+					right_angle = mid_left_angle;
+					right_energy = mid_left_energy;
+				}
+				else
+				{
+					left_angle = mid_right_angle;
+					left_energy = mid_right_energy;
+				}
+			}
+			new_alpha_tb[i] = (left_angle + right_angle) / 2;
+		}
+		new_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, new_alpha_tb, all_sp_tb, esp);
+	}
+
+	alpha_energy = new_energy;
+	//vector<Vec3> b_xyz_tb = CalXYZ(new_alpha_tb, pro_htb, bs_fast_tb, long_adj_list, all_sp_tb);
+
+	return new_alpha_tb;
+}
+
+
+// --- 类型识别 ---
+
+class MSymLine
+{
+private:
+	string msym;
+	int mtype;
+public:
+	MSymLine(const vector<string>& info, const vector<int>& titlenum)
+	{
+		msym = info[titlenum[0]];
+		mtype = atoi(info[titlenum[1]].c_str());
+	}
+	string GetIndex() const { return msym; }
+	int GetVal()const { return mtype; }
+	void Print(string sep = "\t")const
+	{
+		cout << msym << sep << mtype << endl;
+	}
+};
+
+template<typename TLine>
+map<string, int> ChangeTableToMap(const vector<TLine>& table)
+{
+	map<string, int> table_map;
+	for (auto& line : table)
+	{
+		table_map[line.GetIndex()] = line.GetVal();
+	}
+	return table_map;
+}
+template<typename TIndex, typename TVal>
+void PrintCommonMap(const map<TIndex, TVal>& m, const string& sep = "\t", int max_row_count = -1)
+{
+	//int n = TVal().GetPCount();
+	//string title = "MType" + repeat_str(",Keys", n);
+	//PrintTableTitle(title, sep);
+	int rowcount = 0;
+	for (auto& pair : m)
+	{
+		cout << "(" << pair.first << ")" << sep << "(" << pair.second << ")" << endl;
+		if (max_row_count > 0)
+		{
+			rowcount++;
+			if (rowcount >= max_row_count) break;
+		}
+	}
+}
+
+vector<string> GetMSymTb(int ac, const vector<MNode>& nodetb, const  ADJ_LIST& short_adj_list)
+{
+	//先求各个原子的MSym
+	int nhc = short_adj_list.size();
+
+	vector<string> ori_sym_tb(ac, "");
+
+	for (int j = 0; j < nhc; j++)
+	{
+		vector<PointTo> nb_node = short_adj_list[j].GetBonds();
+		int nsize = nb_node.size();
+
+		string parent_sym = nodetb[j].GetSym();
+		string now_sym = parent_sym;
+		string h_cmpl_sym = "";
+		for (int i = 0; i < nsize; i++)
+		{
+			int child = nb_node[i].GetDesSeq();
+
+			//if (child==nhc)
+			//{
+			//	h_cmpl_sym=
+			//}
+
+			//非氢
+			if (child < nhc)
+			{
+				string bond_sym = nb_node[i].GetBondSymbol();
+				string child_sym = nodetb[child].GetSym();
+				if (bond_sym == DOUBLE_BOND) now_sym += bond_sym + child_sym;
+				else if (bond_sym == TRIPLE_BOND) now_sym += "%";
+
+				//else
+				//{
+				//	if (parent_sym != "C")
+				//	{
+				//		now_sym += child_sym;
+				//	}
+				//}
+			}
+			//氢
+			else
+			{
+				if (parent_sym != "C")
+				{
+					ori_sym_tb[child] = "H" + now_sym;
+				}
+				else
+				{
+					ori_sym_tb[child] = "H" + parent_sym;
+				}
+			}
+		}
+		if (now_sym == parent_sym)
+		{
+			now_sym += "R";
+		}
+		ori_sym_tb[j] = now_sym;
+	}
+	for (int i = 0; i < ac; i++)
+	{
+		cout << i << "\t" << ori_sym_tb[i] << endl;
+	}
+
+	return ori_sym_tb;
+}
+
+vector<int> GetMTypeTb(int ac, const vector<string>& msym_tb, const map<string, int>& msym_map)
+{
+	vector<int> mtype_tb(ac, NAN);
+	for (int i = 0; i < ac; i++)
+	{
+		auto iter = msym_map.find(msym_tb[i]);
+		if (iter != msym_map.end())
+		{
+			mtype_tb[i] = iter->second;
+		}
+		else
+		{
+			cout << "Warning: 未找到MSym " << msym_tb[i] << " 对应的MType！" << endl;
+		}
+	}
+	return mtype_tb;
+}
 
 int main()
 {
+	
 	PrintCmdSepTitle("基本参数表");
 	vector<BSLine> bs_tb;
 	vector<ABLine> ab_tb;
@@ -1479,7 +1732,7 @@ int main()
 	ReadTableByTitle(ti_filepath, TI_TB_TITLE, ti_tb);
 	ReadTableByTitle(vdw_filepath, VDW_TB_TITLE, vdw_tb);
 
-	// 
+	//
 	int max_row_count = 2;
 	PrintTableTitle(BS_TB_SHORT_TITLE);
 	PrintSpecialVector(bs_tb, "\t", max_row_count);
@@ -1510,232 +1763,256 @@ int main()
 	SP_SpTable all_sp_tb;
 	//all_sptb.Print();
 
-	PrintCmdSepTitle("分子相关表");
-	string now_smiles = "CCC";
-
-	//map<vector<int>, BSVal> bs_kb_map = CompressTableToMap<BSLine, BSVal>(bs_tb);
-	//PrintParamMap(bs_kb_map, "\t", max_row_count);
-
-	vector<MNode> mnode_tb;
-	string mnode_tb_path = GetMNodeTbPath(now_smiles);
-	ReadTableByTitle(mnode_tb_path, MNODE_TB_TITLE, mnode_tb);
-	PrintTableTitle(MNODE_TB_TITLE);
-	PrintSpecialVector(mnode_tb);
-
-	// --- 邻接表格式转换 ---
-	vector<AdjLine> adj_tb;
-	string adj_tb_path = GetAdjTbPath(now_smiles);
-	ReadTableByTitle(adj_tb_path, ADJ_TB_TITLE, adj_tb);
-	PrintTableTitle(ADJ_TB_TITLE);
-	PrintSpecialVector(adj_tb);
-
-	PrintCmdSepTitle("扩展邻接表");
-	vector<NodeBonds> long_adj_list = AdjTbToBondTb(adj_tb, mnode_tb, NO);
-	PrintSpecialVector(long_adj_list);
-
-	PrintCmdSepTitle("普通邻接表");
-	vector<NodeBonds> short_adj_list = AdjTbToBondTb(adj_tb, mnode_tb);
-	PrintSpecialVector(short_adj_list);
 
 
-	//---待修改的部分：根据分子节点类型，生成对应的MMFF94类型表---
-	vector<int> mtype_tb = { 1,1,1,5,5,5,5,5,5,5,5 };
+	//CANYON表
+
+	string etb_filename = "File/Tables/ElementsTable.csv";
+	string ptb_filename = "File/Tables/PrimeNumber1000.csv";
+	string output_folder = "File/Output";
+
+	PrintCmdSepTitle("元素周期表读取");
+
+	vector<Atom> atomtable;
+	ReadTableByTitle(etb_filename, ATOM_TB_TITLE, atomtable);
+	sort(atomtable.begin(), atomtable.end(), AtomTableCmp);
+
+	PrintTableTitle(ATOM_TB_TITLE);
+	PrintSpecialVector(atomtable);
+
+	PrintCmdSepTitle("素数表读取");
+
+	vector<PrimeNumber> primetable;
+	ReadTable(ptb_filename, "PrimeNumber", primetable, true);
+
+	//MMFF表
+
+	vector<MSymLine> msym_tb;
+	string msys_filepath = GetMMFFPath(MSYM_FILENAME);
+	ReadTableByTitle(msys_filepath, MSYM_TB_TITLE, msym_tb);
+
+	MSYM_MAP msym_map = ChangeTableToMap(msym_tb);
+
+	//PrintCmdSepTitle("MMFFType");
+	//PrintTableTitle(MSYM_TB_SHORT_TITLE);
+	//PrintSpecialVector(msym_tb, "\t", 10);
 
 
+	//PrintTableTitle(MSYM_TB_SHORT_TITLE);
+	//PrintCommonMap(msym_map, "\t", 10);
 
 
-	MTYPE_SET mtype_set(mtype_tb.begin(), mtype_tb.end());
-
-	vector<int> htb = GetHashTable(mtype_set);
-	vector<int> pro_htb = GetProHashTable(mtype_tb, htb);
-
-
-	//PrintSet(mtype_set);
-
-	PrintCmdSepTitle("htb");
-	PrintCommonVector(htb);
-
-	PrintCmdSepTitle("pro_htb");
-	PrintCommonVector(pro_htb);
-
-
-	int ac = mtype_tb.size();
-	int nhc = short_adj_list.size();
-
-	F_BS bs_fast_tb(bs_tb, htb);
-	F_AB ab_fast_tb(ab_tb, htb);
-	F_SB sb_fast_tb(sb_tb, htb);
-	F_OPB opb_fast_tb(opb_tb, htb);
-	F_TI ti_fast_tb(ti_tb, htb);
-	F_VDW vdw_fast_tb(vdw_tb, htb);
-
-	BFS2_TB bfs_tb = Bfs2(ac, short_adj_list);
-
-	RE_TB re_tb;
-	PreCalRETb(re_tb, mtype_set, vdw_fast_tb, pro_htb);
-
-
-	EnergySolidParam esp = { bs_fast_tb ,ab_fast_tb,sb_fast_tb,opb_fast_tb,ti_fast_tb,vdw_fast_tb,pro_htb,bfs_tb,re_tb,short_adj_list };
-
-	PrintCmdSepTitle("三维坐标生成及能量计算-记时");
-
-
-	double a3 = 10 / 180.0 * PI;
-
-	LARGE_INTEGER frequency;
-	QueryPerformanceFrequency(&frequency);
-	LARGE_INTEGER start, stop;
-	QueryPerformanceCounter(&start);
-	//------------------------------**计时开始**------------------------------
-
-	vector<double> old_alpha_tb = { 0,0, a3 };
-	vector<Vec3> xyz_tb = CalXYZ(old_alpha_tb, pro_htb, bs_fast_tb, long_adj_list, all_sp_tb);
-
-	PrintCmdSepTitle("三维坐标");
-	PrintSpecialVector(xyz_tb);
-
-	WriteTable(GetXYZTbPath(now_smiles, 1), XYZ_TB_TITLE, xyz_tb);
-
-	R_TB dr_tb, r_tb;
-	PreCalDRTb(r_tb, dr_tb, xyz_tb, short_adj_list, bs_fast_tb, pro_htb);
-
-	VAR_TB dvar_tb;
-	PreCalDVarTb(dvar_tb, xyz_tb, short_adj_list, ab_fast_tb, pro_htb);
-
-	PHI_TB phi_tb;
-	PreCalPhiTb(phi_tb, xyz_tb, short_adj_list);
-
-	CHI_TB chi_tb;
-	PreCalChiTb(chi_tb, xyz_tb, short_adj_list);
-
-	EnergyVaryParam evp{ r_tb,dr_tb,dvar_tb,phi_tb,chi_tb };
-
-	double sum_energy = CalSumEnergy(YES, NeedCal(),evp,esp);
-
-
-
-	//------------------------------**根据能量优化参数**------------------------------
-
-	// --- alpha 第一次优化 粗略 ---
-
-	const double acc_energy = 1e-4;
-	const double acc_angle = 1e-4;
-
-	double asep = PI_HALF;
-	vector<double> new_alpha_tb(nhc, PI);
-	new_alpha_tb[0] = 0;
-	vector<double> asep_tb = GetAlphaSepTable(short_adj_list);
-
-	PrintCmdSepTitle("sp_tb");
-	PrintCommonVector(asep_tb);
-	NeedCal alpha_need_cal(false, false, false, false, true, true);
-
-
-	while (!JudgeStop(new_alpha_tb, old_alpha_tb, asep_tb))
+	int turncount = 0;
+	while (1)
 	{
-		old_alpha_tb = new_alpha_tb;
-		for (int i = 1; i < nhc; i++)
+		turncount++;
+		PrintCmdSepTitle("第" + to_string(turncount) + "轮结构式解析");
+
+		cout << "请输入普通SMILES结构式：" << endl;
+		string smiles;
+		cin >> smiles;
+
+		smiles = DeleteHydrogen(smiles);
+
+		if (smiles.empty())
 		{
-			double now_asep = asep_tb[i];
-			double min_energy = INFINITY;
-			double min_angle = 0, now_angle = 0;
-
-			do {
-				new_alpha_tb[i] = now_angle;
-
-				double now_energy = CalSumEnergyByXYZ(NO, alpha_need_cal, new_alpha_tb, all_sp_tb,esp);
-				if (now_energy < min_energy)
-				{
-					min_energy = now_energy;
-					min_angle = now_angle;
-				}
-
-				now_angle += now_asep;
-
-			} while (now_angle < PI_DOUBLE);
-			new_alpha_tb[i] = min_angle;
+			cout << "\n请输入有效格式!" << endl;
+			continue;
 		}
-	}
-	vector<Vec3> a_xyz_tb = CalXYZ(new_alpha_tb, pro_htb, bs_fast_tb, long_adj_list, all_sp_tb);
 
-	PrintCmdSepTitle("第一次优化后三维坐标");
-	PrintSpecialVector(a_xyz_tb);
-	WriteTable(GetXYZTbPath(now_smiles, 2), XYZ_TB_TITLE, a_xyz_tb);
+		PrintCmdSepTitle("分子节点提取");
 
-	// --- alpha 第二次优化 精细 ---
+		Mole c(atomtable, smiles);
+		c.PrintNodeTable();
 
-	double old_energy = INFINITY;
-	double new_energy = CalSumEnergyByXYZ(NO, alpha_need_cal, new_alpha_tb, all_sp_tb,esp);
+		//PrintCmdSepTitle("分子节点邻接表");
+		c.PrintBondTable();
 
-	cout << "\nE: " << new_energy << endl;
+		//PrintCmdSepTitle("初始秩生成");
+		//c.PrintAtomTable();
+		//c.PrintOriRank();
 
-	old_alpha_tb = new_alpha_tb;
+		//PrintCmdSepTitle("秩排序过程");
+		c.MoleSortWithPN(primetable);
+		cout << "\n排序结果：\n";
+		//c.PrintRank();
 
-	while (!JudgeStop<double>({ new_energy }, { old_energy }, { acc_energy }))
-	{
-		old_energy = new_energy;
-		for (int i = 1; i < nhc; i++)
+		//PrintCmdSepTitle("唯一SMILES生成");
+
+		cout << "原SMILES：\n";
+		cout << c.GetComSmiles() << endl << endl;
+		cout << "唯一SMILES：\n";
+		cout << c.GetCanSmiles() << endl;
+
+
+		string cs = c.GetCanSmiles();
+		Mole d(atomtable, cs);
+		const string folderpath = output_folder + "/" + cs;
+
+		PrintCmdSepTitle("文件夹" + cs + "创建");
+		if (!CreateFolder(folderpath)) {
+			cout << "Warning: 文件夹创建失败！可能已存在。\n";
+		}
+		string now_time = GetCurrentTimeString();
+		string atomtable_filename = folderpath + "/MNodeTable.csv";
+		string bondtable_filename = folderpath + "/BondTable.csv";
+		//PrintCmdSepTitle("节点表储存");
+		WriteTable<MNode>(atomtable_filename, MNODE_TB_TITLE, d.GetNodeTable(), true);
+		cout << "节点表已储存至 " << atomtable_filename << endl;
+		//PrintCmdSepTitle("邻接表储存");
+		WriteTable<NodeBonds>(bondtable_filename, ADJ_TB_TITLE, d.GetBondTable(), true);
+		cout << "邻接表已储存至 " << bondtable_filename << endl;
+
+
+		//return 0;
+
+
+		PrintCmdSepTitle("分子相关表");
+		string now_smiles = c.GetComSmiles();
+
+		//map<vector<int>, BSVal> bs_kb_map = CompressTableToMap<BSLine, BSVal>(bs_tb);
+		//PrintParamMap(bs_kb_map, "\t", max_row_count);
+
+		vector<MNode> mnode_tb;
+		string mnode_tb_path = GetMNodeTbPath(now_smiles);
+		ReadTableByTitle(mnode_tb_path, MNODE_TB_TITLE, mnode_tb);
+		PrintTableTitle(MNODE_TB_TITLE);
+		PrintSpecialVector(mnode_tb);
+
+		// --- 邻接表格式转换 ---
+		vector<AdjLine> adj_tb;
+		string adj_tb_path = GetAdjTbPath(now_smiles);
+		ReadTableByTitle(adj_tb_path, ADJ_TB_TITLE, adj_tb);
+		PrintTableTitle(ADJ_TB_TITLE);
+		PrintSpecialVector(adj_tb);
+
+		PrintCmdSepTitle("扩展邻接表");
+		vector<NodeBonds> long_adj_list = AdjTbToBondTb(adj_tb, mnode_tb, NO);
+		PrintSpecialVector(long_adj_list);
+
+		PrintCmdSepTitle("普通邻接表");
+		vector<NodeBonds> short_adj_list = AdjTbToBondTb(adj_tb, mnode_tb);
+		PrintSpecialVector(short_adj_list);
+
+
+
+
+		//---待修改的部分：根据分子节点类型，生成对应的MMFF94类型表---
+		int ac = long_adj_list.size();
+		//int nhc = short_adj_list.size();
+
+
+
+
+
+		PrintCmdSepTitle("MMFFType");
+		vector<string> ori_sym_tb = GetMSymTb(ac, mnode_tb, short_adj_list);
+		vector<int> mtype_tb = GetMTypeTb(ac, ori_sym_tb, msym_map);
+		
+		PrintCmdSepTitle("MType 表格查找");
+		cout << "Index\tMSymCal\tMType\n";
+		for (int i = 0; i < ac; i++)
 		{
-			vector<double>now_alpha_tb = new_alpha_tb;
-			double left_angle = new_alpha_tb[i] - asep_tb[i];
-			double right_angle = new_alpha_tb[i] + asep_tb[i];
-
-			now_alpha_tb[i] = left_angle;
-
-			double left_energy = CalSumEnergyByXYZ(NO, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
-
-			now_alpha_tb[i] = right_angle;
-
-			double right_energy = CalSumEnergyByXYZ(NO, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
-
-			double mid_energy = INFINITY;
-
-			while (!JudgeStop<double>({ left_energy }, { right_energy }, { acc_energy }) &&
-				!JudgeStop<double>({ left_angle }, { right_angle }, { acc_angle }))
-			{
-				double sep_angle = (right_angle - left_angle) * OPT_RATIO;
-				double mid_left_angle = left_angle + sep_angle;
-				double mid_right_angle = right_angle - sep_angle;
-
-				now_alpha_tb[i] = mid_left_angle;
-				double mid_left_energy = CalSumEnergyByXYZ(NO, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
-
-				now_alpha_tb[i] = mid_right_angle;
-				double mid_right_energy = CalSumEnergyByXYZ(NO, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
-
-				if (left_energy < right_energy)
-				{
-					right_angle = mid_left_angle;
-					right_energy = mid_left_energy;
-				}
-				else
-				{
-					left_angle = mid_right_angle;
-					left_energy = mid_right_energy;
-				}
-			}
-			new_alpha_tb[i] = (left_angle + right_angle) / 2;
+			cout << i << "\t" << ori_sym_tb[i] << "\t" << mtype_tb[i] << endl;
 		}
-		new_energy = CalSumEnergyByXYZ(NO, alpha_need_cal, new_alpha_tb, all_sp_tb, esp);
+
+
+		//DeleteFolder(folderpath);
+
+		//-------------------------------------------------------------
+
+		
+
+		//vector<int> mtype_tb = { 1,1,1,5,5,5,5,5,5,5,5 };
+
+
+		MTYPE_SET mtype_set(mtype_tb.begin(), mtype_tb.end());
+
+		vector<int> htb = GetHashTable(mtype_set);
+		vector<int> pro_htb = GetProHashTable(mtype_tb, htb);
+
+
+		//PrintSet(mtype_set);
+
+		PrintCmdSepTitle("htb");
+		PrintCommonVector(htb);
+
+		PrintCmdSepTitle("pro_htb");
+		PrintCommonVector(pro_htb);
+
+
+
+
+		F_BS bs_fast_tb(bs_tb, htb);
+		F_AB ab_fast_tb(ab_tb, htb);
+		F_SB sb_fast_tb(sb_tb, htb);
+		F_OPB opb_fast_tb(opb_tb, htb);
+		F_TI ti_fast_tb(ti_tb, htb);
+		F_VDW vdw_fast_tb(vdw_tb, htb);
+
+		BFS2_TB bfs_tb = Bfs2(ac, short_adj_list);
+
+		RE_TB re_tb;
+		PreCalRETb(re_tb, mtype_set, vdw_fast_tb, pro_htb);
+
+
+		EnergySolidParam esp = { bs_fast_tb ,ab_fast_tb,sb_fast_tb,opb_fast_tb,ti_fast_tb,vdw_fast_tb,pro_htb,bfs_tb,re_tb,short_adj_list };
+
+
+		//double a3 = 10 / 180.0 * PI;
+		int nhc = short_adj_list.size();
+		vector<double> old_alpha_tb (nhc,0);
+		vector<Vec3> xyz_tb;
+
+		double now_energy = CalSumEnergyByXYZ(NO, xyz_tb, NeedCal(),old_alpha_tb, all_sp_tb, esp);
+
+		PrintCmdSepTitle("Alpha优化前");
+		PrintSpecialVector(xyz_tb);
+
+		cout << "\nE: " << now_energy << endl;
+		WriteTable(GetXYZTbPath(now_smiles, 1), XYZ_TB_TITLE, xyz_tb);
+
+
+		PrintCmdSepTitle("三维坐标生成及能量计算-记时");
+
+
+		LARGE_INTEGER frequency;
+		QueryPerformanceFrequency(&frequency);
+		LARGE_INTEGER start, stop;
+		QueryPerformanceCounter(&start);
+		//------------------------------**计时开始**------------------------------
+
+		cout << "优化中……\n";
+
+
+		XYZ_TB alpha_xyz_tb;
+		double alpha_energy;
+		vector<double> new_alpha_tb = AlphaOpt(YES,alpha_energy,alpha_xyz_tb, all_sp_tb, esp);
+
+
+
+
+		//------------------------------**计时结束**------------------------------
+		QueryPerformanceCounter(&stop);
+
+		double duration = (stop.QuadPart - start.QuadPart) * 1000.0/1000.0 / frequency.QuadPart;
+		std::cout << "\n(^-^)Time taken by function: " << duration << " s" << std::endl;
+
+
+
+		PrintCmdSepTitle("Alpha优化后");
+		PrintSpecialVector(xyz_tb);
+		cout << "\nE: " << alpha_energy << endl;
+		WriteTable(GetXYZTbPath(now_smiles, 2), XYZ_TB_TITLE, alpha_xyz_tb);
+
+		double aaa_energy = CalSumEnergyByXYZ(YES, xyz_tb, NeedCal(), old_alpha_tb, all_sp_tb, esp);
+
+		cout << "\nsmiles: " << now_smiles << endl;
+
+		
+		//WriteTable(GetXYZTbPath(now_smiles), XYZ_TB_TITLE, xyz_tb);
+		//PrintEnergy(sum_E, sum_eb, sum_ea, sum_eba, sum_eoop, sum_et, sum_evdw);
 	}
-
-	vector<Vec3> b_xyz_tb = CalXYZ(new_alpha_tb, pro_htb, bs_fast_tb, long_adj_list, all_sp_tb);
-	PrintCmdSepTitle("第二次优化三维坐标");
-	PrintSpecialVector(a_xyz_tb);
-	cout << "\nE: " << new_energy << endl;
-	WriteTable(GetXYZTbPath(now_smiles, 3), XYZ_TB_TITLE, b_xyz_tb);
-
-	//------------------------------**计时结束**------------------------------
-	QueryPerformanceCounter(&stop);
-
-	double duration = (stop.QuadPart - start.QuadPart) * 1000.0 / frequency.QuadPart;
-	std::cout << "\n(^-^)Time taken by function: " << duration << " ms" << std::endl;
-
-
-
-	//WriteTable(GetXYZTbPath(now_smiles), XYZ_TB_TITLE, xyz_tb);
-	//PrintEnergy(sum_E, sum_eb, sum_ea, sum_eba, sum_eoop, sum_et, sum_evdw);
-
 }
 
 
