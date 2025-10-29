@@ -290,7 +290,7 @@ void PrintCmdSepTitle(const string title, int sepwidth, const char fillsym)
 
 void PrintEnergy(double sum_E, double sum_eb, double sum_ea, double sum_eba, double sum_eoop, double sum_et, double sum_evdw)
 {
-	PrintCmdSepTitle("Sum E");
+	//PrintCmdSepTitle("Sum E");
 	cout << fixed << setprecision(8);
 	cout << "sum_EB: " << sum_eb << endl;
 	cout << "sum_EA: " << sum_ea << endl;

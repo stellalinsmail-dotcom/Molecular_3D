@@ -138,7 +138,7 @@ PrimeNumber::PrimeNumber(int n) :pn(n) {}
 PrimeNumber::PrimeNumber(vector<int> v) { if (!v.empty()) pn = v[0]; else pn = 0; }
 PrimeNumber::PrimeNumber(vector<string> vs) { if (!vs.empty()) pn = atoi(vs[0].c_str()); else pn = 0; }
 PrimeNumber::PrimeNumber(vector<string> vs, vector<int> seq) :PrimeNumber(vs) {}
-void PrimeNumber::Print()const
+void PrimeNumber::Print(const string sep)const
 {
 	cout << pn << endl;
 }
@@ -248,7 +248,7 @@ void Mole::ProcessCircleNumber(vector<string>& s, vector<vector<int>>& v, const 
 
 
 // --- Mole 核心实现 ---
-Mole::Mole(const vector<Atom>& etb, const string& smiles) :com_smiles(smiles)
+Mole::Mole(const vector<Atom>& etb, const string& smiles) :com_smiles(smiles),has_circle(false)
 {
 	vector<PreNode> p;
 	int* rec = new int[1000];
@@ -301,6 +301,7 @@ Mole::Mole(const vector<Atom>& etb, const string& smiles) :com_smiles(smiles)
 			}
 			else if (IsCircleNumber(nowch))
 			{
+				has_circle = true;
 				int endpos = FindLastCircleNumber(ptop.str, ptop.startpos);
 				vector<int> cnum;
 				string cstr = ptop.str.substr(ptop.startpos, endpos - ptop.startpos + 1);
@@ -350,6 +351,7 @@ Mole::Mole(const vector<Atom>& etb, const string& smiles) :com_smiles(smiles)
 	vector<int> rtb(nodetb.size(), 0);
 	sortedtb = stb;
 	ranktb = rtb;
+	
 }
 Mole::Mole(const vector<MNode>& now_nodetb, const  vector<NodeBonds>& now_bondtb):
 	nodetb(now_nodetb),bondtb(now_bondtb),sortedtb(vector<bool>(nodetb.size(), 0)), ranktb(vector<int>(nodetb.size(), 0))
@@ -486,7 +488,7 @@ bool Mole::SortByBinRank(vector<BinRank>& accordtb, int startseq, bool printyes)
 	if (repeatcount == 0) return true;
 	else return false;
 }
-int Mole::ComplexSortByRank(vector<PrimeNumber>& ptb)
+int Mole::ComplexSortByRank(const vector<PrimeNumber>& ptb)
 {
 	vector<BinRank> srtb;
 	int recordval = -1;
@@ -518,7 +520,7 @@ int Mole::ComplexSortByRank(vector<PrimeNumber>& ptb)
 	SortByBinRank(srtb, recordval);
 	return false;
 }
-void Mole::MoleSortWithPN(vector<PrimeNumber>& ptb, bool printyes)
+void Mole::MoleSortWithPN(const vector<PrimeNumber>& ptb, bool printyes)
 {
 	vector<BinRank> oritb;
 	GetOriRankTable(oritb);
@@ -532,8 +534,10 @@ void Mole::MoleSortWithPN(vector<PrimeNumber>& ptb, bool printyes)
 	}
 	if (printyes) cout << "\n总排序次数：" << count << endl;
 }
-string Mole::GenerateCanSmiles()
+string Mole::GenerateCanSmiles(const vector<PrimeNumber>& primetable)
 {
+	if (nodetb.size()<=1) return com_smiles;
+	MoleSortWithPN(primetable);
 	int rootseq;
 	for (rootseq = 0; rootseq < ranktb.size(); rootseq++)
 		if (ranktb[rootseq] == 0)
@@ -576,13 +580,16 @@ string Mole::GenerateCanSmiles()
 			vector<TreeNode> drtb;
 			//int count = 0;
 
+			int max_dseq = ptb.back().GetDesSeq();
 			for (auto& a : ptb)
 			{
 				int dseq = a.GetDesSeq();
 				if (!recordtb[dseq])
 				{
 					parenttb[dseq] = topseq;
-					drtb.push_back(TreeNode(a.GetBondSymbol(), ranktb[dseq], dseq));
+					int addnum = IsSpecialBond(a.GetBondSymbol());
+					if (addnum) addnum += max_dseq;
+					drtb.push_back(TreeNode(a.GetBondSymbol(), ranktb[dseq] - addnum,dseq));
 				}
 				else if (i == 0 && parenttb[topseq] != dseq)
 				{
@@ -629,11 +636,51 @@ string Mole::GenerateCanSmiles()
 }
 string Mole::GetCanSmiles()
 {
-	if (can_smiles.empty()) can_smiles = GenerateCanSmiles();
+	//if (can_smiles.empty()) can_smiles = GenerateCanSmiles();
 	return can_smiles;
 }
 
 // --- 辅助函数实现 ---
+vector<AdjLine> BondTbToAdjTb(const vector<NodeBonds> & bond_tb)
+{
+	vector<AdjLine> adj_tb;
+	for (int i=0;i<bond_tb.size();i++)
+	{
+		vector<PointTo> pto_tb = bond_tb[i].GetBonds();
+		for (auto& pto : pto_tb)
+		{
+			int jseq = pto.GetDesSeq();
+			if (i < jseq)
+			{
+				AdjLine aline(i, jseq, pto.GetBondSymbol());
+				adj_tb.push_back(aline);
+			}
+		}
+	}
+	return adj_tb;
+}
+
+int ExpandBondTb(ADJ_LIST& new_bond_tb, const ADJ_LIST& old_bond_tb, const vector<MNode>& mnode_tb)
+{
+	new_bond_tb = old_bond_tb;
+	int nhc = mnode_tb.size();
+	
+	int now_hseq = nhc;
+	for (int i = 0; i < nhc; i++)
+	{
+		int chc = mnode_tb[i].GetCHCount();
+		//ac += chc;
+		for (int j = 0; j < chc; j++)
+		{
+			PointTo ch("-", now_hseq);
+			new_bond_tb[i].AddBond(ch);
+			now_hseq++;
+		}
+		
+	}
+	return now_hseq;
+
+}
 vector<NodeBonds> AdjTbToBondTb(const vector<AdjLine>& adj_tb, const vector<MNode>& mnode_tb, bool is_short)
 {
 	vector<NodeBonds> bond_tb;
@@ -692,6 +739,42 @@ string DeleteHydrogen(string smiles)
 		smiles.erase(delpos[i], 1);
 	}
 	return smiles;
+}
+
+
+int IsSpecialBond(const string& bondsym)
+{
+	if (bondsym == DOUBLE_BOND|| bondsym == AROMA_BOND) return 2;
+	if (bondsym == TRIPLE_BOND) return 3;
+	return 0;
+}
+
+SmilesFundTable ReadSmilesSolidParam(bool print_yes, int max_row_count)
+{
+	string etb_filename = "File/Tables/ElementsTable.csv";
+	string ptb_filename = "File/Tables/PrimeNumber1000.csv";
+
+
+	vector<Atom> atomtable;
+	vector<PrimeNumber> primetable;
+
+	ReadTableByTitle(etb_filename, ATOM_TB_TITLE, atomtable, print_yes);
+	sort(atomtable.begin(), atomtable.end(), AtomTableCmp);
+
+	ReadTable(ptb_filename, "PrimeNumber", primetable, print_yes);
+
+
+	if (print_yes)
+	{
+		PrintCmdSepTitle("元素周期表读取");
+		PrintTableTitle(ATOM_TB_TITLE);
+		PrintSpecialVector(atomtable);
+
+		PrintCmdSepTitle("素数表读取");
+		PrintSpecialVector(primetable, "\t", max_row_count);
+	}
+	SmilesFundTable sft = { atomtable, primetable };
+	return sft;
 }
 
 

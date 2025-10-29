@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef MOLECULE_H
 #define MOLECULE_H
 
@@ -39,7 +41,7 @@ public:
 	PrimeNumber(vector<string> vs);
 	PrimeNumber(vector<string> vs, vector<int> seq);
 	~PrimeNumber() {}
-	void Print()const;
+	void Print(const string sep="\t")const;
 	int GetPN()const { return pn; }
 };
 
@@ -116,6 +118,7 @@ private:
 	string bondsym;
 public:
 	AdjLine(const vector<string>& info, const vector<int>& titlenum);
+	AdjLine(int i, int j, string bs) :seq_i(i), seq_j(j), bondsym(bs) {}
 	int GetSeqI()const { return seq_i; }
 	int GetSeqJ()const { return seq_j; }
 	string GetBondSym()const { return bondsym; }
@@ -148,6 +151,7 @@ private:
 	vector<bool> sortedtb;//表示节点是否有序
 	string com_smiles;
 	string can_smiles;
+	bool has_circle;
 
 	void ProcessAtom(vector<MNode>& ntb, vector<NodeBonds>& btb, const vector<Atom>& etb, const string& c);
 	int CircleMatch(int*& table, int nodeseq, int circleseq);
@@ -166,12 +170,13 @@ public:
 
 	void GetOriRankTable(vector<BinRank>& accordtb);
 	bool SortByBinRank(vector<BinRank>& accordtb, int startseq = 0, bool printyes = false);
-	int ComplexSortByRank(vector<PrimeNumber>& ptb);
-	void MoleSortWithPN(vector<PrimeNumber>& ptb, bool printyes = false);
-	string GenerateCanSmiles();
+	int ComplexSortByRank(const vector<PrimeNumber>& ptb);
+	void MoleSortWithPN(const vector<PrimeNumber>& ptb, bool printyes = false);
+	string GenerateCanSmiles(const vector<PrimeNumber>&);
 
 	string GetComSmiles()const { return com_smiles; }
 	string GetCanSmiles();
+	bool HasCircle()const { return has_circle; }
 	vector <MNode> GetNodeTable()const {
 		return nodetb;
 	}
@@ -180,7 +185,21 @@ public:
 	}
 };
 // --- 辅助函数 ---
+int ExpandBondTb(ADJ_LIST& new_bond_tb, const ADJ_LIST& old_bond_tb, const vector<MNode>& mnode_tb);
+vector<AdjLine> BondTbToAdjTb(const vector<NodeBonds>& bond_tb);
+
 vector<NodeBonds> AdjTbToBondTb(const vector<AdjLine>& ,const vector<MNode>&, bool is_short = YES);
 
 string DeleteHydrogen(string smiles);
+
+int IsSpecialBond(const string& bondsym);
+
+struct SmilesFundTable
+{
+	vector<Atom> atomtable;
+	vector<PrimeNumber> primetable;
+};
+
+SmilesFundTable ReadSmilesSolidParam(bool print_yes = false, int max_row_count = -1);
+
 #endif // MOLECULE_H

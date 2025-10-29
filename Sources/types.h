@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef TYPES_H
 #define TYPES_H
 
@@ -14,7 +16,10 @@
 #include <set>
 #include <map>
 #include <functional>
+#include <random>
 
+//#include <winsock2.h>
+//#include <ws2tcpip.h>
 
 using namespace std;
 
@@ -74,6 +79,10 @@ using namespace std;
 #define SP_SPTB_TITLE "Seq,R,Theta,Varphi"
 #define SP_RETB_TITLE "Seq,X,Y,Z"
 #define XYZ_TB_TITLE "X,Y,Z"
+
+#define SXYZ_TB_TITLE "Symbol,X,Y,Z"
+#define ADJ_AB_TB_TITLE "A,B"
+
 
 #define MMFF_CSV_FOLDER "File/Values/MMFF94_CSV/"
 #define SP_FOLDER "File/Values/C_SP_CSV/"
@@ -149,6 +158,27 @@ using namespace std;
 #define MAX_ADJ_NODE_SIZE 6
 #define OPT_RATIO 0.618
 
+
+// --- 文件路径处理 ---
+inline string GetMMFFPath(string filename)
+{
+	return MMFF_CSV_FOLDER + filename;
+}
+
+inline string GetMNodeTbPath(string can_smiles)
+{
+	return MMFF_OUTPUT_FOLDER + can_smiles + "/MNodeTable.csv";
+}
+inline string GetAdjTbPath(string can_smiles)
+{
+	return MMFF_OUTPUT_FOLDER + can_smiles + "/BondTable.csv";
+}
+inline string GetXYZTbPath(string can_smiles, int n)
+{
+	return MMFF_OUTPUT_FOLDER + can_smiles + "/XYZ_" + to_string(n) + ".csv";
+}
+
+
 // --- 通用辅助函数 ---
 
 template<typename T>
@@ -217,13 +247,17 @@ void PrintTableTitle(const string& text, const string outsep = "\t", const char 
 void PrintCmdSepTitle(const string title, int sepwidth = SEP_WIDTH, const char fillsym = SEP_SYMBOL);
 
 template<class T>
-void PrintCommonVector(const vector<T>& v, const string& sep = "\t")
+void PrintCommonVector(const vector<T>& v, const string& sep = "\t",int max_row_count = -1)
 {
 	int count = 0;
 	for (auto it = v.begin(); it != v.end(); it++)
 	{
 		if (count != 0)cout << sep;
 		cout << *it;
+		if (max_row_count > 0)
+		{
+			if (count >= max_row_count) break;
+		}
 		count++;
 	}
 }
@@ -235,6 +269,7 @@ void PrintSpecialVector(const vector<T>& v, const string& sep = "\t", int max_ro
 	for (auto& a : v)
 	{
 		a.Print(sep);
+		cout << endl;
 		if (max_row_count > 0)
 		{
 			rowcount++;
@@ -260,6 +295,23 @@ void PrintSet(const set<T>& s, const string& sep = "\t", int max_row_count = -1)
 
 void PrintEnergy(double sum_E, double sum_eb, double sum_ea, double sum_eba, double sum_eoop, double sum_et, double sum_evdw);
 
+template<typename TIndex, typename TVal>
+void PrintCommonMap(const map<TIndex, TVal>& m, const string& sep = "\t", int max_row_count = -1)
+{
+	//int n = TVal().GetPCount();
+	//string title = "MType" + repeat_str(",Keys", n);
+	//PrintTableTitle(title, sep);
+	int rowcount = 0;
+	for (auto& pair : m)
+	{
+		cout << "(" << pair.first << ")" << sep << "(" << pair.second << ")" << endl;
+		if (max_row_count > 0)
+		{
+			rowcount++;
+			if (rowcount >= max_row_count) break;
+		}
+	}
+}
 
 
 string GetCurrentTimeString();
@@ -398,9 +450,21 @@ void WriteTable(string filename, string stdtitle, const  vector<T>& table, bool 
 	if (writetitle) outFile << stdtitle << endl;
 	for (auto& line : table)
 	{
-		outFile << line;
+		outFile << line << endl;
 	}
 	outFile.close();
+}
+
+// --- 表格处理函数 ---
+template<typename TLine>
+map<string, int> ChangeTableToMap(const vector<TLine>& table)
+{
+	map<string, int> table_map;
+	for (auto& line : table)
+	{
+		table_map[line.GetIndex()] = line.GetVal();
+	}
+	return table_map;
 }
 
 //--- 字典打印输出 ---

@@ -2,1451 +2,23 @@
 #include "Atom.h"
 #include "Molecule.h"
 #include "Matrix.h"
+#include "MMFF94Table.h"
+#include "MMFF94Cal.h"
+
 
 
 using namespace std;
 
-// --- 文件路径处理 ---
-string GetMMFFPath(string filename)
-{
-	return MMFF_CSV_FOLDER + filename;
-}
-string GetSpheTbPath(int num)
-{
-	string filename = "M" + to_string(num) + ".csv";
-	return SP_FOLDER + filename;
-}
-string GetMNodeTbPath(string can_smiles)
-{
-	return MMFF_OUTPUT_FOLDER + can_smiles + "/MNodeTable.csv";
-}
-string GetAdjTbPath(string can_smiles)
-{
-	return MMFF_OUTPUT_FOLDER + can_smiles + "/BondTable.csv";
-}
-string GetXYZTbPath(string can_smiles, int n)
-{
-	return MMFF_OUTPUT_FOLDER + can_smiles + "/XYZ_" + to_string(n) + ".csv";
-}
-
-// --- MMFF94参数有效值类定义 ---
-class BSVal {
-public:
-	double kb;
-	double r0;
-	BSVal(double kb_now = NAN, double r0_now = NAN) :kb(kb_now), r0(r0_now) {}
-	friend ostream& operator<<(ostream& out, const BSVal& bsv)
-	{
-		out << bsv.kb << "," << bsv.r0;
-		return out;
-	}
-	int GetPCount()const
-	{
-		return 2;
-	}
-};
-class ABVal {
-public:
-	double ka_ijk;
-	double theta_0;
-	ABVal(double ka_now = NAN, double theta_now = NAN) :ka_ijk(ka_now), theta_0(theta_now) {}
-	friend ostream& operator<<(ostream& out, const ABVal& abv)
-	{
-		out << abv.ka_ijk << "," << abv.theta_0;
-		return out;
-	}
-	int GetPCount()const
-	{
-		return 2;
-	}
-};
-class SBVal {
-public:
-	double kba_ijk;
-	double kba_kji;
-
-	SBVal(double kba_ijk_now = NAN, double kba_kji_now = NAN) :kba_ijk(kba_ijk_now), kba_kji(kba_kji_now) {}
-	friend ostream& operator<<(ostream& out, const SBVal& sbv)
-	{
-		out << sbv.kba_ijk << "," << sbv.kba_kji;
-		return out;
-	}
-	int GetPCount()const
-	{
-		return 2;
-	}
-};
-class OPBVal {
-public:
-	double koop;
-	OPBVal(double koop_now = NAN) :koop(NAN) {}
-	friend ostream& operator<<(ostream& out, const OPBVal& opbv)
-	{
-		out << opbv.koop;
-		return out;
-	}
-	int GetPCount()const
-	{
-		return 1;
-	}
-};
-class TIVal {
-public:
-	double v1;
-	double v2;
-	double v3;
-	TIVal(double v1_now = NAN, double v2_now = NAN, double v3_now = NAN) :v1(v1_now), v2(v2_now), v3(v3_now) {}
-	friend ostream& operator<<(ostream& out, const TIVal& tiv)
-	{
-		out << tiv.v1 << "," << tiv.v2 << "," << tiv.v3;
-		return out;
-	}
-	int GetPCount()const
-	{
-		return 3;
-	}
-};
-class VDWVal {
-public:
-	double alpha_i;
-	double n_i;
-	double a_i;
-	double g_i;
-	VDWVal(double alpha_now = NAN, double n_now = NAN, double a_now = NAN, double g_now = NAN) :
-		alpha_i(alpha_now), n_i(n_now), a_i(a_now), g_i(g_now) {
-	}
-	friend ostream& operator<<(ostream& out, const VDWVal& vdwv)
-	{
-		out << vdwv.alpha_i << "," << vdwv.n_i << "," << vdwv.a_i << vdwv.g_i;
-		return out;
-	}
-	int GetPCount()const
-	{
-		return 4;
-	}
-};
-class VDWProVal
-{
-public:
-	double rv;
-	double e;
-	VDWProVal(double rv_ij = NAN, double epsilon_ij = NAN) :rv(rv_ij), e(epsilon_ij) {}
-	friend ostream& operator<<(ostream& out, const VDWProVal& vdwv)
-	{
-		out << vdwv.rv << "," << vdwv.e;
-		return out;
-	}
-	int GetPCount()const
-	{
-		return 2;
-	}
-};
-
-// --- MMFF94参数表行类定义 ---
-class BSLine
-{
-private:
-	//string bt;
-	int mtype_i;
-	int mtype_j;
-	double kb;
-	double r0;
-	//string source;
-	int mtype_count = 2;
-public:
-	BSLine(const vector<string>& info, const vector<int>& titlenum)
-	{
-		//bt = info[titlenum[0]];
-		mtype_i = atoi(info[titlenum[1]].c_str());
-		mtype_j = atoi(info[titlenum[2]].c_str());
-		kb = stod(info[titlenum[3]]);
-		r0 = stod(info[titlenum[4]]);
-	}
-
-	MTYPE_INDEX GetMTypeVec()const
-	{
-		return MTYPE_INDEX{ mtype_i, mtype_j };
-	}
-	MTYPE_INDEX GetRevMTypeVec()const
-	{
-		return MTYPE_INDEX{ mtype_j, mtype_i };
-	}
-	bool IsMTypeMatch(vector<int> mtype)const
-	{
-		if (mtype.size() < mtype_count) return false;
-		return (mtype_i == mtype[0] && mtype_j == mtype[1]) || (mtype_i == mtype[1] && mtype_j == mtype[0]);
-	}
-	BSVal GetVal()const { return BSVal(kb, r0); }
-
-	int GetMTypeI()const { return mtype_i; }
-	int GetMTypeJ()const { return mtype_j; }
-	double GetKB()const { return kb; }
-	double GetR0()const { return r0; }
-
-	void Print(string sep = "\t", bool title_state = TITLE_OFF)const
-	{
-		if (title_state) {
-			PrintTableTitle(BS_TB_SHORT_TITLE, sep);
-			cout << endl;
-		}
-		cout << mtype_i << sep << mtype_j << sep << kb << sep << r0 << endl;
-	}
-};
-class ABLine
-{
-private:
-	//string angle_type;
-	int mtype_i;
-	int mtype_j;
-	int mtype_k;
-	double ka_ijk;
-	double theta_0;
-	//string comment_origin;
-	int mtype_count = 3;
-public:
-	ABLine(const vector<string>& info, const vector<int>& titlenum)
-	{
-		//angle_type = info[titlenum[0]];
-		mtype_i = atoi(info[titlenum[1]].c_str());
-		mtype_j = atoi(info[titlenum[2]].c_str());
-		mtype_k = atoi(info[titlenum[3]].c_str());
-		ka_ijk = stod(info[titlenum[4]]);
-		double theta_deg = stod(info[titlenum[5]]);
-		theta_0 = DegToRad(theta_deg);
-	}
-	MTYPE_INDEX GetMTypeVec()const
-	{
-		return MTYPE_INDEX{ mtype_i, mtype_j, mtype_k };
-	}
-	MTYPE_INDEX GetRevMTypeVec()const
-	{
-		return MTYPE_INDEX{ mtype_k, mtype_j, mtype_i };
-	}
-	bool IsMTypeMatch(vector<int> mtype)const
-	{
-		if (mtype.size() < mtype_count) return false;
-		return (mtype_i == mtype[0] && mtype_j == mtype[1] && mtype_k == mtype[2]) ||
-			(mtype_i == mtype[2] && mtype_j == mtype[1] && mtype_k == mtype[0]);
-	}
-	ABVal GetVal()const { return ABVal(ka_ijk, theta_0); }
-
-	int GetMTypeI()const { return mtype_i; }
-	int GetMTypeJ()const { return mtype_j; }
-	int GetMTypeK()const { return mtype_k; }
-	double GetKA_IJK()const { return ka_ijk; }
-	double GetTheta_0()const { return theta_0; }
-
-	void Print(string sep = "\t", bool title_state = TITLE_OFF)const
-	{
-		if (title_state) {
-			PrintTableTitle(AB_TB_SHORT_TITLE, sep);
-			cout << endl;
-		}
-		cout << mtype_i << sep << mtype_j << sep << mtype_k << sep << ka_ijk << sep << theta_0 << endl;
-	}
-};
-class SBLine
-{
-private:
-	//string sbt;
-	int mtype_i;
-	int mtype_j;
-	int mtype_k;
-	double kba_ijk;
-	double kba_kji;
-	//string source;
-	int mtype_count = 3;
-public:
-	SBLine(const vector<string>& info, const vector<int>& titlenum)
-	{
-		//sbt = info[titlenum[0]];
-		mtype_i = atoi(info[titlenum[1]].c_str());
-		mtype_j = atoi(info[titlenum[2]].c_str());
-		mtype_k = atoi(info[titlenum[3]].c_str());
-		kba_ijk = stod(info[titlenum[4]]);
-		kba_kji = stod(info[titlenum[5]]);
-	}
-	MTYPE_INDEX GetMTypeVec()const
-	{
-		return MTYPE_INDEX{ mtype_i, mtype_j, mtype_k };
-	}
-	MTYPE_INDEX GetRevMTypeVec()const
-	{
-		return MTYPE_INDEX{ mtype_k, mtype_j, mtype_i };
-	}
-	bool IsMTypeMatch(vector<int> mtype)const
-	{
-		if (mtype.size() < mtype_count) return false;
-		return (mtype_i == mtype[0] && mtype_j == mtype[1] && mtype_k == mtype[2]) ||
-			(mtype_i == mtype[2] && mtype_j == mtype[1] && mtype_k == mtype[0]);
-	}
-	SBVal GetVal()const { return SBVal(kba_ijk, kba_kji); }
-
-	int GetMTypeI()const { return mtype_i; }
-	int GetMTypeJ()const { return mtype_j; }
-	int GetMTypeK()const { return mtype_k; }
-	double GetKBA_IJK()const { return kba_ijk; }
-	double GetKBA_KJI()const { return kba_kji; }
-
-
-	void Print(string sep = "\t", bool title_state = TITLE_OFF)const
-	{
-		if (title_state) {
-			PrintTableTitle(SB_TB_SHORT_TITLE, sep);
-			cout << endl;
-		}
-		cout << mtype_i << sep << mtype_j << sep << mtype_k << sep << kba_ijk << sep << kba_kji << endl;
-	}
-};
-class OPBLine
-{
-private:
-	int mtype_i;
-	int mtype_j;
-	int mtype_k;
-	int mtype_l;
-	double koop;
-	//string source;
-	int mtype_count = 4;
-public:
-	OPBLine(const vector<string>& info, const vector<int>& titlenum)
-	{
-		mtype_i = atoi(info[titlenum[0]].c_str());
-		mtype_j = atoi(info[titlenum[1]].c_str());
-		mtype_k = atoi(info[titlenum[2]].c_str());
-		mtype_l = atoi(info[titlenum[3]].c_str());
-		koop = stod(info[titlenum[4]]);
-	}
-	MTYPE_INDEX GetMTypeVec()const
-	{
-		return MTYPE_INDEX{ mtype_i, mtype_j, mtype_k, mtype_l };
-	}
-	MTYPE_INDEX GetRevMTypeVec()const
-	{
-		return MTYPE_INDEX{ mtype_k, mtype_j, mtype_i, mtype_l };
-	}
-	bool IsMTypeMatch(vector<int> mtype)const
-	{
-		if (mtype.size() < mtype_count) return false;
-		return (mtype_i == mtype[0] && mtype_j == mtype[1] && mtype_k == mtype[2] && mtype_l == mtype[3]) ||
-			(mtype_i == mtype[2] && mtype_j == mtype[1] && mtype_k == mtype[0] && mtype_l == mtype[3]);
-	}
-	OPBVal GetVal()const { return OPBVal(koop); }
-
-	int GetMTypeI()const { return mtype_i; }
-	int GetMTypeJ()const { return mtype_j; }
-	int GetMTypeK()const { return mtype_k; }
-	int GetMTypeL()const { return mtype_l; }
-	double GetKoop()const { return koop; }
-
-
-	void Print(string sep = "\t", bool title_state = TITLE_OFF)const
-	{
-		if (title_state) {
-			PrintTableTitle(OPB_TB_SHORT_TITLE, sep);
-			cout << endl;
-		}
-		cout << mtype_i << sep << mtype_j << sep << mtype_k << sep << mtype_l << sep << koop << endl;
-	}
-};
-class TILine
-{
-private:
-	//string tt;
-	int mtype_i;
-	int mtype_j;
-	int mtype_k;
-	int mtype_l;
-	double v1;
-	double v2;
-	double v3;
-	//string source;
-	int mtype_count = 4;
-public:
-	TILine(const vector<string>& info, const vector<int>& titlenum)
-	{
-		//tt = info[titlenum[0]];
-		mtype_i = atoi(info[titlenum[1]].c_str());
-		mtype_j = atoi(info[titlenum[2]].c_str());
-		mtype_k = atoi(info[titlenum[3]].c_str());
-		mtype_l = atoi(info[titlenum[4]].c_str());
-		v1 = stod(info[titlenum[5]]);
-		v2 = stod(info[titlenum[6]]);
-		v3 = stod(info[titlenum[7]]);
-	}
-	MTYPE_INDEX GetMTypeVec()const
-	{
-		return MTYPE_INDEX{ mtype_i, mtype_j, mtype_k, mtype_l };
-	}
-	MTYPE_INDEX GetRevMTypeVec()const
-	{
-		return MTYPE_INDEX{ mtype_l, mtype_k, mtype_j, mtype_i };
-	}
-	bool IsMTypeMatch(vector<int> mtype)const
-	{
-		if (mtype.size() < mtype_count) return false;
-		return (mtype_i == mtype[0] && mtype_j == mtype[1] && mtype_k == mtype[2] && mtype_l == mtype[3]) ||
-			(mtype_i == mtype[3] && mtype_j == mtype[2] && mtype_k == mtype[1] && mtype_l == mtype[0]);
-	}
-	int GetMTypeI()const { return mtype_i; }
-	int GetMTypeJ()const { return mtype_j; }
-	int GetMTypeK()const { return mtype_k; }
-	int GetMTypeL()const { return mtype_l; }
-	double GetV1()const { return v1; }
-	double GetV2()const { return v2; }
-	double GetV3()const { return v3; }
-	TIVal GetVal()const { return TIVal(v1, v2, v3); }
-
-	void Print(string sep = "\t", bool title_state = TITLE_OFF)const
-	{
-		if (title_state) {
-			PrintTableTitle(TI_TB_SHORT_TITLE, sep);
-			cout << endl;
-		}
-		cout << mtype_i << sep << mtype_j << sep << mtype_k << sep << mtype_l << sep << v1 << sep << v2 << sep << v3 << endl;
-	}
-};
-class VDWLine
-{
-private:
-	int mtype_i;
-	double alpha_i;
-	double n_i;
-	double a_i;
-	double g_i;
-	//string da;
-	//string sym;
-	//string origin;
-	int mtype_count = 1;
-public:
-	VDWLine(const vector<string>& info, const vector<int>& titlenum)
-	{
-		mtype_i = atoi(info[titlenum[0]].c_str());
-		alpha_i = stod(info[titlenum[1]]);
-		n_i = stod(info[titlenum[2]]);
-		a_i = stod(info[titlenum[3]]);
-		g_i = stod(info[titlenum[4]]);
-	}
-	MTYPE_INDEX GetMTypeVec()const { return MTYPE_INDEX{ mtype_i }; }
-	MTYPE_INDEX GetRevMTypeVec()const { return MTYPE_INDEX{ mtype_i }; }
-	bool IsMTypeMatch(vector<int> mtype)const
-	{
-		if (mtype.size() < mtype_count) return false;
-		return (mtype[0] == mtype_i);
-	}
-	int GetMTypeI()const { return mtype_i; }
-	double GetAlphaI()const { return alpha_i; }
-	double GetNI()const { return n_i; }
-	double GetAI()const { return a_i; }
-	double GetGI()const { return g_i; }
-	VDWVal GetVal()const
-	{
-		return VDWVal(alpha_i, n_i, a_i, g_i);
-	}
-
-	void Print(string sep = "\t", bool title_state = TITLE_OFF)const
-	{
-		if (title_state) {
-			PrintTableTitle(VDW_TB_SHORT_TITLE, sep);
-			cout << endl;
-		}
-		cout << mtype_i << sep << alpha_i << sep << n_i << sep << a_i << sep << g_i << endl;
-	}
-
-};
-
-
-
-// --- MMFF94参数表快表类定义 ---
-template<typename TLine, typename TVal>
-class FastMatrix1 {
-private:
-	vector<TVal> data;
-public:
-	FastMatrix1(const vector<TLine> table, vector<int> htb)
-	{
-		int dsize = htb.back() + 1;
-		int max_mtype = htb.size() - 1;
-		data = vector<TVal>(dsize, TVal());
-		for (auto& line : table)
-		{
-			int i = line.GetMTypeI();
-			if (i < 0 || i > max_mtype) continue;
-			int ti = htb[i];
-			if (ti < 0) continue;
-			data[ti] = line.GetVal();
-		}
-	}
-	TVal operator[](const FAST_TABLE_INDEX& m)const
-	{
-		return data[m[0]];
-	}
-	int GetSize()const
-	{
-		return data.size();
-	}
-};
-
-template<typename TLine, typename TVal>
-class FastMatrix2 {
-private:
-	vector<vector<TVal>> data;
-public:
-	FastMatrix2(const vector<TLine> table, vector<int> htb)
-	{
-		int dsize = htb.back() + 1;
-		int max_mtype = htb.size() - 1;
-		data = vector<vector<TVal>>(dsize, vector<TVal>(dsize, TVal()));
-		for (auto& line : table)
-		{
-			int i = line.GetMTypeI();
-			int j = line.GetMTypeJ();
-			if (min(i, j) < 0 || max(i, j) > max_mtype) continue;
-			int ti = htb[i];
-			int tj = htb[j];
-			if (min(ti, tj) < 0) continue;
-			data[ti][tj] = line.GetVal();
-			data[tj][ti] = line.GetVal();
-		}
-	}
-	const TVal operator[](const FAST_TABLE_INDEX& m)const {
-		return data[m[0]][m[1]];
-	}
-};
-
-template<typename TLine, typename TVal>
-class FastMatrix3 {
-private:
-	vector<vector<vector<TVal>>> data;
-public:
-	FastMatrix3(const vector<TLine> table, vector<int> htb)
-	{
-		int dsize = htb.back() + 1;
-		int max_mtype = htb.size() - 1;
-		//cout <<"Max MType: " << max_mtype << endl;
-		data = vector<vector<vector<TVal>>>(dsize, vector<vector<TVal>>(dsize, vector<TVal>(dsize, TVal())));
-		for (auto& line : table)
-		{
-			int i = line.GetMTypeI();
-			int j = line.GetMTypeJ();
-			int k = line.GetMTypeK();
-			if (Min3(i, j, k) < 0 || Max3(i, j, k) > max_mtype) continue;
-			int ti = htb[i];
-			int tj = htb[j];
-			int tk = htb[k];
-			if (Min3(ti, tj, tk) < 0) continue;
-			data[ti][tj][tk] = line.GetVal();
-			data[tk][tj][ti] = data[ti][tj][tk];
-		}
-	}
-	const TVal operator[](const FAST_TABLE_INDEX& m)const {
-		return data[m[0]][m[1]][m[2]];
-	}
-};
-
-template<typename TLine, typename TVal>
-class FastMatrix4 {
-private:
-	vector<vector<vector<vector<TVal>>>> data;
-public:
-	FastMatrix4(const vector<TLine> table, vector<int> htb, bool is_ij_solid = NO)
-	{
-		int dsize = htb.back() + 1;
-		int max_mtype = htb.size() - 1;
-		data = vector<vector<vector<vector<TVal>>>>(dsize, vector<vector<vector<TVal>>>(dsize, vector<vector<TVal>>(dsize, vector<TVal>(dsize, TVal()))));
-		for (auto& line : table)
-		{
-			int i = line.GetMTypeI();
-			int j = line.GetMTypeJ();
-			int k = line.GetMTypeK();
-			int l = line.GetMTypeL();
-			if (Min4(i, j, k, l) < 0 || Max4(i, j, k, l) > max_mtype) continue;
-			int ti = htb[i];
-			int tj = htb[j];
-			int tk = htb[k];
-			int tl = htb[l];
-			if (Min4(ti, tj, tk, tl) < 0) continue;
-			if (is_ij_solid)
-			{
-				data[ti][tj][tk][tl] = line.GetVal();
-				data[tk][tj][ti][tl] = data[ti][tj][tk][tl];
-			}
-			else
-			{
-				data[ti][tj][tk][tl] = line.GetVal();
-				data[tl][tk][tj][ti] = line.GetVal();
-			}
-		}
-	}
-	const TVal operator[](const FAST_TABLE_INDEX& m)const {
-		return data[m[0]][m[1]][m[2]][m[3]];
-	}
-};
-
-
-class SP_SpLine
-{
-private:
-	int seq;
-	RadVec3 rvec;
-public:
-	SP_SpLine(const vector<string>& info, const vector<int>& titlenum)
-	{
-		seq = atoi(info[titlenum[0]].c_str());
-		double r = stod(info[titlenum[1]]);
-		double theta = DegToRad(stod(info[titlenum[2]]));
-		double varphi = DegToRad(stod(info[titlenum[3]]));
-		rvec = RadVec3(r, theta, varphi);
-	}
-	void Print(string sep = "\t", bool title_state = TITLE_OFF)const
-	{
-		if (title_state) {
-			PrintTableTitle(SP_SPTB_TITLE, sep);
-			cout << endl;
-		}
-		cout << seq << sep;
-		rvec.Print(sep);
-	}
-	int GetSeq()const { return seq; }
-	RadVec3 GetRVec() { return rvec; }
-	void SpinTheta(double theta_rad)
-	{
-		rvec.theta += theta_rad;
-		rvec.theta = fmod(rvec.theta, PI_DOUBLE);
-	}
-	void SpinVarphi(double varphi_rad)
-	{
-		rvec.varphi += varphi_rad;
-		rvec.varphi = fmod(rvec.varphi, PI_DOUBLE);
-	}
-};
-
-class SP_ReLine
-{
-private:
-	int seq;
-	Vec3 xyz;
-public:
-	SP_ReLine() :seq(-1), xyz() {}
-	SP_ReLine(SP_SpLine line) :seq(line.GetSeq()), xyz(line.GetRVec()) {}
-	int GetSeq() const { return seq; }
-	Vec3 GetVec()const { return xyz; }
-	void Print(string sep = "\t", bool title_state = TITLE_OFF)const
-	{
-		if (title_state) {
-			PrintTableTitle(SP_RETB_TITLE, sep);
-			cout << endl;
-		}
-		cout << seq << sep;
-		xyz.Print(sep);
-	}
-
-};
-
-class SP_SpTable {
-private:
-	vector<vector<SP_SpLine>> all_tb;
-public:
-	SP_SpTable()
-	{
-		vector<vector<SP_SpLine>> at;
-		for (int i = 0; i <= MAX_SP_SIZE; i++)
-		{
-			if (i < 2) {
-				at.push_back(vector<SP_SpLine>());
-				continue;
-			}
-			vector<SP_SpLine> sp_sptb;
-			ReadTableByTitle(GetSpheTbPath(i), SP_SPTB_TITLE, sp_sptb);
-			at.push_back(sp_sptb);
-		}
-		all_tb = at;
-	}
-	SP_SpLine GetSPLine(int m, int row)const
-	{
-		return all_tb[m][row];
-	}
-	const vector<SP_SpLine>& operator[](int m)const
-	{
-		return all_tb[m];
-	}
-	void Print(string sep = "\t")
-	{
-		for (int i = 2; i <= MAX_SP_SIZE; i++)
-		{
-			string title = "M" + to_string(i) + ".csv";
-			PrintCmdSepTitle(title);
-			PrintTableTitle(SP_SPTB_TITLE);
-			PrintSpecialVector(all_tb[i], sep);
-		}
-	}
-};
-
-class NeedCal {
-public:
-	bool eb;
-	bool ea;
-	bool eba;
-	bool eoop;
-	bool et;
-	bool evdw;
-	NeedCal(bool is_eb = true, bool is_ea = true, bool is_eba = true, bool is_eoop = true, bool is_et = true, bool is_evdw = true) :
-		eb(is_eb), ea(is_ea), eba(is_eba), et(is_et), eoop(is_eoop), evdw(is_evdw) {
-	}
-	NeedCal(const NeedCal& nc) :eb(nc.eb), ea(nc.ea), eba(nc.eba), et(nc.et), eoop(nc.eoop), evdw(nc.evdw) {
-	}
-};
-
-struct EnergySolidParam
-{
-	F_BS bs_fast_tb;
-	F_AB ab_fast_tb;
-	F_SB sb_fast_tb;
-	F_OPB opb_fast_tb;
-	F_TI ti_fast_tb;
-	F_VDW vdw_fast_tb;
-	HASH_TB pro_htb;
-
-	BFS2_TB bfs_tb;
-	RE_TB re_tb;
-
-	ADJ_LIST short_adj_list;
-};
-struct EnergyVaryParam
-{
-	R_TB r_tb;
-	R_TB dr_tb;
-	VAR_TB dvar_tb;
-	PHI_TB phi_tb;
-	CHI_TB chi_tb;
-};
-
-// --- MMFF94参数表字典类快表定义 ---
-//
-// --- 表格处理 ---
-// template<typename T>class BSMap {
-//	PARAM_MAP r0;
-//	PARAM_MAP kb;
-//public:
-//	BSMap(const vector<BSLine>& table) :r0(CompressTableToMap(table, &BSLine::GetR0)),
-//		kb(CompressTableToMap(table, &BSLine::GetKB)) {
-//	}
-//	double GetR0(const vector<int>& key) { return r0[key]; }
-//	double GetKB(const vector<int>& key) { return kb[key]; }
-//};
-//class ABMap {
-//private:
-//	PARAM_MAP theta_0;
-//	PARAM_MAP ka_ijk;
-//public:
-//	ABMap(const vector<ABLine>& table) :theta_0(CompressTableToMap(table, &ABLine::GetTheta_0)),
-//		ka_ijk(CompressTableToMap(table, &ABLine::GetKA_IJK)) {
-//	}
-//	double GetTheta_0(const vector<int>& key) { return theta_0[key]; }
-//	double GetKA_IJK(const vector<int>& key) { return ka_ijk[key]; }
-//};
-//class SBMap {
-//private:
-//	PARAM_MAP kba_ijk;
-//	PARAM_MAP kba_kji;
-//public:
-//	SBMap(const vector<SBLine>& table) :kba_ijk(CompressTableToMap(table, &SBLine::GetKBA_IJK)),
-//		kba_kji(CompressTableToMap(table, &SBLine::GetKBA_KJI)) {
-//	}
-//	double GetKBA_IJK(const vector<int>& key) { return kba_ijk[key]; }
-//	double GetKBA_KJI(const vector<int>& key) { return kba_kji[key]; }
-//};
-//class OPBMap {
-//private:
-//	PARAM_MAP koop;
-//public:
-//	OPBMap(const vector<OPBLine>& table) :koop(CompressTableToMap(table, &OPBLine::GetKoop)) {}
-//	double GetKoop(const vector<int>& key) { return koop[key]; }
-//};
-//class TIMap {
-//private:
-//	PARAM_MAP v1;
-//	PARAM_MAP v2;
-//	PARAM_MAP v3;
-//public:
-//	TIMap(const vector<TILine>& table) :v1(CompressTableToMap(table, &TILine::GetV1)),
-//		v2(CompressTableToMap(table, &TILine::GetV2)),
-//		v3(CompressTableToMap(table, &TILine::GetV3)) {
-//	}
-//	double GetV1(const vector<int>& key) { return v1[key]; }
-//	double GetV2(const vector<int>& key) { return v2[key]; }
-//	double GetV3(const vector<int>& key) { return v3[key]; }
-//};
-//class VDWMap {
-//private:
-//	PARAM_MAP alpha_i;
-//	PARAM_MAP n_i;
-//	PARAM_MAP a_i;
-//	PARAM_MAP g_i;
-//public:
-//	VDWMap(const vector<VDWLine>& table) :alpha_i(CompressTableToMap(table, &VDWLine::GetAlphaI)),
-//		n_i(CompressTableToMap(table, &VDWLine::GetNI)),
-//		a_i(CompressTableToMap(table, &VDWLine::GetAI)),
-//		g_i(CompressTableToMap(table, &VDWLine::GetGI)) {
-//	}
-//	double GetAlphaI(const vector<int>& key) { return alpha_i[key]; }
-//	double GetNI(const vector<int>& key){ return n_i[key]; }
-//	double GetAI(const vector<int>& key) { return a_i[key]; }
-//	double GetGI(const vector<int>& key) { return g_i[key]; }
-//};
-
-// --- 辅助表格生成 ---
-
-vector<int> GetHashTable(const MTYPE_SET& mtype_set)
-{
-	int max_mtype = *mtype_set.rbegin();
-	vector<int> htb(max_mtype + 1, -1);
-	int index = 0;
-	for (auto mtype : mtype_set)
-	{
-		htb[mtype] = index;
-		index++;
-	}
-	return htb;
-}
-
-vector<int> GetProHashTable(const vector<int>& mtype_tb, const vector<int>& htb)
-{
-	int tbsize = mtype_tb.size();
-	vector<int> pro_htb(tbsize, -1);
-	for (int i = 0; i < tbsize; i++)
-	{
-		pro_htb[i] = htb[mtype_tb[i]];
-	}
-	return pro_htb;
-}
-
-vector<double> GetAlphaSepTable(const ADJ_LIST short_adj_list)
-{
-	int nhc = short_adj_list.size();
-	vector<double> a(nhc, NAN);
-	for (int i = 0; i < nhc; i++)
-	{
-		a[i] = min(PI_HALF / (short_adj_list[i].GetBonds().size() - 1),PI_HALF/6);
-	}
-	return a;
-
-}
-
-// --- 简单参数先导计算 ---
-
-inline double xyz2r(const Vec3& v1, const Vec3& v2)
-{
-	return Vec3(v2 - v1).GetLen();
-}
-inline double xyz2vartheta_rad(const Vec3& v1, const Vec3& v2, const Vec3& v3)
-{
-	Vec3 ab = v2 - v1;
-	Vec3 cb = v2 - v3;
-	return acos(Cdot(ab, cb) / (ab.GetLen() * cb.GetLen()));
-}
-inline double xyz2phi_rad(const Vec3& v1, const Vec3& v2, const Vec3& v3, const Vec3& v4)
-{
-	Vec3 a = v1 - v2;
-	Vec3 b = v3 - v2;
-	Vec3 c = v4 - v3;
-
-	Vec3 n_ab = Cross(a, b);
-	Vec3 n_bc = Cross(b, c);
-	double phi_rad = acos(Cdot(n_ab, n_bc) / (n_ab.GetLen() * n_bc.GetLen()));
-
-	//cout << endl;
-	//n_ab.Print();
-	//n_bc.Print();
-	//cout << "val: " << Cdot(n_ab, n_bc) / (n_ab.GetLen() * n_bc.GetLen()) << endl;
-	//cout << "phi_1: " << phi_rad << endl;
-
-	double k = -Cdot(a, b) / Cdot(b, b);
-	Vec3 d = a + k * b;
-	bool judge = (Cdot(d, c) < 0);
-	if (judge) phi_rad = PI - phi_rad;
-	return phi_rad;
-}
-inline double xyz2chi_rad(const Vec3& v1, const Vec3& v2, const Vec3& v3, const Vec3& v4)
-{
-	Vec3 c = v4 - v2;
-	Vec3 n = Cross(v1 - v2, v3 - v2);
-	double chi_rad = PI_HALF - acos(Cdot(c, n) / c.GetLen() / n.GetLen());
-	return chi_rad;
-}
-
-// --- 参数表格先导计算 ---
-VDWProVal PreCalRE(VDWVal vdw_i, VDWVal vdw_j)
-{
-	double alpha_i = vdw_i.alpha_i, alpha_j = vdw_j.alpha_i;
-	double n_i = vdw_i.n_i, n_j = vdw_j.n_i;
-	double a_i = vdw_i.a_i, a_j = vdw_j.a_i;
-	double g_i = vdw_i.g_i, g_j = vdw_j.g_i;
-
-	double B = 0.2;
-	double beta = 12;
-	double rv_ii = a_i * pow(alpha_i, 0.25);
-	double rv_jj = a_j * pow(alpha_j, 0.25);
-	double gamma_ij = (rv_ii - rv_jj) / (rv_ii + rv_jj);
-	double rv_ij = 0.5 * (rv_ii + rv_jj) * (1 + B * (1 - exp(-beta * pow(gamma_ij, 2))));
-	double epsilon_ij = 181.16 * g_i * g_j * alpha_i * alpha_j / (pow(alpha_i / n_i, 0.5) + pow(alpha_j / n_j, 0.5)) / pow(rv_ij, 6);
-	return VDWProVal(rv_ij, epsilon_ij);
-}
-void PreCalRETb(RE_TB& re_tb, MTYPE_SET mtype_set, const F_VDW& vdw_fast_tb, const HASH_TB& pro_htb)
-{
-	int tsize = vdw_fast_tb.GetSize();
-	int ac = pro_htb.size();
-	re_tb.clear();
-	re_tb = RE_TB(ac, vector<VDWProVal>(ac, VDWProVal()));
-	vector<vector<VDWProVal>> re_m_tb(tsize, vector<VDWProVal>(tsize, VDWProVal()));
-	for (int i = 0; i < tsize; i++)
-	{
-		for (int j = i; j < tsize; j++)
-		{
-			//cout << "***** fasttable_i,j: " << i << " " << j << endl;
-			re_m_tb[i][j] = PreCalRE(vdw_fast_tb[{i}], vdw_fast_tb[{j}]);
-			re_m_tb[j][i] = re_m_tb[i][j];
-		}
-	}
-	for (int i = 0; i < ac; i++)
-	{
-		for (int j = i + 1; j < ac; j++)
-		{
-			re_tb[i][j] = re_m_tb[pro_htb[i]][pro_htb[j]];
-			re_tb[j][i] = re_tb[i][j];
-		}
-	}
-}
-void PreCalDRTb(R_TB& r_tb, R_TB& dr_tb, const XYZ_TB& xyz_tb, ADJ_LIST short_adj_list, const F_BS& bs_fast_tb, const HASH_TB& pro_htb)
-{
-	int tsize = xyz_tb.size();
-	int nhc = short_adj_list.size();
-	r_tb.clear();
-	dr_tb.clear();
-	r_tb = R_TB(tsize, vector<double>(tsize, NAN));
-	dr_tb = R_TB(tsize, vector<double>(tsize, NAN));
-	for (int j = 0; j < tsize; j++)
-	{
-		for (int i = j + 1; i < tsize; i++)
-		{
-			r_tb[i][j] = xyz2r(xyz_tb[i], xyz_tb[j]);
-			r_tb[j][i] = r_tb[i][j];
-			//cout << i << "\t" << j<< "\tr_fcal: " << r_tb[i][j] << endl;
-		}
-		//PrintCommonVector(r_tb[j]);
-		//cout << endl;
-	}
-	for (int j = 0; j < nhc; j++)
-	{
-		int parent = j;
-		vector<PointTo> nb_node = short_adj_list[j].GetBonds();
-		int nsize = nb_node.size();
-		for (int i = 0; i < nsize; i++)
-		{
-			int child = nb_node[i].GetDesSeq();
-			if (child > parent)
-			{
-				FAST_TABLE_INDEX fti = { pro_htb[parent],pro_htb[child] };
-				double r0 = bs_fast_tb[fti].r0;
-
-				dr_tb[parent][child] = r_tb[parent][child] - r0;
-				dr_tb[child][parent] = dr_tb[parent][child];
-				//cout <<endl<< "r0: " <<r0<< endl;
-				//cout << parent << "\t" << child << "\tr_cal: " << r_tb[parent][child] << endl;
-				//cout <<parent<<"\t" << i << "\tdr: " << dr_tb[parent][i] << endl;
-			}
-		}
-		//PrintCommonVector(dr_tb[j]);
-		//cout << endl;
-	}
-}
-void PreCalDVarTb(VAR_TB& dvar_tb, const XYZ_TB& xyz_tb, const ADJ_LIST short_adj_list, const F_AB& ab_fast_tb, const HASH_TB& pro_htb)
-{
-	int tsize = xyz_tb.size();
-	int nhc = short_adj_list.size();
-
-	dvar_tb.clear();
-	dvar_tb = VAR_TB(nhc, vector<vector<double>>(MAX_ADJ_NODE_SIZE, vector<double>(MAX_ADJ_NODE_SIZE, NAN)));
-
-	for (int j = 0; j < nhc; j++)
-	{
-		int parent = j;
-		vector<PointTo> nb_node = short_adj_list[j].GetBonds();
-		int nsize = nb_node.size();
-		for (int i = 0; i < nsize; i++)
-		{
-			int child_i = nb_node[i].GetDesSeq();
-			for (int k = i + 1; k < nsize; k++)
-			{
-				int child_k = nb_node[k].GetDesSeq();
-				FAST_TABLE_INDEX fti = { pro_htb[child_i],pro_htb[parent],pro_htb[child_k] };
-				double var = xyz2vartheta_rad(xyz_tb[child_i], xyz_tb[parent], xyz_tb[child_k]);
-				double var0 = ab_fast_tb[fti].theta_0;
-				dvar_tb[parent][i][k] = var - var0;
-				dvar_tb[parent][k][i] = dvar_tb[parent][i][k];
-				//cout<<parent <<" " << child_i << " " << child_k <<" " << var << "\t" << var0 << endl;
-			}
-			//PrintCommonVector(dvar_tb[parent][i]);
-			//cout << endl;
-		}
-		//cout << endl;
-	}
-}
-void PreCalPhiTb(PHI_TB& phi_tb, const XYZ_TB& xyz_tb, const ADJ_LIST short_adj_list)
-{
-	int nhc = short_adj_list.size();
-	double sum_et = 0;
-	phi_tb = PHI_TB(nhc, V3_DTB(nhc, V2_DTB(MAX_ADJ_NODE_SIZE, V1_DTB(MAX_ADJ_NODE_SIZE, NAN))));
-	for (int j = 0; j < nhc; j++)
-	{
-		int parent_j = j;
-		vector<PointTo> nb_node_j = short_adj_list[j].GetBonds();
-		int jnsize = nb_node_j.size();
-		for (int k = 0; k < jnsize; k++)
-		{
-			int parent_k = nb_node_j[k].GetDesSeq();
-			if (parent_k > parent_j && parent_k < nhc)
-			{
-				vector<PointTo> nb_node_k = short_adj_list[parent_k].GetBonds();
-				int knsize = nb_node_k.size();
-				for (int i = 0; i < jnsize; i++)
-				{
-					int child_i = nb_node_j[i].GetDesSeq();
-					if (child_i != parent_k)
-					{
-						for (int l = 0; l < knsize; l++)
-						{
-							int child_l = nb_node_k[l].GetDesSeq();
-							if (child_l != parent_j)
-							{
-								//cout << endl;
-								//cout << child_i << "\t" << parent_j << "\t" << parent_k << "\t" << child_l << endl;
-								//FAST_TABLE_INDEX fti = { pro_htb[child_i],pro_htb[parent_j],pro_htb[parent_k],pro_htb[child_l] };
-								phi_tb[parent_j][parent_k][i][l] = xyz2phi_rad(xyz_tb[child_i], xyz_tb[parent_j], xyz_tb[parent_k], xyz_tb[child_l]);
-
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-}
-void PreCalChiTb(CHI_TB& chi_tb, const XYZ_TB& xyz_tb, const ADJ_LIST short_adj_list)
-{
-	int nhc = short_adj_list.size();
-	chi_tb.clear();
-	chi_tb = PHI_TB(nhc, V3_DTB(MAX_ADJ_NODE_SIZE, V2_DTB(MAX_ADJ_NODE_SIZE, V1_DTB(MAX_ADJ_NODE_SIZE, NAN))));
-	for (int j = 0; j < nhc; j++)
-	{
-		int parent = j;
-		vector<PointTo> nb_node = short_adj_list[j].GetBonds();
-		int nsize = nb_node.size();
-		if (nsize == 3)
-		{
-			for (int l = 0; l < 3; l++)
-			{
-				int child_l = nb_node[l].GetDesSeq();
-				int i = (l + 1) % 3;
-				int k = (i + 1) % 3;
-				int child_i = nb_node[i].GetDesSeq();
-				int child_k = nb_node[k].GetDesSeq();
-
-				chi_tb[parent][l][i][k] = xyz2chi_rad(xyz_tb[child_i], xyz_tb[parent], xyz_tb[child_k], xyz_tb[child_l]);
-			}
-		}
-	}
-}
-BFS2_TB Bfs2(int ac, const ADJ_LIST& short_adj_list)
-{
-	int nhc = short_adj_list.size();
-	BFS2_TB all_rec(nhc, vector<int>());
-	for (int j = 0; j < nhc; j++)
-	{
-		vector<bool> rec(ac, false);
-		rec[j] = true;
-
-		vector<PointTo> nb_node_a = short_adj_list[j].GetBonds();
-		int nasize = nb_node_a.size();
-		for (int na = 0; na < nasize; na++)
-		{
-			int child_a = nb_node_a[na].GetDesSeq();
-			rec[child_a] = true;
-			if (child_a < nhc)
-			{
-				vector<PointTo> nb_node_b = short_adj_list[child_a].GetBonds();
-				int nbsize = nb_node_b.size();
-				for (int nb = 0; nb < nbsize; nb++)
-				{
-					int child_b = nb_node_b[nb].GetDesSeq();
-					rec[child_b] = true;
-				}
-			}
-		}
-		for (int i = j + 1; i < ac; i++)
-		{
-			if (!rec[i])
-			{
-				all_rec[j].push_back(i);
-			}
-		}
-	}
-	return all_rec;
-}
-
-
-// 注释：除R表外，各表大小为 (ac|nhc)*6*6*...
-
-// --- MMFF94能量计算函数定义 ---
-inline double GetEB(double dr_ij, double kb)
-{
-	return 143.9525 * kb / 2 * pow(dr_ij, 2) * (1 - 2 * dr_ij + 2.33333333333 * pow(dr_ij, 2));
-}
-inline double GetEA(double dvar_rad, double ka)
-{
-	return 0.043844 * ka / 2 * pow(dvar_rad, 2) * (1 + -0.000122 * dvar_rad);
-}
-inline double GetEBA(double dr_ij, double dr_kj, double dvar_rad, double kba_ijk, double kba_kji)
-{
-	return 2.51210 * (kba_ijk * dr_ij + kba_kji * dr_kj) * dvar_rad;
-}
-inline double GetET(double phi_rad, double v1, double v2, double v3)
-{
-	return 0.5 * (v1 * (1 + cos(phi_rad)) + v2 * (1 - cos(2 * phi_rad)) + v3 * (1 + cos(3 * phi_rad)));
-}
-inline double GetEOOP(double chi_ijkl_rad, double koop)
-{
-	return 0.034844 * koop / 2 * pow(chi_ijkl_rad, 2);
-}
-inline double GetEVDW(double r_ij, double rv_ij, double epsilon_ij)
-{
-	//cout << "result1: " << 1.07 * rv_ij / (r_ij + 0.07 * rv_ij) << endl;
-	//cout << "result2: " << 1.12 * pow(rv_ij, 7) / (pow(r_ij, 7) + 0.12 * pow(rv_ij, 7)) << endl;
-	return epsilon_ij * pow(1.07 * rv_ij / (r_ij + 0.07 * rv_ij), 7) * (1.12 * pow(rv_ij, 7) / (pow(r_ij, 7) + 0.12 * pow(rv_ij, 7)) - 2);
-}
-
-// --- MMFF94能量分步骤计算 ---
-double CalEB(const ADJ_LIST& short_adj_list, const R_TB& dr_tb, const F_BS& bs_fast_tb, const HASH_TB& pro_htb)
-{
-	int nhc = short_adj_list.size();
-	double sum_eb = 0;
-	for (int j = 0; j < nhc; j++)
-	{
-		int parent = j;
-		vector<PointTo> nb_node = short_adj_list[j].GetBonds();
-		int nsize = nb_node.size();
-		for (int i = 0; i < nsize; i++)
-		{
-			int child = nb_node[i].GetDesSeq();
-			if (child > parent)
-			{
-				FAST_TABLE_INDEX fti = { pro_htb[parent],pro_htb[child] };
-
-				sum_eb += GetEB(dr_tb[parent][child], bs_fast_tb[fti].kb);
-				//cout << "EB: " << GetEB(dr_tb[parent][i], bs_fast_tb[fti].kb) << endl;
-			}
-		}
-	}
-	return sum_eb;
-}
-double CalEA(const ADJ_LIST& short_adj_list, const VAR_TB& dvar_tb, const F_AB& ab_fast_tb, const HASH_TB& pro_htb)
-{
-	int nhc = short_adj_list.size();
-	double sum_ea = 0;
-	for (int j = 0; j < nhc; j++)
-	{
-		int parent = j;
-		vector<PointTo> nb_node = short_adj_list[j].GetBonds();
-		int nsize = nb_node.size();
-		for (int i = 0; i < nsize; i++)
-		{
-			int child_i = nb_node[i].GetDesSeq();
-			for (int k = i + 1; k < nsize; k++)
-			{
-				int child_k = nb_node[k].GetDesSeq();
-				FAST_TABLE_INDEX fti = { pro_htb[child_i],pro_htb[parent],pro_htb[child_k] };
-				double ka_ijk = ab_fast_tb[fti].ka_ijk;
-
-				//cout << dvar_tb[parent][i][k] << endl;
-				sum_ea += GetEA(dvar_tb[parent][i][k], ka_ijk);
-				//cout << "EA: " << GetEA(dvar_tb[parent][i][k], ka_ijk) << endl;
-			}
-		}
-	}
-	return sum_ea;
-}
-double CalEBA(const ADJ_LIST& short_adj_list, const R_TB& dr_tb, const VAR_TB& dvar_tb, const F_SB& sb_fast_tb, const HASH_TB& pro_htb)
-{
-	int nhc = short_adj_list.size();
-	double sum_eba = 0;
-	for (int j = 0; j < nhc; j++)
-	{
-		int parent = j;
-		vector<PointTo> nb_node = short_adj_list[j].GetBonds();
-		int nsize = nb_node.size();
-		for (int i = 0; i < nsize; i++)
-		{
-			int child_i = nb_node[i].GetDesSeq();
-			for (int k = i + 1; k < nsize; k++)
-			{
-				int child_k = nb_node[k].GetDesSeq();
-				FAST_TABLE_INDEX fti = { pro_htb[child_i],pro_htb[parent],pro_htb[child_k] };
-				double kba_ijk = sb_fast_tb[fti].kba_ijk;
-				double kba_kji = sb_fast_tb[fti].kba_kji;
-				sum_eba += GetEBA(dr_tb[parent][child_i], dr_tb[parent][child_k], dvar_tb[parent][i][k], kba_ijk, kba_kji);
-
-				//cout << endl << parent << "\t" << child_i << "\t" << child_k << endl;
-				//cout << dr_tb[parent][child_i] << "\t" << dr_tb[parent][child_k] << dvar_tb[parent][i][k] << endl;
-				//cout << "EBA: " << GetEBA(dr_tb[parent][i], dr_tb[parent][k], dvar_tb[parent][i][k], kba_ijk, kba_kji) << endl;
-			}
-			//cout << endl;
-		}
-		//cout << endl;
-	}
-	return sum_eba;
-}
-double CalEOOP(const ADJ_LIST& short_adj_list, const CHI_TB& chi_tb, const F_OPB& opb_fast_tb, const HASH_TB& pro_htb)
-{
-	int nhc = short_adj_list.size();
-	double sum_eoop = 0;
-	for (int j = 0; j < nhc; j++)
-	{
-		int parent = j;
-		vector<PointTo> nb_node = short_adj_list[j].GetBonds();
-		int nsize = nb_node.size();
-		if (nsize == 3)
-		{
-			for (int l = 0; l < 3; l++)
-			{
-				int child_l = nb_node[l].GetDesSeq();
-				int i = (l + 1) % 3;
-				int k = (i + 1) % 3;
-				int child_i = nb_node[i].GetDesSeq();
-				int child_k = nb_node[k].GetDesSeq();
-
-				FAST_TABLE_INDEX fti = { pro_htb[child_i],pro_htb[parent],pro_htb[child_k],pro_htb[child_l] };
-				double koop = opb_fast_tb[fti].koop;
-				//double chi_ijkl = xyz2chi_rad(xyz_tb[child_i], xyz_tb[parent], xyz_tb[child_k], xyz_tb[child_l]);
-				double chi_ijkl = chi_tb[parent][l][i][k];
-				sum_eoop += GetEOOP(chi_ijkl, koop);
-			}
-		}
-	}
-	return sum_eoop;
-}
-double CalET(const ADJ_LIST& short_adj_list, const PHI_TB& phi_tb, const F_TI& ti_fast_tb, const HASH_TB& pro_htb)
-{
-	int nhc = short_adj_list.size();
-	double sum_et = 0;
-	for (int j = 0; j < nhc; j++)
-	{
-		int parent_j = j;
-		vector<PointTo> nb_node_j = short_adj_list[j].GetBonds();
-		int jnsize = nb_node_j.size();
-		for (int k = 0; k < jnsize; k++)
-		{
-			int parent_k = nb_node_j[k].GetDesSeq();
-			if (parent_k > parent_j && parent_k < nhc)
-			{
-				vector<PointTo> nb_node_k = short_adj_list[parent_k].GetBonds();
-				int knsize = nb_node_k.size();
-				for (int i = 0; i < jnsize; i++)
-				{
-					int child_i = nb_node_j[i].GetDesSeq();
-					if (child_i != parent_k)
-					{
-						for (int l = 0; l < knsize; l++)
-						{
-							int child_l = nb_node_k[l].GetDesSeq();
-							if (child_l != parent_j)
-							{
-								FAST_TABLE_INDEX fti = { pro_htb[child_i],pro_htb[parent_j],pro_htb[parent_k],pro_htb[child_l] };
-								double v1 = ti_fast_tb[fti].v1;
-								double v2 = ti_fast_tb[fti].v2;
-								double v3 = ti_fast_tb[fti].v3;
-								double phi_rad = phi_tb[parent_j][parent_k][i][l];
-								sum_et += GetET(phi_rad, v1, v2, v3);
-
-								//cout << endl;
-								//cout << child_i << "\t" << parent_j << "\t" << parent_k << "\t" << child_l << endl;
-								//cout << v1 << "\t" << v2 << "\t" << v3 << "\t" << phi_rad << endl;
-								//cout << "ET: " << GetET(phi_rad, v1, v2, v3) << endl;
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-	return sum_et;
-}
-double CalEVDW(const ADJ_LIST& short_adj_list, const BFS2_TB& bfs_tb, const R_TB& r_tb, const RE_TB& re_tb)
-{
-	double sum_evdw = 0;
-	int nhc = bfs_tb.size();
-	for (int j = 0; j < nhc; j++)
-	{
-		//cout << "BFS: " << j << endl;
-		//PrintCommonVector(bfs_tb[j]);
-		//cout << endl;
-
-		int bnsize = bfs_tb[j].size();
-		for (int i = 0; i < bnsize; i++)
-		{
-			int ci = bfs_tb[j][i];
-			sum_evdw += GetEVDW(r_tb[j][ci], re_tb[j][ci].rv, re_tb[j][ci].e);
-
-			//cout << endl;
-			//cout << j << "\t" << ci << endl;
-			//cout << r_tb[j][ci] << "\t" << re_tb[j][ci].rv << "\t" << re_tb[j][ci].e << endl;
-			//cout << "EVDW: " << GetEVDW(r_tb[j][ci], re_tb[j][ci].rv, re_tb[j][ci].e) << endl;
-		}
-
-	}
-	return sum_evdw;
-}
-
-double CalSumEnergy(bool print_yes, const  NeedCal& need_cal,
-	const EnergyVaryParam& evp, const EnergySolidParam& ft)
-{
-	double sum_eb = 0;
-	double sum_ea = 0;
-	double sum_eba = 0;
-	double sum_eoop = 0;
-	double sum_et = 0;
-	double sum_evdw = 0;
-
-	if (need_cal.eb) sum_eb = CalEB(ft.short_adj_list, evp.dr_tb, ft.bs_fast_tb, ft.pro_htb);
-	if (need_cal.ea) sum_ea = CalEA(ft.short_adj_list, evp.dvar_tb, ft.ab_fast_tb, ft.pro_htb);
-	if (need_cal.eb) sum_eba = CalEBA(ft.short_adj_list, evp.dr_tb, evp.dvar_tb, ft.sb_fast_tb, ft.pro_htb);
-	if (need_cal.eoop) sum_eoop = CalEOOP(ft.short_adj_list, evp.chi_tb, ft.opb_fast_tb, ft.pro_htb);
-	if (need_cal.et) sum_et = CalET(ft.short_adj_list, evp.phi_tb, ft.ti_fast_tb, ft.pro_htb);
-	if (need_cal.evdw) sum_evdw = CalEVDW(ft.short_adj_list, ft.bfs_tb, evp.r_tb, ft.re_tb);
-
-	double sum_E = sum_eb + sum_ea + sum_eba + sum_eoop + sum_et + sum_evdw;
-	if (print_yes) PrintEnergy(sum_E, sum_eb, sum_ea, sum_eba, sum_eoop, sum_et, sum_evdw);
-
-	return  sum_E;
-}
-
-//--- 初始三维坐标生成 ---
-vector<Vec3> CalXYZ(const vector<double> alpha_tb, const  HASH_TB& pro_htb, const F_BS& bs_fast_tb, const ADJ_LIST& short_adj_list, const SP_SpTable& all_sp_tb)
-{
-	int ac = pro_htb.size();
-	int nhc = alpha_tb.size();
-	vector<Vec3> xyz_tb(ac, Vec3());
-	vector<bool> rec_xyz(ac, false);
-	for (int j = 0; j < nhc; j++)
-	{
-		int parent = j;
-		//int m = mole_sp_tb[j];
-		//if (m != 4) continue;
-		vector<PointTo> nb_node = short_adj_list[j].GetBonds();
-		int nsize = nb_node.size();
-		int m = nsize;
-
-		//vector<SP_SpLine> new_m_arr(all_sp_tb[m]);
-		vector<SP_ReLine> m_rect_arr(m, SP_ReLine());
-		for (int sp_i = 0; sp_i < m; sp_i++)
-		{
-			SP_SpLine spline(all_sp_tb.GetSPLine(m, sp_i));
-			spline.SpinTheta(alpha_tb[j]);
-			SP_ReLine reline(spline);
-			m_rect_arr[sp_i] = reline;
-		}
-		//cout << "MTB\n";
-		//PrintTableTitle(SP_RETB_TITLE);
-		//PrintSpecialVector(m_rect_arr);
-		Matrix2<double> R;
-
-		for (int i = 0; i < nsize; i++)
-		{
-			int child = nb_node[i].GetDesSeq();
-			FAST_TABLE_INDEX fti = { pro_htb[parent],pro_htb[child] };
-
-			double r0 = bs_fast_tb[fti].r0;
-			//cout << "r0: " << r0 << endl;
-
-			if (i == 0)
-			{
-				if (j == 0)
-				{
-					xyz_tb[child] = Vec3(0, 0, r0);
-					rec_xyz[child] = true;
-				}
-				//Vec3 aaa(xyz_tb[child] - xyz_tb[parent]);
-				//aaa.Print();
-				CoordSys3 csys(xyz_tb[child] - xyz_tb[parent]);
-				R = csys.GetMatrixR();
-				//PrintCmdSepTitle("R");
-				//R.Print();
-
-			}
-			else if (child > parent && rec_xyz[child] == false)
-			{
-				Vec3 adot = (m_rect_arr[i].GetVec() * R);
-				xyz_tb[child] = r0 * adot + xyz_tb[parent];
-
-				rec_xyz[child] = true;
-			}
-
-		}
-
-
-	}
-	return xyz_tb;
-
-}
-
-double CalSumEnergyByXYZ(bool print_yes, XYZ_TB& xyz_tb, const NeedCal& need_cal, const vector<double>& alpha_tb, const SP_SpTable& all_sp_tb,
-	const EnergySolidParam& esp)
-{
-	xyz_tb = CalXYZ(alpha_tb, esp.pro_htb, esp.bs_fast_tb, esp.short_adj_list, all_sp_tb);
-
-
-	R_TB dr_tb, r_tb;
-	VAR_TB dvar_tb;
-	PHI_TB phi_tb;
-	CHI_TB chi_tb;
-
-	if (need_cal.eb || need_cal.eba || need_cal.evdw)
-	{
-		PreCalDRTb(r_tb, dr_tb, xyz_tb, esp.short_adj_list, esp.bs_fast_tb, esp.pro_htb);
-	}
-	if (need_cal.ea || need_cal.eba)
-	{
-		PreCalDVarTb(dvar_tb, xyz_tb, esp.short_adj_list, esp.ab_fast_tb, esp.pro_htb);
-	}
-	if (need_cal.et)
-	{
-		PreCalPhiTb(phi_tb, xyz_tb, esp.short_adj_list);
-	}
-	if (need_cal.eoop)
-	{
-		PreCalChiTb(chi_tb, xyz_tb, esp.short_adj_list);
-	}
-	if (print_yes)
-	{
-		PrintCmdSepTitle("三维坐标");
-		PrintSpecialVector(xyz_tb);
-	}
-
-	EnergyVaryParam evp{ r_tb,dr_tb,  dvar_tb,phi_tb,chi_tb };
-	double sum_energy = CalSumEnergy(print_yes, need_cal, evp, esp);
-
-	return sum_energy;
-}
-
-
 
 //--- 优化相关函数 ---
 template<typename T>
-bool JudgeStop(vector<T>new_tb, vector<T>old_tb, vector<T> sep_tb)
+bool JudgeStop(const vector<T>& new_tb, const vector<T>& old_tb, const vector<T>& sep_tb)
 {
 	int ssize = sep_tb.size();
 	for (int i = 0; i < ssize; i++)
 	{
-		if (abs(old_tb[i] - new_tb[i]) > sep_tb[i])
+		double a = abs(old_tb[i] - new_tb[i]);
+		if (a > sep_tb[i])
 		{
 			return false;
 		}
@@ -1454,14 +26,38 @@ bool JudgeStop(vector<T>new_tb, vector<T>old_tb, vector<T> sep_tb)
 	return true;
 }
 
-
-vector<double> AlphaOpt(bool has_circle,double& alpha_energy, XYZ_TB& xyz_tb, const SP_SpTable all_sp_tb, const EnergySolidParam& esp)
+vector<int> GenerateRandSeq(int size)
 {
+	//使用cstdlib和ctime生成随机数
+	vector<int> seq(size);
+	for (int i = 0; i < size; i++)
+	{
+		seq[i] = i;
+	}
+	unsigned seed = static_cast<unsigned>(time(0));
+	shuffle(seq.begin(), seq.end(), default_random_engine(seed));
+	return seq;
+}
+
+//粗略优化函数
+vector<double> AlphaOptRough(bool has_circle, double& alpha_energy, XYZ_TB& xyz_tb, const SP_SpTable& all_sp_tb, EnergySolidParam& esp)
+{
+	vector<double> alpha_tb;
+
+	return alpha_tb;
+}
+vector<double> AlphaOpt(bool has_circle, double& alpha_energy, XYZ_TB& xyz_tb, const SP_SpTable& all_sp_tb, EnergySolidParam& esp, bool detail_print = false)
+{
+	LARGE_INTEGER frequency;
+	QueryPerformanceFrequency(&frequency);
+	LARGE_INTEGER start, stop;
+	QueryPerformanceCounter(&start);
+	//------------------------------**计时开始**------------------------------
+
 	int nhc = esp.short_adj_list.size();
-	const double acc_energy = 1;
-	const double acc_angle = 1;
 
-
+	int turn1count = 0;
+	int turn2count = 0;
 	double asep = PI_HALF;
 	vector<double> old_alpha_tb(nhc, 0);
 	vector<double> new_alpha_tb(nhc, PI);
@@ -1471,337 +67,597 @@ vector<double> AlphaOpt(bool has_circle,double& alpha_energy, XYZ_TB& xyz_tb, co
 	//PrintCmdSepTitle("sp_tb");
 	//PrintCommonVector(asep_tb);
 	NeedCal alpha_need_cal;
+
 	if (!has_circle)
 	{
-		alpha_need_cal = NeedCal( false, false, false, false, true, true);
+		alpha_need_cal = NeedCal(false, false, false, false, true, true);
 	}
-	// --- alpha 第一次优化 粗略 ---
-	while (!JudgeStop(new_alpha_tb, old_alpha_tb, asep_tb))
+
+	double start_energy = CalSumEnergyByXYZ(NO, xyz_tb, NeedCal(), new_alpha_tb, all_sp_tb, esp);
+
+	const double acc_energy = 1e-4;
+	const double acc_angle = 1e-4;
+
+	const int angle_half_turn = nhc * 5;
+	const int print_turn = 20;
+
+	double old_energy_a = INFINITY;
+	double new_energy_a = start_energy;
+
+	const int wait_turn_max = min(nhc * 2, 100);
+	int wait_turn_count = 0;
+	bool break_yes_a = false;
+
+
+AlphaOpt1:
 	{
-		old_alpha_tb = new_alpha_tb;
+		// --- alpha 第一次优化 粗略 ---
+		while (!JudgeStop(new_alpha_tb, old_alpha_tb, asep_tb))
+		{
+			if (wait_turn_count >= wait_turn_max)
+			{
+				if (detail_print)cout << "等待超过最大轮次，结束粗略优化。" << endl;
+				new_energy_a = old_energy_a;
+				new_alpha_tb = old_alpha_tb;
+
+				break_yes_a = true;
+				break;
+			}
+			if (new_energy_a <= old_energy_a)
+			{
+				//for (int i = 0; i < nhc; i++)
+				//{
+				//	new_alpha_tb[i] = fmod((new_alpha_tb[i] + old_alpha_tb[i]) / 2,PI_DOUBLE);
+				//}
+				old_alpha_tb = new_alpha_tb;
+				old_energy_a = new_energy_a;
+				wait_turn_count = 0;
+			}
+			else
+			{
+				new_energy_a = old_energy_a;
+				new_alpha_tb = old_alpha_tb;
+				wait_turn_count++;
+			}
+			//生成一个随机数列，打乱优化顺序
+			vector<int> rand_seq;
+			if (has_circle) rand_seq = GenerateRandSeq(nhc);
+
+			for (int rand_i = 0; rand_i < nhc; rand_i++)
+			{
+				int i;
+				if (has_circle)i = rand_seq[rand_i];
+				else i = rand_i;
+
+				double now_asep = asep_tb[i];
+				double min_energy = INFINITY;
+				double min_angle = 0, now_angle = new_alpha_tb[i];
+				double angle_addup = 0;
+				do {
+					new_alpha_tb[i] = now_angle;
+					int limitpos = (has_circle) ? -1 : i;
+					double now_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, new_alpha_tb, all_sp_tb, esp, limitpos);
+					if (now_energy < min_energy)
+					{
+						min_energy = now_energy;
+						min_angle = now_angle;
+					}
+
+					angle_addup += now_asep;
+					now_angle = fmod(now_angle + angle_addup, PI_DOUBLE);
+
+				} while (angle_addup < PI_DOUBLE);
+				new_alpha_tb[i] = min_angle;
+			}
+			new_energy_a = CalSumEnergyByXYZ(NO, xyz_tb, NeedCal(), new_alpha_tb, all_sp_tb, esp);
+		}
 		for (int i = 0; i < nhc; i++)
 		{
-			double now_asep = asep_tb[i];
-			double min_energy = INFINITY;
-			double min_angle = 0, now_angle = 0;
-
-			do {
-				new_alpha_tb[i] = now_angle;
-
-				double now_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, new_alpha_tb, all_sp_tb, esp);
-				if (now_energy < min_energy)
-				{
-					min_energy = now_energy;
-					min_angle = now_angle;
-				}
-
-				now_angle += now_asep;
-
-			} while (now_angle < PI_DOUBLE);
-			new_alpha_tb[i] = min_angle;
+			asep_tb[i] /= 2;
+			if (asep_tb[i] < acc_angle) asep_tb[i] = acc_angle;
 		}
-	}
-	//vector<Vec3> a_xyz_tb = CalXYZ(new_alpha_tb, pro_htb, bs_fast_tb, long_adj_list, all_sp_tb);
+		if (turn1count < 15 && !break_yes_a)
+		{
+			turn1count++;
+			//cout << "粗略优化进行中，第 " << turn1count << " 轮..." << endl;
+			goto AlphaOpt1;
+		}
 
-	//PrintCmdSepTitle("第一次优化后三维坐标");
-	//PrintSpecialVector(a_xyz_tb);
-	//WriteTable(GetXYZTbPath(now_smiles, 2), XYZ_TB_TITLE, a_xyz_tb);
+	}
 
 	// --- alpha 第二次优化 精细 ---
-	cout << "粗略优化完成，进入精细优化阶段..." << endl;
 
 	double old_energy = INFINITY;
-	double new_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, new_alpha_tb, all_sp_tb, esp);
+
+	double new_energy = CalSumEnergyByXYZ(detail_print, xyz_tb, NeedCal(), new_alpha_tb, all_sp_tb, esp);
 
 	//cout << "\nE: " << new_energy << endl;
 
 	old_alpha_tb = new_alpha_tb;
 
-	while (!JudgeStop<double>({ new_energy }, { old_energy }, { acc_energy }))
+	asep_tb = GetAlphaSepTable(esp.short_adj_list);
+	//for (int i = 0; i < nhc; i++)
+	//{
+	//	asep_tb[i] = min(asep_tb[i],PI_HALF/3);
+	//	if (asep_tb[i] < acc_angle) asep_tb[i] = acc_angle;
+	//}
+
+	if (detail_print) cout << "粗略优化" << turn1count << "轮完成，进入精细优化阶段..." << endl;
+
+	vector<double> acc_asep_tb(nhc, acc_angle);
+
+	wait_turn_count = 0;
+
+AlphaOpt2:
 	{
-		old_energy = new_energy;
-		for (int i = 0; i < nhc; i++)
+		do
 		{
-			vector<double>now_alpha_tb = new_alpha_tb;
-			double left_angle = new_alpha_tb[i] - asep_tb[i];
-			double right_angle = new_alpha_tb[i] + asep_tb[i];
-
-			now_alpha_tb[i] = left_angle;
-
-			double left_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
-
-			now_alpha_tb[i] = right_angle;
-
-			double right_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
-
-			double mid_energy = INFINITY;
-
-			while (!JudgeStop<double>({ left_energy }, { right_energy }, { acc_energy }) &&
-				!JudgeStop<double>({ left_angle }, { right_angle }, { acc_angle }))
+			if (wait_turn_count >= wait_turn_max)
 			{
-				double sep_angle = (right_angle - left_angle) * OPT_RATIO;
-				double mid_left_angle = left_angle + sep_angle;
-				double mid_right_angle = right_angle - sep_angle;
-
-				now_alpha_tb[i] = mid_left_angle;
-				double mid_left_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
-
-				now_alpha_tb[i] = mid_right_angle;
-				double mid_right_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
-
-				if (left_energy < right_energy)
-				{
-					right_angle = mid_left_angle;
-					right_energy = mid_left_energy;
-				}
-				else
-				{
-					left_angle = mid_right_angle;
-					left_energy = mid_right_energy;
-				}
+				new_energy = old_energy;
+				new_alpha_tb = old_alpha_tb;
+				if (detail_print) cout << "等待超过最大轮次，结束精细优化。" << endl;
+				break;
 			}
-			new_alpha_tb[i] = (left_angle + right_angle) / 2;
-		}
-		new_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, new_alpha_tb, all_sp_tb, esp);
-	}
+			for (int i = 0; i < nhc; i++)
+			{
+				new_alpha_tb[i] = fmod(new_alpha_tb[i] + PI_DOUBLE, PI_DOUBLE);
+			}
+			if (new_energy < old_energy)
+			{
+				old_alpha_tb = new_alpha_tb;
+				old_energy = new_energy;
+				wait_turn_count = 0;
+			}
+			else
+			{
+				new_energy = old_energy;
+				new_alpha_tb = old_alpha_tb;
+				wait_turn_count++;
+			}
+			vector<int> rand_seq;
+			if (has_circle) rand_seq = GenerateRandSeq(nhc);
 
+			for (int rand_i = 0; rand_i < nhc; rand_i++)
+			{
+				int i;
+				if (has_circle)i = rand_seq[rand_i];
+				else i = rand_i;
+
+				vector<double>now_alpha_tb = new_alpha_tb;
+				double left_angle = new_alpha_tb[i] - asep_tb[i];
+				double right_angle = new_alpha_tb[i] + asep_tb[i];
+
+				now_alpha_tb[i] = left_angle;
+
+
+				double left_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
+
+				now_alpha_tb[i] = right_angle;
+
+				double right_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
+
+				double mid_energy = INFINITY;
+
+				while (!JudgeStop<double>({ left_energy }, { right_energy }, { acc_energy }) ||
+					!JudgeStop<double>({ left_angle }, { right_angle }, { acc_angle }))
+				{
+					double sep_angle = (right_angle - left_angle) * OPT_RATIO;
+					double mid_left_angle = left_angle + sep_angle;
+					double mid_right_angle = right_angle - sep_angle;
+
+					now_alpha_tb[i] = mid_left_angle;
+					double mid_left_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
+
+					now_alpha_tb[i] = mid_right_angle;
+					double mid_right_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
+
+					if (left_energy < right_energy)
+					{
+						right_angle = mid_left_angle;
+						right_energy = mid_left_energy;
+					}
+					else
+					{
+						left_angle = mid_right_angle;
+						left_energy = mid_right_energy;
+					}
+				}
+				new_alpha_tb[i] = (left_angle + right_angle) / 2;
+			}
+			turn2count++;
+			bool print_yes = false;
+			if(detail_print)(turn2count % print_turn == 0);
+			if (turn2count % angle_half_turn == 0)
+			{
+				for (int i = 0; i < nhc; i++)
+				{
+					asep_tb[i] /= 2;
+					if (asep_tb[i] < acc_angle) asep_tb[i] = acc_angle;
+				}
+
+			}
+			if (print_yes)
+			{
+				cout << "精细优化进行中，第 " << turn2count << " 轮..." << endl;
+			}
+			new_energy = CalSumEnergyByXYZ(print_yes, xyz_tb, NeedCal(), new_alpha_tb, all_sp_tb, esp);
+			if (print_yes)
+			{
+				cout << "\nEnergySep: " << new_energy - old_energy << endl;
+				//print alphasep
+				cout << "Alpha: ";
+				for (int i = 0; i < nhc; i++)
+				{
+					cout << new_alpha_tb[i] << "\t";
+				}
+				cout << endl;
+
+				cout << "AlphaSepReal ";
+				for (int i = 0; i < nhc; i++)
+				{
+					double nowprintsep = abs(new_alpha_tb[i] - old_alpha_tb[i]);
+					cout << nowprintsep << "\t";
+				}
+				cout << endl;
+
+				cout << "AlphaSep ";
+				for (int i = 0; i < nhc; i++)
+				{
+					cout << asep_tb[i] << "\t";
+				}
+				cout << endl;
+
+
+			}
+
+		} while (!JudgeStop<double>({ new_energy }, { old_energy }, { acc_energy }) ||
+			!JudgeStop(new_alpha_tb, old_alpha_tb, acc_asep_tb));
+	}
+	if (detail_print)cout << "精细优化完成，共进行 " << turn2count << " 轮。" << endl;
 	alpha_energy = new_energy;
 	//vector<Vec3> b_xyz_tb = CalXYZ(new_alpha_tb, pro_htb, bs_fast_tb, long_adj_list, all_sp_tb);
+
+	QueryPerformanceCounter(&stop);
+
+	//------------------------------**计时结束**------------------------------
+
+	double duration = (stop.QuadPart - start.QuadPart) * 1000.0 / 1000.0 / frequency.QuadPart;
+	cout << "\n(^-^)Alpha优化用时： " << duration << " s" << endl<<endl;
 
 	return new_alpha_tb;
 }
 
 
-// --- 类型识别 ---
+// 计划（伪代码）：
+// 1. 使用粒子群优化（PSO）搜索 alpha 向量的全局最优解。
+// 2. 初始化：根据原子数 nhc 设定粒子数 swarm_size；为每个粒子随机生成位置（角度范围 [0, PI)）和小幅速度；初始化个体最优 pbest 和全局最优 gbest。
+// 3. 迭代：在每一代中，按惯性权重 w（线性递减），学习因子 c1, c2 更新速度：
+//    v = w*v + c1*r1*(pbest - pos) + c2*r2*(gbest - pos)
+//    控制速度幅度并更新位置后规一化到 [0, PI)。
+// 4. 每更新一次位置就计算能量（调用 CalSumEnergyByXYZ，print_yes = NO），如果比 pbest 好则更新 pbest；并更新 gbest。
+// 5. 终止条件：达到最大迭代次数或全局收敛（能量变化小于阈值若干代）。
+// 6. 结束后用 gbest 生成最终三维坐标（CalSumEnergyByXYZ(print_yes = YES)）并返回 gbest，同时通过引用设置 alpha_energy 和 xyz_tb。
+// 7. 参数选择：w 逐渐从 0.9 线性降到 0.4，c1=c2=1.5，速度限幅为 PI，最大迭代与耐心轮数根据 nhc 设置。
 
-class MSymLine
+vector<double> AlphaPsoOpt(double& alpha_energy, XYZ_TB& xyz_tb, const SP_SpTable& all_sp_tb, EnergySolidParam& esp)
 {
-private:
-	string msym;
-	int mtype;
-public:
-	MSymLine(const vector<string>& info, const vector<int>& titlenum)
-	{
-		msym = info[titlenum[0]];
-		mtype = atoi(info[titlenum[1]].c_str());
+
+	LARGE_INTEGER b_frequency;
+	QueryPerformanceFrequency(&b_frequency);
+	LARGE_INTEGER b_start, b_stop;
+	QueryPerformanceCounter(&b_start);
+	//------------------------------**计时开始**------------------------------
+	int nhc = esp.short_adj_list.size();
+	if (nhc <= 0) {
+		alpha_energy = INFINITY;
+		xyz_tb.clear();
+		return vector<double>();
 	}
-	string GetIndex() const { return msym; }
-	int GetVal()const { return mtype; }
+
+	// PSO 参数
+	int swarm_size = max(12, min(60, nhc * 4)); // 粒子数
+	int max_iter = 400;                          // 最大迭代次数
+	double w_max = 0.9, w_min = 0.4;            // 惯性权重线性衰减
+	double c1 = 1.5, c2 = 1.5;                  // 学习因子
+	double vel_max = PI_DOUBLE;                 // 速度限幅
+	double energy_tol = 1e-6;                   // 能量收敛阈值
+	int patience_limit = 40;                    // 无改进耐心代数
+
+	std::mt19937_64 rng(static_cast<unsigned long>(time(nullptr)));
+	std::uniform_real_distribution<double> uni_angle(0.0, PI_DOUBLE);
+	std::uniform_real_distribution<double> uni_vel(-PI_DOUBLE / 8.0, PI_DOUBLE / 8.0);
+	std::uniform_real_distribution<double> uni_01(0.0, 1.0);
+
+	// 粒子群数据结构
+	vector<vector<double>> pos(swarm_size, vector<double>(nhc));
+	vector<vector<double>> vel(swarm_size, vector<double>(nhc));
+	vector<vector<double>> pbest_pos(swarm_size, vector<double>(nhc));
+	vector<double> pbest_energy(swarm_size, INFINITY);
+
+	vector<double> gbest_pos(nhc);
+	double gbest_energy = INFINITY;
+
+	NeedCal need_cal; // 默认计算所有能量项
+
+	// 初始化粒子
+	for (int s = 0; s < swarm_size; ++s) {
+		for (int i = 0; i < nhc; ++i) {
+			pos[s][i] = uni_angle(rng);
+			vel[s][i] = uni_vel(rng);
+		}
+		// 评估初始能量（不打印）
+		XYZ_TB tmp_xyz;
+		double e = CalSumEnergyByXYZ(NO, tmp_xyz, need_cal, pos[s], all_sp_tb, esp);
+		pbest_pos[s] = pos[s];
+		pbest_energy[s] = e;
+		if (e < gbest_energy) {
+			gbest_energy = e;
+			gbest_pos = pos[s];
+		}
+	}
+
+	int iter = 0;
+	int no_improve_count = 0;
+	double last_best_energy = gbest_energy;
+
+	while (iter < max_iter && no_improve_count < patience_limit) {
+		double w = w_max - (w_max - w_min) * (double(iter) / double(max_iter)); // 线性下降
+
+		for (int s = 0; s < swarm_size; ++s) {
+			// 更新速度与位置
+			for (int i = 0; i < nhc; ++i) {
+				double r1 = uni_01(rng);
+				double r2 = uni_01(rng);
+				double cognitive = c1 * r1 * (pbest_pos[s][i] - pos[s][i]);
+				double social = c2 * r2 * (gbest_pos[i] - pos[s][i]);
+				vel[s][i] = w * vel[s][i] + cognitive + social;
+				// 限幅
+				if (vel[s][i] > vel_max) vel[s][i] = vel_max;
+				if (vel[s][i] < -vel_max) vel[s][i] = -vel_max;
+				// 更新位置并映射到 [0, PI)
+				pos[s][i] += vel[s][i];
+				// 规范化到 [0, PI)
+				pos[s][i] = fmod(pos[s][i], PI_DOUBLE);
+				if (pos[s][i] < 0) pos[s][i] += PI_DOUBLE;
+			}
+
+			// 评估能量（不打印）
+			XYZ_TB tmp_xyz;
+			double e = CalSumEnergyByXYZ(NO, tmp_xyz, need_cal, pos[s], all_sp_tb, esp);
+
+			// 更新个体最优
+			if (e < pbest_energy[s]) {
+				pbest_energy[s] = e;
+				pbest_pos[s] = pos[s];
+			}
+			// 更新全局最优
+			if (e < gbest_energy) {
+				gbest_energy = e;
+				gbest_pos = pos[s];
+			}
+		}
+
+		// 早停检测
+		if (abs(last_best_energy - gbest_energy) < energy_tol) {
+			no_improve_count++;
+		}
+		else {
+			no_improve_count = 0;
+			last_best_energy = gbest_energy;
+		}
+		iter++;
+	}
+
+	// 计算并返回最终坐标（打印最终结果）
+	XYZ_TB final_xyz;
+	double final_e = CalSumEnergyByXYZ(NO, final_xyz, need_cal, gbest_pos, all_sp_tb, esp);
+	alpha_energy = final_e;
+	xyz_tb = final_xyz;
+
+	//------------------------------**计时结束**------------------------------
+	QueryPerformanceCounter(&b_stop);
+	double b_duration = (b_stop.QuadPart - b_start.QuadPart) * 1000.0 / 1000.0 / b_frequency.QuadPart;
+	std::cout << "\n(^-^)PSO优化用时: " << b_duration << " s" << std::endl;
+
+
+	return gbest_pos;
+}
+
+// --- 面向3D网页的导出 ---
+
+class SXYZ_3D {
+private:
+	string sym;
+	Vec3 xyz;
+public:
+	SXYZ_3D() : sym("None"), xyz(Vec3()) {}
+	SXYZ_3D(string s, Vec3 v) :sym(s), xyz(v) {}
+	string GetSym() const { return sym; }
+	Vec3 GetXYZ() const { return xyz; }
 	void Print(string sep = "\t")const
 	{
-		cout << msym << sep << mtype << endl;
+		cout << sym << sep;
+		xyz.Print(sep);
+	}
+	friend ostream& operator<<(ostream& os, const SXYZ_3D& sxyz)
+	{
+		os << "\"" << sxyz.sym << "\"," << sxyz.xyz;
+		return os;
 	}
 };
 
-template<typename TLine>
-map<string, int> ChangeTableToMap(const vector<TLine>& table)
+class AdjAB_3D
 {
-	map<string, int> table_map;
-	for (auto& line : table)
+private:
+	int seq1;
+	int seq2;
+	string bondsym;
+public:
+	AdjAB_3D(const vector<string>& info, const vector<int>& titlenum)
 	{
-		table_map[line.GetIndex()] = line.GetVal();
+		seq1 = atoi(info[titlenum[0]].c_str()) + 1;
+		seq2 = atoi(info[titlenum[1]].c_str()) + 1;
+		bondsym = info[titlenum[2]];
 	}
-	return table_map;
-}
-template<typename TIndex, typename TVal>
-void PrintCommonMap(const map<TIndex, TVal>& m, const string& sep = "\t", int max_row_count = -1)
-{
-	//int n = TVal().GetPCount();
-	//string title = "MType" + repeat_str(",Keys", n);
-	//PrintTableTitle(title, sep);
-	int rowcount = 0;
-	for (auto& pair : m)
+	AdjAB_3D(int s1 = -0, int s2 = 0) :seq1(s1), seq2(s2) {}
+	int GetIndex1() const { return seq1; }
+	int GetIndex2() const { return seq2; }
+	void Print(string sep = "\t")const
 	{
-		cout << "(" << pair.first << ")" << sep << "(" << pair.second << ")" << endl;
-		if (max_row_count > 0)
-		{
-			rowcount++;
-			if (rowcount >= max_row_count) break;
-		}
+		cout << seq1 << sep << seq2 << endl;
 	}
-}
-
-vector<string> GetMSymTb(int ac, const vector<MNode>& nodetb, const  ADJ_LIST& short_adj_list)
-{
-	//先求各个原子的MSym
-	int nhc = short_adj_list.size();
-
-	vector<string> ori_sym_tb(ac, "");
-
-	for (int j = 0; j < nhc; j++)
+	friend ostream& operator<<(ostream& os, const AdjAB_3D& adjline)
 	{
-		vector<PointTo> nb_node = short_adj_list[j].GetBonds();
+		os << adjline.seq1 << "," << adjline.seq2;
+		return os;
+	}
+
+};
+
+// --- 面向2D网页的读取 ---
+class  SimpleMNode
+{
+private:
+	int seq;
+	string sym;
+};
+
+//--- JSON格式解析 ---
+
+vector<SXYZ_3D> GetSXYZTb(const XYZ_TB& xyz_tb, const  EnergySolidParam& esp)
+{
+	int ac = xyz_tb.size();
+	int nhc = esp.short_adj_list.size();
+	vector<SXYZ_3D> sxyz_tb(ac, SXYZ_3D());
+
+	for (int i = 0; i < ac; i++)
+	{
+		if (i < nhc)sxyz_tb[i] = SXYZ_3D(esp.mnode_tb[i].GetSym(), xyz_tb[i]);
+		else sxyz_tb[i] = SXYZ_3D("H", xyz_tb[i]);
+	}
+	return sxyz_tb;
+
+
+}
+vector<AdjAB_3D> GetAdjABTb(const EnergySolidParam& esp)
+{
+	int nhc = esp.short_adj_list.size();
+	vector<AdjAB_3D> adjline_tb;
+	for (int i = 0; i < nhc; i++)
+	{
+		vector<PointTo> nb_node = esp.short_adj_list[i].GetBonds();
 		int nsize = nb_node.size();
-
-		string parent_sym = nodetb[j].GetSym();
-		string now_sym = parent_sym;
-		string h_cmpl_sym = "";
-		for (int i = 0; i < nsize; i++)
+		for (int j = 0; j < nsize; j++)
 		{
-			int child = nb_node[i].GetDesSeq();
-
-			//if (child==nhc)
-			//{
-			//	h_cmpl_sym=
-			//}
-
-			//非氢
-			if (child < nhc)
+			int des = nb_node[j].GetDesSeq();
+			if (des > i)
 			{
-				string bond_sym = nb_node[i].GetBondSymbol();
-				string child_sym = nodetb[child].GetSym();
-				if (bond_sym == DOUBLE_BOND) now_sym += bond_sym + child_sym;
-				else if (bond_sym == TRIPLE_BOND) now_sym += "%";
-
-				//else
-				//{
-				//	if (parent_sym != "C")
-				//	{
-				//		now_sym += child_sym;
-				//	}
-				//}
-			}
-			//氢
-			else
-			{
-				if (parent_sym != "C")
-				{
-					ori_sym_tb[child] = "H" + now_sym;
-				}
-				else
-				{
-					ori_sym_tb[child] = "H" + parent_sym;
-				}
+				adjline_tb.push_back(AdjAB_3D(i + 1, des + 1));
 			}
 		}
-		if (now_sym == parent_sym)
-		{
-			now_sym += "R";
-		}
-		ori_sym_tb[j] = now_sym;
 	}
-	for (int i = 0; i < ac; i++)
-	{
-		cout << i << "\t" << ori_sym_tb[i] << endl;
-	}
-
-	return ori_sym_tb;
+	return adjline_tb;
 }
 
-vector<int> GetMTypeTb(int ac, const vector<string>& msym_tb, const map<string, int>& msym_map)
+template<typename T>
+string VectorToJsonArray(string stdtitle, const vector<T>& v)
 {
-	vector<int> mtype_tb(ac, NAN);
-	for (int i = 0; i < ac; i++)
+	//title_tb存储各个字段的标题
+	vector<string> title_tb;
+	Split(title_tb, stdtitle, ',');
+	string json = "{\n";
+	int n = v.size();
+	//通过循环输入v中的每个元素，格式为"title":value，value的顺序由重载的operator<<决定，与title_tb顺序一致
+	for (int i = 0; i < n; i++)
 	{
-		auto iter = msym_map.find(msym_tb[i]);
-		if (iter != msym_map.end())
+		json += "\t\"" + to_string(i) + "\": {";
+		stringstream ss;
+		ss << v[i];
+		string line = ss.str();
+		vector<string> value_tb;
+		Split(value_tb, line, ',');
+		int m = title_tb.size();
+		for (int j = 0; j < m; j++)
 		{
-			mtype_tb[i] = iter->second;
+			json += "\"" + title_tb[j] + "\": ";
+			json += value_tb[j];
+			if (j < m - 1) json += ", ";
 		}
-		else
-		{
-			cout << "Warning: 未找到MSym " << msym_tb[i] << " 对应的MType！" << endl;
-		}
+		json += "}";
+		if (i < n - 1) json += ",\n";
+		else json += "\n";
 	}
-	return mtype_tb;
+
+
+	json += "}\n";
+	return json;
+
 }
+
+template<typename T>
+string VectorToJsonPart(string nametitle, const vector<T>& v)
+{
+	//title_tb存储各个字段的标题
+	//vector<string> title_tb;
+	//Split(title_tb, stdtitle, ',');
+	string json = "\"" + nametitle + "\": [\n";
+	size_t n = v.size();
+	//通过循环输入v中的每个元素，格式为"title":value，value的顺序由重载的operator<<决定，与title_tb顺序一致
+	for (size_t i = 0; i < n; i++)
+	{
+		json += "[";
+		stringstream ss;
+		ss << v[i];
+		string line = ss.str();
+		vector<string> value_tb;
+		Split(value_tb, line, ',');
+		size_t m = value_tb.size();
+		for (size_t j = 0; j < m; j++)
+		{
+			json += value_tb[j];
+			if (j < m - 1) json += ", ";
+		}
+		json += "]";
+		if (i < n - 1) json += ",\n";
+		else json += "\n";
+	}
+
+	json += "]";
+	return json;
+}
+
+
+
+bool WriteJsonFile(const string& filepath, const string& json)
+{
+	ofstream ofs(filepath);
+	if (!ofs.is_open())
+	{
+		cout << "Error: 无法打开文件 " << filepath << " 进行写入！" << endl;
+		return false;
+	}
+	ofs << json;
+	ofs.close();
+	return true;
+}
+
+// --- MMFF相关文件读取 ---
+
+
+
+
 
 int main()
 {
-	
-	PrintCmdSepTitle("基本参数表");
-	vector<BSLine> bs_tb;
-	vector<ABLine> ab_tb;
-	vector<SBLine> sb_tb;
-	vector<OPBLine> opb_tb;
-	vector<TILine> ti_tb;
-	vector<VDWLine> vdw_tb;
-
-	string bs_filepath = GetMMFFPath(BS_FILENAME);
-	string ab_filepath = GetMMFFPath(AB_FILENAME);
-	string sb_filepath = GetMMFFPath(SB_FILENAME);
-	string opb_filepath = GetMMFFPath(OPB_FILENAME);
-	string ti_filepath = GetMMFFPath(TI_FILENAME);
-	string vdw_filepath = GetMMFFPath(VDW_FILENAME);
-
-
-	ReadTableByTitle(bs_filepath, BS_TB_TITLE, bs_tb);
-	ReadTableByTitle(ab_filepath, AB_TB_TITLE, ab_tb);
-	ReadTableByTitle(sb_filepath, SB_TB_TITLE, sb_tb);
-	ReadTableByTitle(opb_filepath, OPB_TB_TITLE, opb_tb);
-	ReadTableByTitle(ti_filepath, TI_TB_TITLE, ti_tb);
-	ReadTableByTitle(vdw_filepath, VDW_TB_TITLE, vdw_tb);
-
-	//
-	int max_row_count = 2;
-	PrintTableTitle(BS_TB_SHORT_TITLE);
-	PrintSpecialVector(bs_tb, "\t", max_row_count);
-
-	PrintTableTitle(AB_TB_SHORT_TITLE);
-	PrintSpecialVector(ab_tb, "\t", max_row_count);
-
-	PrintTableTitle(SB_TB_SHORT_TITLE);
-	PrintSpecialVector(sb_tb, "\t", max_row_count);
-
-	PrintTableTitle(OPB_TB_SHORT_TITLE);
-	PrintSpecialVector(opb_tb, "\t", max_row_count);
-
-	PrintTableTitle(TI_TB_SHORT_TITLE);
-	PrintSpecialVector(ti_tb, "\t", max_row_count);
-
-	PrintTableTitle(VDW_TB_SHORT_TITLE);
-	PrintSpecialVector(vdw_tb, "\t", max_row_count);
-
-
-	PrintCmdSepTitle("杂化坐标表");
-
-	vector<SP_SpLine> sp_sptb;
-	ReadTableByTitle(GetSpheTbPath(3), SP_SPTB_TITLE, sp_sptb, YES);
-	//PrintTableTitle(SP_SPTB_TITLE);
-	//PrintSpecialVector(sp_sptb);
-
+	EnergyFundTable eft = ReadEnergySolidParam();
+	SmilesFundTable sft = ReadSmilesSolidParam();
 	SP_SpTable all_sp_tb;
-	//all_sptb.Print();
-
-
-
-	//CANYON表
-
-	string etb_filename = "File/Tables/ElementsTable.csv";
-	string ptb_filename = "File/Tables/PrimeNumber1000.csv";
 	string output_folder = "File/Output";
+	bool smiles_detail_print = false;
+	bool mmff_detail_print = false;
 
-	PrintCmdSepTitle("元素周期表读取");
-
-	vector<Atom> atomtable;
-	ReadTableByTitle(etb_filename, ATOM_TB_TITLE, atomtable);
-	sort(atomtable.begin(), atomtable.end(), AtomTableCmp);
-
-	PrintTableTitle(ATOM_TB_TITLE);
-	PrintSpecialVector(atomtable);
-
-	PrintCmdSepTitle("素数表读取");
-
-	vector<PrimeNumber> primetable;
-	ReadTable(ptb_filename, "PrimeNumber", primetable, true);
-
-	//MMFF表
-
-	vector<MSymLine> msym_tb;
-	string msys_filepath = GetMMFFPath(MSYM_FILENAME);
-	ReadTableByTitle(msys_filepath, MSYM_TB_TITLE, msym_tb);
-
-	MSYM_MAP msym_map = ChangeTableToMap(msym_tb);
-
-	//PrintCmdSepTitle("MMFFType");
-	//PrintTableTitle(MSYM_TB_SHORT_TITLE);
-	//PrintSpecialVector(msym_tb, "\t", 10);
-
-
-	//PrintTableTitle(MSYM_TB_SHORT_TITLE);
-	//PrintCommonMap(msym_map, "\t", 10);
-
-
+	cout << "\n数据初始化已完成(o゜▽゜)o☆\n";
 	int turncount = 0;
 	while (1)
 	{
@@ -1811,48 +667,48 @@ int main()
 		cout << "请输入普通SMILES结构式：" << endl;
 		string smiles;
 		cin >> smiles;
-
-		smiles = DeleteHydrogen(smiles);
-
 		if (smiles.empty())
 		{
 			cout << "\n请输入有效格式!" << endl;
 			continue;
 		}
 
-		PrintCmdSepTitle("分子节点提取");
+		smiles = DeleteHydrogen(smiles);
+		Mole c(sft.atomtable, smiles);
+		string now_smiles = c.GenerateCanSmiles(sft.primetable);
 
-		Mole c(atomtable, smiles);
-		c.PrintNodeTable();
+		if (smiles_detail_print)
+		{
+			PrintCmdSepTitle("分子节点提取");
+			c.PrintNodeTable();
 
-		//PrintCmdSepTitle("分子节点邻接表");
-		c.PrintBondTable();
+			PrintCmdSepTitle("分子节点邻接表");
+			c.PrintBondTable();
+
+			PrintCmdSepTitle("秩排序结果");
+			c.PrintRank();
+			cout << "\n是否含环: " << (c.HasCircle() ? "是" : "否") << endl;
+		}
 
 		//PrintCmdSepTitle("初始秩生成");
 		//c.PrintAtomTable();
 		//c.PrintOriRank();
 
-		//PrintCmdSepTitle("秩排序过程");
-		c.MoleSortWithPN(primetable);
-		cout << "\n排序结果：\n";
-		//c.PrintRank();
-
-		//PrintCmdSepTitle("唯一SMILES生成");
-
+		PrintCmdSepTitle("唯一SMILES生成");
 		cout << "原SMILES：\n";
 		cout << c.GetComSmiles() << endl << endl;
 		cout << "唯一SMILES：\n";
 		cout << c.GetCanSmiles() << endl;
 
 
-		string cs = c.GetCanSmiles();
-		Mole d(atomtable, cs);
-		const string folderpath = output_folder + "/" + cs;
+		Mole d(sft.atomtable, now_smiles);
 
-		PrintCmdSepTitle("文件夹" + cs + "创建");
-		if (!CreateFolder(folderpath)) {
-			cout << "Warning: 文件夹创建失败！可能已存在。\n";
-		}
+		const string folderpath = output_folder + "/" + now_smiles;
+
+		//DeleteFolder(folderpath);
+
+		/*
+		//---节点表与邻接表储存---
 		string now_time = GetCurrentTimeString();
 		string atomtable_filename = folderpath + "/MNodeTable.csv";
 		string bondtable_filename = folderpath + "/BondTable.csv";
@@ -1863,12 +719,10 @@ int main()
 		WriteTable<NodeBonds>(bondtable_filename, ADJ_TB_TITLE, d.GetBondTable(), true);
 		cout << "邻接表已储存至 " << bondtable_filename << endl;
 
-
 		//return 0;
 
-
 		PrintCmdSepTitle("分子相关表");
-		string now_smiles = c.GetComSmiles();
+		string now_smiles = cs;
 
 		//map<vector<int>, BSVal> bs_kb_map = CompressTableToMap<BSLine, BSVal>(bs_tb);
 		//PrintParamMap(bs_kb_map, "\t", max_row_count);
@@ -1879,139 +733,107 @@ int main()
 		PrintTableTitle(MNODE_TB_TITLE);
 		PrintSpecialVector(mnode_tb);
 
+
+
 		// --- 邻接表格式转换 ---
-		vector<AdjLine> adj_tb;
-		string adj_tb_path = GetAdjTbPath(now_smiles);
-		ReadTableByTitle(adj_tb_path, ADJ_TB_TITLE, adj_tb);
-		PrintTableTitle(ADJ_TB_TITLE);
-		PrintSpecialVector(adj_tb);
+		//vector<AdjLine> adj_tb;
+		//string adj_tb_path = GetAdjTbPath(now_smiles);
+		//ReadTableByTitle(adj_tb_path, ADJ_TB_TITLE, adj_tb);
+		//PrintTableTitle(ADJ_TB_TITLE);
+		//PrintSpecialVector(adj_tb);
 
-		PrintCmdSepTitle("扩展邻接表");
-		vector<NodeBonds> long_adj_list = AdjTbToBondTb(adj_tb, mnode_tb, NO);
-		PrintSpecialVector(long_adj_list);
-
-		PrintCmdSepTitle("普通邻接表");
-		vector<NodeBonds> short_adj_list = AdjTbToBondTb(adj_tb, mnode_tb);
-		PrintSpecialVector(short_adj_list);
+		*/
 
 
+		//---------------------------**MMFF识别**----------------------------------
+
+		int ac;
+		EnergySolidParam esp = GenEnergySolidParam(ac, eft, d, smiles_detail_print);
+		int nhc = esp.short_adj_list.size();
+		bool has_circle = c.HasCircle();
 
 
-		//---待修改的部分：根据分子节点类型，生成对应的MMFF94类型表---
-		int ac = long_adj_list.size();
-		//int nhc = short_adj_list.size();
-
-
-
-
-
-		PrintCmdSepTitle("MMFFType");
-		vector<string> ori_sym_tb = GetMSymTb(ac, mnode_tb, short_adj_list);
-		vector<int> mtype_tb = GetMTypeTb(ac, ori_sym_tb, msym_map);
-		
-		PrintCmdSepTitle("MType 表格查找");
-		cout << "Index\tMSymCal\tMType\n";
-		for (int i = 0; i < ac; i++)
-		{
-			cout << i << "\t" << ori_sym_tb[i] << "\t" << mtype_tb[i] << endl;
-		}
-
-
-		//DeleteFolder(folderpath);
-
-		//-------------------------------------------------------------
-
-		
-
-		//vector<int> mtype_tb = { 1,1,1,5,5,5,5,5,5,5,5 };
-
-
-		MTYPE_SET mtype_set(mtype_tb.begin(), mtype_tb.end());
-
-		vector<int> htb = GetHashTable(mtype_set);
-		vector<int> pro_htb = GetProHashTable(mtype_tb, htb);
-
-
-		//PrintSet(mtype_set);
-
-		PrintCmdSepTitle("htb");
-		PrintCommonVector(htb);
-
-		PrintCmdSepTitle("pro_htb");
-		PrintCommonVector(pro_htb);
-
-
-
-
-		F_BS bs_fast_tb(bs_tb, htb);
-		F_AB ab_fast_tb(ab_tb, htb);
-		F_SB sb_fast_tb(sb_tb, htb);
-		F_OPB opb_fast_tb(opb_tb, htb);
-		F_TI ti_fast_tb(ti_tb, htb);
-		F_VDW vdw_fast_tb(vdw_tb, htb);
-
-		BFS2_TB bfs_tb = Bfs2(ac, short_adj_list);
-
-		RE_TB re_tb;
-		PreCalRETb(re_tb, mtype_set, vdw_fast_tb, pro_htb);
-
-
-		EnergySolidParam esp = { bs_fast_tb ,ab_fast_tb,sb_fast_tb,opb_fast_tb,ti_fast_tb,vdw_fast_tb,pro_htb,bfs_tb,re_tb,short_adj_list };
-
-
-		//double a3 = 10 / 180.0 * PI;
-		int nhc = short_adj_list.size();
-		vector<double> old_alpha_tb (nhc,0);
+		//---------------------------**Alpha优化**----------------------------------
+		vector<double> old_alpha_tb(nhc, 0);
 		vector<Vec3> xyz_tb;
-
-		double now_energy = CalSumEnergyByXYZ(NO, xyz_tb, NeedCal(),old_alpha_tb, all_sp_tb, esp);
-
+		
 		PrintCmdSepTitle("Alpha优化前");
-		PrintSpecialVector(xyz_tb);
-
-		cout << "\nE: " << now_energy << endl;
+		double now_energy = CalSumEnergyByXYZ(YES, xyz_tb, NeedCal(), old_alpha_tb, all_sp_tb, esp);
 		WriteTable(GetXYZTbPath(now_smiles, 1), XYZ_TB_TITLE, xyz_tb);
 
 
-		PrintCmdSepTitle("三维坐标生成及能量计算-记时");
-
-
-		LARGE_INTEGER frequency;
-		QueryPerformanceFrequency(&frequency);
-		LARGE_INTEGER start, stop;
-		QueryPerformanceCounter(&start);
-		//------------------------------**计时开始**------------------------------
-
+		PrintCmdSepTitle("Alpha优化进度-记时");
 		cout << "优化中……\n";
-
 
 		XYZ_TB alpha_xyz_tb;
 		double alpha_energy;
-		vector<double> new_alpha_tb = AlphaOpt(YES,alpha_energy,alpha_xyz_tb, all_sp_tb, esp);
+		vector<double> new_alpha_tb = AlphaOpt(has_circle, alpha_energy, alpha_xyz_tb, all_sp_tb, esp);
 
-
-
-
-		//------------------------------**计时结束**------------------------------
-		QueryPerformanceCounter(&stop);
-
-		double duration = (stop.QuadPart - start.QuadPart) * 1000.0/1000.0 / frequency.QuadPart;
-		std::cout << "\n(^-^)Time taken by function: " << duration << " s" << std::endl;
-
-
+		cout << "优化完成！\n";
 
 		PrintCmdSepTitle("Alpha优化后");
-		PrintSpecialVector(xyz_tb);
-		cout << "\nE: " << alpha_energy << endl;
 		WriteTable(GetXYZTbPath(now_smiles, 2), XYZ_TB_TITLE, alpha_xyz_tb);
 
-		double aaa_energy = CalSumEnergyByXYZ(YES, xyz_tb, NeedCal(), old_alpha_tb, all_sp_tb, esp);
-
-		cout << "\nsmiles: " << now_smiles << endl;
-
+		double aaa_energy = CalSumEnergyByXYZ(YES, alpha_xyz_tb, NeedCal(), new_alpha_tb, all_sp_tb, esp);
 		
-		//WriteTable(GetXYZTbPath(now_smiles), XYZ_TB_TITLE, xyz_tb);
-		//PrintEnergy(sum_E, sum_eb, sum_ea, sum_eba, sum_eoop, sum_et, sum_evdw);
+		//std::cout << "\n(^-^)Time taken by function: " << duration << " s" << std::endl;
+		
+		//---------------------------**粒子群优化**----------------------------------
+		/*
+
+		//粒子群优化
+		vector<double> pso_alpha_tb = AlphaPsoOpt(alpha_energy, xyz_tb, all_sp_tb, esp);
+
+
+		PrintCmdSepTitle("Alpha粒子群优化后");
+		//PrintSpecialVector(xyz_tb);
+		WriteTable(GetXYZTbPath(now_smiles, 3), XYZ_TB_TITLE, xyz_tb);
+		cout << "\nsmiles: " << now_smiles << endl;
+		double pso_energy = CalSumEnergyByXYZ(YES, xyz_tb, NeedCal(), pso_alpha_tb, all_sp_tb, esp);
+
+		*/
+		//----------------------------**文件导出**-----------------------------------
+		
+		PrintCmdSepTitle("文件夹" + now_smiles + "创建");
+		if (!CreateFolder(folderpath)) {
+			cout << "Warning: 文件夹创建失败！可能已存在。\n";
+		}
+		else
+		{
+			cout << "文件夹创建成功！\n";
+		}
+
+		PrintCmdSepTitle("CSV文件导出");
+
+		vector<SXYZ_3D> sxyz_tb = GetSXYZTb(alpha_xyz_tb, esp);
+		vector<AdjAB_3D> adjline_tb = GetAdjABTb(esp);
+		
+		string sxyz_tb_path = folderpath + "/SXYZ.csv";
+		WriteTable(sxyz_tb_path, SXYZ_TB_TITLE, sxyz_tb);
+
+		string adjab_filename = folderpath + "/ADJ_AB.csv";
+		WriteTable(adjab_filename, ADJ_AB_TB_TITLE, adjline_tb);
+
+		cout << "文件 SXYZ.csv 和 ADJ_AB.csv 已储存！\n";
+
+		//---------------------------**JSON格式传输**----------------------------------
+		PrintCmdSepTitle("JSON文件导出");
+
+		//string sxyz_json_path = folderpath + "/SXYZ.json";
+		string sxyz_json_part = VectorToJsonPart("SXYZ", sxyz_tb);
+
+		//WriteJsonFile(sxyz_json_path, sxyz_json);
+		string adjab_json_part = VectorToJsonPart("ADJ_AB", adjline_tb);
+
+		string sent_json_path = folderpath + "/sent.json";
+		string sent_json = "{\n" + sxyz_json_part + "\n,\n" + adjab_json_part + "\n}\n";
+
+		//cout << sent_json << endl;
+		WriteJsonFile(sent_json_path, sent_json);
+
+		cout << "文件 sent.json 已储存！\n";
+
+		cout << "\nCanSmiles: " << now_smiles << endl;
 	}
 }
 
