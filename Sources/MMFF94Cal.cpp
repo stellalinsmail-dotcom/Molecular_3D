@@ -265,7 +265,7 @@ BFS2_TB Bfs2(int ac, const ADJ_LIST& short_adj_list)
 }
 
 //--- 初始三维坐标生成 ---
-vector<Vec3> CalXYZ(const vector<double>& alpha_tb, const  HASH_TB& pro_htb, const F_BS& bs_fast_tb, const MNODE_TB& mnode_tb, const ADJ_LIST& short_adj_list, const SP_SpTable& all_sp_tb)
+vector<Vec3> CalXYZ(const vector<double>& alpha_tb, const  HASH_TB& pro_htb, const F_BS& bs_fast_tb, const MNODE_TB& mnode_tb, const ADJ_LIST& short_adj_list, const SP_SpTable& all_sp_tb,bool print_yes)
 {
 	int ac = pro_htb.size();
 	int nhc = alpha_tb.size();
@@ -281,7 +281,7 @@ vector<Vec3> CalXYZ(const vector<double>& alpha_tb, const  HASH_TB& pro_htb, con
 		int m = nsize, startseq = 0;
 
 		string now_sym = mnode_tb[j].GetSym();
-		if (now_sym == "O" || now_sym == "N")
+		if (now_sym == "O" || now_sym == "N"||now_sym=="S")
 		{
 			m = 4;
 		}
@@ -309,8 +309,9 @@ vector<Vec3> CalXYZ(const vector<double>& alpha_tb, const  HASH_TB& pro_htb, con
 			FAST_TABLE_INDEX fti = { pro_htb[parent],pro_htb[child] };
 
 			double r0 = bs_fast_tb[fti].r0;
+			if (isnan(r0)) r0 = 1.0;
 			//cout << "r0: " << r0 << endl;
-
+			
 			if (i == 0)
 			{
 				if (j == 0)
@@ -324,7 +325,10 @@ vector<Vec3> CalXYZ(const vector<double>& alpha_tb, const  HASH_TB& pro_htb, con
 				CoordSys3 csys(oz);
 				R = csys.GetMatrixR();
 				//PrintCmdSepTitle("R");
-				//R.Print();
+				//if (print_yes) { 
+				//	PrintCmdSepTitle("初始建系R矩阵");
+				//	R.Print(); 
+				//}
 
 			}
 			else if (rec_xyz[child] == true && i == 1)
@@ -333,16 +337,19 @@ vector<Vec3> CalXYZ(const vector<double>& alpha_tb, const  HASH_TB& pro_htb, con
 				CoordSys3 csys(oz, ox_ref);
 				R = csys.GetMatrixR();
 				//cout <<"重新建系：" << parent << "\t" << child << endl;
+	/*			if (print_yes) {
+					PrintCmdSepTitle("重新建系R矩阵");
+					R.Print();
+				}*/
 			}
 			else if (child > parent && rec_xyz[child] == false)
 			{
 				Vec3 adot = (m_rect_arr[i].GetVec() * R);
 				xyz_tb[child] = r0 * adot + xyz_tb[parent];
-
 				rec_xyz[child] = true;
 				//cout << parent << "\t" << child << endl;
 			}
-
+			
 		}
 
 	}
@@ -362,7 +369,7 @@ double CalSumEnergyByXYZ(bool print_yes, XYZ_TB& xyz_tb, const NeedCal& need_cal
 	{
 		now_adj_list = esp.short_adj_list;
 	}
-	xyz_tb = CalXYZ(alpha_tb, esp.pro_htb, esp.bs_fast_tb, esp.mnode_tb, esp.short_adj_list, all_sp_tb);
+	xyz_tb = CalXYZ(alpha_tb, esp.pro_htb, esp.bs_fast_tb, esp.mnode_tb, esp.short_adj_list, all_sp_tb,print_yes);
 
 
 	R_TB dr_tb, r_tb;
@@ -451,7 +458,7 @@ vector<string> GetMSymTb(int ac, const vector<MNode>& nodetb, const  ADJ_LIST& s
 				}
 			}
 		}
-		if (now_sym == parent_sym)
+		if (now_sym == parent_sym&&now_sym!="S")
 		{
 			now_sym += "R";
 		}
@@ -525,7 +532,11 @@ EnergySolidParam GenEnergySolidParam(int& ac, const EnergyFundTable& eft, const 
 
 		PrintCmdSepTitle("MType 表格查找");
 		cout << "Index\tMSymCal\tMType\n";
-		for (int i = 0; i < min(ac, max_row_count); i++)
+		//int imax;
+		//if (max_row_count <= 0)  imax = ac;
+		//else imax = min(ac, max_row_count);
+		//cout << ac << endl;
+		for (int i = 0; i < ac; i++)
 		{
 			cout << i << "\t" << ori_sym_tb[i] << "\t" << mtype_tb[i] << endl;
 		}

@@ -230,6 +230,31 @@ void Split(vector<T>& v, string s, const char ch)
 		}
 	}
 }
+// --- ×Ö·û´®´¦Àíº¯Êý ---
+template<typename T>
+void Split(vector<T>& v, string s, string ch)
+{
+	int start = 0, end = 0;
+	v.clear();
+	int chlen = ch.length();
+	for (int i = 0; i < s.length(); i++)
+	{
+		end = i;
+		if (s.substr(i, chlen) != ch && i != s.length() - chlen) { continue; }
+		else
+		{
+			int len = end - start;
+			if (i == s.length() - chlen) len += chlen;
+			if (len)
+			{
+				string s_cut = s.substr(start, len);
+				v.push_back(s_cut);
+			}
+			start = end + chlen;
+			i += chlen - 1;
+		}
+	}
+}
 void SplitToInt(vector<int>& v, string s, const char ch);
 void GetTitleSortSeq(vector<int>& seq, string stdtitle, const vector<string>& tabletitle);
 bool IsLetter(const char& ch);

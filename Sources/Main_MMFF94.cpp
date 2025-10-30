@@ -6,7 +6,6 @@
 #include "MMFF94Cal.h"
 
 
-
 using namespace std;
 
 
@@ -75,8 +74,8 @@ vector<double> AlphaOpt(bool has_circle, double& alpha_energy, XYZ_TB& xyz_tb, c
 
 	double start_energy = CalSumEnergyByXYZ(NO, xyz_tb, NeedCal(), new_alpha_tb, all_sp_tb, esp);
 
-	const double acc_energy = 1e-4;
-	const double acc_angle = 1e-4;
+	const double acc_energy = 1e-2;
+	const double acc_angle = 1e-3;
 
 	const int angle_half_turn = nhc * 5;
 	const int print_turn = 20;
@@ -84,7 +83,7 @@ vector<double> AlphaOpt(bool has_circle, double& alpha_energy, XYZ_TB& xyz_tb, c
 	double old_energy_a = INFINITY;
 	double new_energy_a = start_energy;
 
-	const int wait_turn_max = min(nhc * 2, 100);
+	const int wait_turn_max = min(nhc * 2, 50);
 	int wait_turn_count = 0;
 	bool break_yes_a = false;
 
@@ -166,12 +165,17 @@ AlphaOpt1:
 	}
 
 	// --- alpha 第二次优化 精细 ---
-
+	
+	
 	double old_energy = INFINITY;
 
 	double new_energy = CalSumEnergyByXYZ(detail_print, xyz_tb, NeedCal(), new_alpha_tb, all_sp_tb, esp);
 
 	//cout << "\nE: " << new_energy << endl;
+
+	vector<double> final_alpha_tb_a = new_alpha_tb;
+	double final_energy_a = new_energy;
+
 
 	old_alpha_tb = new_alpha_tb;
 
@@ -267,7 +271,7 @@ AlphaOpt2:
 			}
 			turn2count++;
 			bool print_yes = false;
-			if(detail_print)(turn2count % print_turn == 0);
+			if(detail_print)print_yes=(turn2count % print_turn == 0);
 			if (turn2count % angle_half_turn == 0)
 			{
 				for (int i = 0; i < nhc; i++)
@@ -279,7 +283,7 @@ AlphaOpt2:
 			}
 			if (print_yes)
 			{
-				cout << "精细优化进行中，第 " << turn2count << " 轮..." << endl;
+				cout << "\n精细优化进行中，第 " << turn2count << " 轮...\n" << endl;
 			}
 			new_energy = CalSumEnergyByXYZ(print_yes, xyz_tb, NeedCal(), new_alpha_tb, all_sp_tb, esp);
 			if (print_yes)
@@ -314,6 +318,10 @@ AlphaOpt2:
 		} while (!JudgeStop<double>({ new_energy }, { old_energy }, { acc_energy }) ||
 			!JudgeStop(new_alpha_tb, old_alpha_tb, acc_asep_tb));
 	}
+
+	if (final_energy_a < new_energy) new_alpha_tb = final_alpha_tb_a;
+
+
 	if (detail_print)cout << "精细优化完成，共进行 " << turn2count << " 轮。" << endl;
 	alpha_energy = new_energy;
 	//vector<Vec3> b_xyz_tb = CalXYZ(new_alpha_tb, pro_htb, bs_fast_tb, long_adj_list, all_sp_tb);
@@ -515,13 +523,7 @@ public:
 
 };
 
-// --- 面向2D网页的读取 ---
-class  SimpleMNode
-{
-private:
-	int seq;
-	string sym;
-};
+
 
 //--- JSON格式解析 ---
 
@@ -627,7 +629,10 @@ string VectorToJsonPart(string nametitle, const vector<T>& v)
 	return json;
 }
 
+void Save3DCSV()
+{
 
+}
 
 bool WriteJsonFile(const string& filepath, const string& json)
 {
@@ -642,10 +647,135 @@ bool WriteJsonFile(const string& filepath, const string& json)
 	return true;
 }
 
-// --- MMFF相关文件读取 ---
+string ReadJsonFile(const string& filepath)
+{
+	ifstream ifs(filepath);
+	if (!ifs.is_open())
+	{
+		cout << "Error: 无法打开文件 " << filepath << " 进行读取！" << endl;
+		return "";
+	}
+	stringstream ss;
+	ss << ifs.rdbuf();
+	ifs.close();
+	return ss.str();
+}
+/*
+示例格式：
+{"Atom":[[5,"C"],[6,"C"],[7,"C"]],"Adj":[[5,6,"single"],[5,7,"single"]]}
+部分解析代码示例：
+		string bondsym;
+		string bondname = fields[2];
+		if (bondname == "single") bondsym = SINGLE_BOND;
+		else if (bondname == "double") bondsym = DOUBLE_BOND;
+		else if (bondname == "triple") bondsym = TRIPLE_BOND;
+		else bondsym = SINGLE_BOND;
+*/
+bool AnalysisJsonFile(const string& json, vector<SimpleMNode>& sntb, vector<AdjLine>& adj_list)
+{
+	size_t atom_pos = json.find("\"Atom\"");
+	if (atom_pos == string::npos)
+	{
+		cout << "Error: JSON文件中未找到Atom部分！" << endl;
+		return false;
+	}
+	size_t adj_pos = json.find("\"Adj\"");
+	if (adj_pos == string::npos)
+	{
+		cout << "Error: JSON文件中未找到Adj部分！" << endl;
+		return false;
+	}
+	size_t atom_start = json.find("[", atom_pos);
+	size_t atom_end = json.find("]]", atom_start);
+	string atom_array_str = json.substr(atom_start + 1, atom_end - atom_start - 1);
+	size_t adj_start = json.find("[", adj_pos);
+	size_t adj_end = json.find("]]", adj_start);
+	string adj_array_str = json.substr(adj_start + 1, adj_end - adj_start - 1);
+	// 解析Atom数组
+	vector<string> atom_entries;
+
+	vector<int> seq_tb;
+	vector<SimpleMNode> mid_sntb;
+	vector<AdjLine> mid_adj_list;
+	int max_seq = -1;
 
 
+	Split(atom_entries, atom_array_str, "],");
+	for (const string& entry : atom_entries)
+	{
+		string clean_entry = entry;
+		clean_entry.erase(remove(clean_entry.begin(), clean_entry.end(), '['), clean_entry.end());
+		clean_entry.erase(remove(clean_entry.begin(), clean_entry.end(), ']'), clean_entry.end());
+		vector<string> fields;
+		Split(fields, clean_entry, ",");
+		if (fields.size() >= 2)
+		{
+			int seq = atoi(fields[0].c_str());
+			string sym = fields[1];
+			//去除sym中的引号
+			sym.erase(remove(sym.begin(), sym.end(), '\"'), sym.end());
 
+			if (sym == "H") {
+				continue;
+			}
+			if (seq > max_seq) max_seq = seq;
+			seq_tb.push_back(seq);
+			mid_sntb.push_back(SimpleMNode(seq, sym));
+		}
+	}
+	// 解析Adj数组
+	vector<string> adj_entries;
+	Split(adj_entries, adj_array_str, "],");
+	for (const string& entry : adj_entries)
+	{
+		string clean_entry = entry;
+		clean_entry.erase(remove(clean_entry.begin(), clean_entry.end(), '['), clean_entry.end());
+		clean_entry.erase(remove(clean_entry.begin(), clean_entry.end(), ']'), clean_entry.end());
+		vector<string> fields;
+		Split(fields, clean_entry, ",");
+		if (fields.size() >= 3)
+		{
+			int seq1 = atoi(fields[0].c_str());
+			int seq2 = atoi(fields[1].c_str());
+
+			if (seq1 > max_seq || seq2 > max_seq) continue;
+			string bondname = fields[2];
+			string bondsym;
+			if (bondname == "\"single\"") bondsym = SINGLE_BOND;
+			else if (bondname == "\"double\"") bondsym = DOUBLE_BOND;
+			else if (bondname == "\"triple\"") bondsym = TRIPLE_BOND;
+			else bondsym = "";
+			mid_adj_list.push_back(AdjLine(seq1, seq2, bondsym));
+		}
+	}
+
+	vector<int> new_seq_tb(max_seq + 1, -1);
+	for (int i = 0; i < seq_tb.size(); i++)
+	{
+		new_seq_tb[seq_tb[i]] = i;
+	}
+	for (auto& node : mid_sntb)
+	{
+
+		int old_seq = node.seq;
+		node.seq = new_seq_tb[old_seq];
+
+		if (node.seq == -1 ) continue;
+
+		sntb.push_back(node);
+	}
+	for (auto& adj : mid_adj_list)
+	{
+		int old_seq1 = adj.GetSeqI();
+		int old_seq2 = adj.GetSeqJ();
+
+		int new_seq1 = new_seq_tb[old_seq1];
+		int new_seq2 = new_seq_tb[old_seq2];
+
+		if (new_seq1 == -1 || new_seq2 == -1) continue;
+		adj_list.push_back(AdjLine(new_seq1, new_seq2, adj.GetBondSym()));
+	}
+}
 
 
 int main()
@@ -654,16 +784,76 @@ int main()
 	SmilesFundTable sft = ReadSmilesSolidParam();
 	SP_SpTable all_sp_tb;
 	string output_folder = "File/Output";
-	bool smiles_detail_print = false;
+	bool smiles_detail_print = YES;
 	bool mmff_detail_print = false;
 
 	cout << "\n数据初始化已完成(o゜▽゜)o☆\n";
 	int turncount = 0;
 	while (1)
 	{
+
 		turncount++;
 		PrintCmdSepTitle("第" + to_string(turncount) + "轮结构式解析");
+		Mole c;
 
+		cout << "请选择解析方法：\n1. 普通SMILES\n2. JSON格式\n默认SMILES，输入数字选择：";
+		string method_choice;
+		cin >> method_choice;
+
+		if (method_choice == "2")
+		{
+			cout << "请输入JSON文件名：" << endl;
+			string json_filepath;
+			cin >> json_filepath;
+			string json = ReadJsonFile("File/Sources/" + json_filepath);
+			if (json.empty())
+			{
+				cout << "\n无法读取JSON文件，请检查路径！" << endl;
+				continue;
+			}
+			vector<SimpleMNode> sn_tb;
+			vector<AdjLine> adj_list;
+			if (!AnalysisJsonFile(json, sn_tb, adj_list))
+			{
+				cout << "\nJSON文件解析失败，请检查格式！" << endl;
+				continue;
+			}
+			PrintCmdSepTitle("简化分子节点表");
+			PrintSpecialVector(sn_tb);
+			PrintCmdSepTitle("简化分子邻接表");
+			PrintSpecialVector(adj_list);
+			c = Mole(sft.atomtable, sn_tb, adj_list);
+		}
+		else
+		{
+			cout << "请输入普通SMILES结构式：" << endl;
+			string smiles;
+			cin >> smiles;
+			if (smiles.empty())
+			{
+				cout << "\n请输入有效格式!" << endl;
+				continue;
+			}
+			smiles = DeleteHydrogen(smiles);
+			c = Mole(sft.atomtable, smiles);
+		}
+		/*
+		vector<SimpleMNode> sn_tb;
+		vector<AdjLine> adj_list;
+		string json = ReadJsonFile("E:/VScode/Proj_Molecular3D_V1/File/Sources/draw.json");
+		AnalysisJsonFile(json, sn_tb, adj_list);
+		//cout << json << endl;
+
+
+		PrintCmdSepTitle("简化分子节点表");
+		PrintSpecialVector(sn_tb);
+		PrintCmdSepTitle("简化分子邻接表");
+		PrintSpecialVector(adj_list);
+
+		Mole c(sft.atomtable,sn_tb, adj_list);
+		*/
+
+		/*
 		cout << "请输入普通SMILES结构式：" << endl;
 		string smiles;
 		cin >> smiles;
@@ -672,13 +862,17 @@ int main()
 			cout << "\n请输入有效格式!" << endl;
 			continue;
 		}
-
+		
 		smiles = DeleteHydrogen(smiles);
 		Mole c(sft.atomtable, smiles);
+		
+		*/
+
 		string now_smiles = c.GenerateCanSmiles(sft.primetable);
 
 		if (smiles_detail_print)
 		{
+			
 			PrintCmdSepTitle("分子节点提取");
 			c.PrintNodeTable();
 
@@ -689,7 +883,6 @@ int main()
 			c.PrintRank();
 			cout << "\n是否含环: " << (c.HasCircle() ? "是" : "否") << endl;
 		}
-
 		//PrintCmdSepTitle("初始秩生成");
 		//c.PrintAtomTable();
 		//c.PrintOriRank();
@@ -701,7 +894,16 @@ int main()
 		cout << c.GetCanSmiles() << endl;
 
 
+
+
 		Mole d(sft.atomtable, now_smiles);
+
+
+		PrintCmdSepTitle("分子节点提取");
+		d.PrintNodeTable();
+		PrintCmdSepTitle("分子节点邻接表");
+		d.PrintBondTable();
+
 
 		const string folderpath = output_folder + "/" + now_smiles;
 
@@ -744,7 +946,7 @@ int main()
 
 		*/
 
-
+		
 		//---------------------------**MMFF识别**----------------------------------
 
 		int ac;
@@ -753,6 +955,7 @@ int main()
 		bool has_circle = c.HasCircle();
 
 
+		
 		//---------------------------**Alpha优化**----------------------------------
 		vector<double> old_alpha_tb(nhc, 0);
 		vector<Vec3> xyz_tb;
@@ -760,14 +963,16 @@ int main()
 		PrintCmdSepTitle("Alpha优化前");
 		double now_energy = CalSumEnergyByXYZ(YES, xyz_tb, NeedCal(), old_alpha_tb, all_sp_tb, esp);
 		WriteTable(GetXYZTbPath(now_smiles, 1), XYZ_TB_TITLE, xyz_tb);
+		//PrintSpecialVector(xyz_tb);
 
 
+		
 		PrintCmdSepTitle("Alpha优化进度-记时");
 		cout << "优化中……\n";
 
 		XYZ_TB alpha_xyz_tb;
 		double alpha_energy;
-		vector<double> new_alpha_tb = AlphaOpt(has_circle, alpha_energy, alpha_xyz_tb, all_sp_tb, esp);
+		vector<double> new_alpha_tb = AlphaOpt(has_circle, alpha_energy, alpha_xyz_tb, all_sp_tb, esp,YES);
 
 		cout << "优化完成！\n";
 
@@ -777,6 +982,8 @@ int main()
 		double aaa_energy = CalSumEnergyByXYZ(YES, alpha_xyz_tb, NeedCal(), new_alpha_tb, all_sp_tb, esp);
 		
 		//std::cout << "\n(^-^)Time taken by function: " << duration << " s" << std::endl;
+
+		
 		
 		//---------------------------**粒子群优化**----------------------------------
 		/*
@@ -793,6 +1000,7 @@ int main()
 
 		*/
 		//----------------------------**文件导出**-----------------------------------
+		
 		
 		PrintCmdSepTitle("文件夹" + now_smiles + "创建");
 		if (!CreateFolder(folderpath)) {
@@ -825,15 +1033,21 @@ int main()
 		//WriteJsonFile(sxyz_json_path, sxyz_json);
 		string adjab_json_part = VectorToJsonPart("ADJ_AB", adjline_tb);
 
-		string sent_json_path = folderpath + "/sent.json";
+		string sent_json_path = folderpath + "/3d.json";
 		string sent_json = "{\n" + sxyz_json_part + "\n,\n" + adjab_json_part + "\n}\n";
 
 		//cout << sent_json << endl;
 		WriteJsonFile(sent_json_path, sent_json);
 
-		cout << "文件 sent.json 已储存！\n";
+		cout << "文件 3d.json 已储存！\n";
 
 		cout << "\nCanSmiles: " << now_smiles << endl;
+
+		
+
+		//string stop;
+		//cin >> stop;
+		
 	}
 }
 

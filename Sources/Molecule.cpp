@@ -19,6 +19,7 @@ MNode::MNode(const vector<string>& info, const vector<int>& titlenum)
 	minhcount = 0;
 	rank = 0;
 }
+
 void MNode::AddNonHydBond(string bondsymbol)
 {
 	int add = 0;
@@ -354,9 +355,47 @@ Mole::Mole(const vector<Atom>& etb, const string& smiles) :com_smiles(smiles),ha
 	
 }
 Mole::Mole(const vector<MNode>& now_nodetb, const  vector<NodeBonds>& now_bondtb):
-	nodetb(now_nodetb),bondtb(now_bondtb),sortedtb(vector<bool>(nodetb.size(), 0)), ranktb(vector<int>(nodetb.size(), 0))
+	nodetb(now_nodetb), bondtb(now_bondtb), sortedtb(vector<bool>(nodetb.size(), 0)), ranktb(vector<int>(nodetb.size(), 0)), has_circle(false)
 {
 }
+Mole::Mole(const Mole& m) :
+	nodetb(m.nodetb), bondtb(m.bondtb), ranktb(m.ranktb), sortedtb(m.sortedtb), com_smiles(m.com_smiles), can_smiles(m.can_smiles), has_circle(m.has_circle)
+{
+}
+Mole::Mole(const vector<Atom>& etb, const vector<SimpleMNode>& sn_tb, const vector<AdjLine>& adj_list)
+{
+	nodetb.clear();
+	bondtb.clear();
+	sortedtb.clear();
+	ranktb.clear();
+	com_smiles = "";
+	can_smiles = "";
+	has_circle = false;
+	//处理节点表
+
+	for (const auto& sn : sn_tb)
+	{
+		string atomsym = sn.sym;
+		string bondsym = "";
+		bool isaroma = false;
+		ProcessAtom(nodetb, bondtb, etb, atomsym);
+	}
+	for (const auto& al : adj_list)
+	{
+		int aindex = al.GetSeqI();
+		int bindex = al.GetSeqJ();
+		string bondsym = al.GetBondSym();
+		bondtb[aindex].AddBond({ bondsym,bindex });
+		bondtb[bindex].AddBond({ bondsym,aindex });
+		nodetb[aindex].AddNonHydBond(bondsym);
+		nodetb[bindex].AddNonHydBond(bondsym);
+	}
+	//处理邻接表
+
+	sortedtb = vector<bool>(nodetb.size(), 0);
+	ranktb = vector<int>(nodetb.size(), 0);
+}
+
 void Mole::PrintOriRank()
 {
 	int i = 0;
@@ -593,6 +632,7 @@ string Mole::GenerateCanSmiles(const vector<PrimeNumber>& primetable)
 				}
 				else if (i == 0 && parenttb[topseq] != dseq)
 				{
+					has_circle = true;
 					circlecount++;
 					circleint[topseq].push_back(circlecount);
 					circleint[dseq].push_back(circlecount);

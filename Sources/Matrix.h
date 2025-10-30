@@ -176,9 +176,13 @@ public:
 			if (oz.z > 0) ox.x = -1;
 			else ox.x = 1;
 		}
-		else ox.z = 1;
-		double c = Cdot(ox, oz);
-		if (c != 0)	ox.x = -c / oz.x;
+		else {
+			ox.z = 1;
+			double c = Cdot(ox, oz);
+			if (oz.x != 0)	ox.x = -c / oz.x;
+			else ox.y = -c / oz.y;
+		}
+
 		ox.Normalize();
 		oy = Cross(oz, ox);
 		oy.Normalize();

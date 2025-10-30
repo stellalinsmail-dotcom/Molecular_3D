@@ -230,7 +230,7 @@ inline double CalEB(const ADJ_LIST& short_adj_list, const R_TB& dr_tb, const F_B
 				FAST_TABLE_INDEX fti = { pro_htb[parent],pro_htb[child] };
 
 				double now_eb = GetEB(dr_tb[parent][child], bs_fast_tb[fti].kb);
-				sum_eb += (now_eb == NAN) ? 0 : now_eb;
+				sum_eb += isnan(now_eb) ? 0 : now_eb;
 				//cout << "EB: " << GetEB(dr_tb[parent][i], bs_fast_tb[fti].kb) << endl;
 			}
 		}
@@ -261,7 +261,7 @@ inline double CalEA(const ADJ_LIST& short_adj_list, const VAR_TB& dvar_tb, const
 
 				//cout << "EA: " << GetEA(dvar_tb[parent][i][k], ka_ijk) << endl;
 				double now_ea = GetEA(dvar_tb[parent][i][k], ka_ijk);
-				sum_ea += (now_ea == NAN) ? 0 : now_ea;
+				sum_ea += isnan(now_ea) ? 0 : now_ea;
 			}
 		}
 	}
@@ -288,7 +288,7 @@ inline double CalEBA(const ADJ_LIST& short_adj_list, const R_TB& dr_tb, const VA
 				double kba_ijk = sb_fast_tb[fti].kba_ijk;
 				double kba_kji = sb_fast_tb[fti].kba_kji;
 				double now_eba = GetEBA(dr_tb[parent][child_i], dr_tb[parent][child_k], dvar_tb[parent][i][k], kba_ijk, kba_kji);;
-				sum_eba += (now_eba == NAN) ? 0 : now_eba;
+				sum_eba += isnan(now_eba) ? 0 : now_eba;
 				//cout << endl << parent << "\t" << child_i << "\t" << child_k << endl;
 				//cout << dr_tb[parent][child_i] << "\t" << dr_tb[parent][child_k] << dvar_tb[parent][i][k] << endl;
 				//cout << "EBA: " << GetEBA(dr_tb[parent][i], dr_tb[parent][k], dvar_tb[parent][i][k], kba_ijk, kba_kji) << endl;
@@ -324,7 +324,7 @@ inline double CalEOOP(const ADJ_LIST& short_adj_list, const CHI_TB& chi_tb, cons
 				//double chi_ijkl = xyz2chi_rad(xyz_tb[child_i], xyz_tb[parent], xyz_tb[child_k], xyz_tb[child_l]);
 				double chi_ijkl = chi_tb[parent][l][i][k];
 				double now_eoop = GetEOOP(chi_ijkl, koop);
-				sum_eoop += (now_eoop == NAN) ? 0 : now_eoop;
+				sum_eoop += isnan(now_eoop) ? 0 : now_eoop;
 			}
 
 		}
@@ -367,7 +367,7 @@ inline double CalET(const ADJ_LIST& short_adj_list, const PHI_TB& phi_tb, const 
 								double v3 = ti_fast_tb[fti].v3;
 								double phi_rad = phi_tb[parent_j][parent_k][i][l];
 								double now_et = GetET(phi_rad, v1, v2, v3);
-								sum_et += (now_et == NAN) ? 0 : now_et;
+								sum_et += isnan(now_et) ? 0 : now_et;
 
 								//cout << endl;
 								//cout << child_i << "\t" << parent_j << "\t" << parent_k << "\t" << child_l << endl;
@@ -399,7 +399,7 @@ inline double CalEVDW(const ADJ_LIST& short_adj_list, const BFS2_TB& bfs_tb, con
 		{
 			int ci = bfs_tb[j][i];
 			double now_evdw = GetEVDW(r_tb[j][ci], re_tb[j][ci].rv, re_tb[j][ci].e);
-			sum_evdw += (now_evdw == NAN) ? 0 : now_evdw;
+			sum_evdw += isnan(now_evdw) ? 0 : now_evdw;
 			//cout << endl;
 			//cout << j << "\t" << ci << endl;
 			//cout << r_tb[j][ci] << "\t" << re_tb[j][ci].rv << "\t" << re_tb[j][ci].e << endl;
@@ -460,8 +460,8 @@ inline double CalSumEnergy(bool print_yes, const  NeedCal& need_cal,
 	if (need_cal.et) sum_et = CalET(now_adj_list, evp.phi_tb, esp.ti_fast_tb, esp.pro_htb);
 	if (need_cal.evdw) sum_evdw = CalEVDW(now_adj_list, esp.bfs_tb, evp.r_tb, esp.re_tb);
 
-	sum_et = (sum_et == NAN) ? 0 : sum_et;
-	sum_et = 0;
+	//sum_et = (sum_et == NAN) ? 0 : sum_et;
+	//sum_et = 0;
 	double sum_E = sum_eb + sum_ea + sum_eba + sum_eoop + sum_et + sum_evdw;
 	if (print_yes) PrintEnergy(sum_E, sum_eb, sum_ea, sum_eba, sum_eoop, sum_et, sum_evdw);
 
@@ -469,7 +469,7 @@ inline double CalSumEnergy(bool print_yes, const  NeedCal& need_cal,
 }
 
 //--- 初始三维坐标生成 ---
-vector<Vec3> CalXYZ(const vector<double>& alpha_tb, const  HASH_TB& pro_htb, const F_BS& bs_fast_tb, const MNODE_TB& mnode_tb, const ADJ_LIST& short_adj_list, const SP_SpTable& all_sp_tb);
+vector<Vec3> CalXYZ(const vector<double>& alpha_tb, const  HASH_TB& pro_htb, const F_BS& bs_fast_tb, const MNODE_TB& mnode_tb, const ADJ_LIST& short_adj_list, const SP_SpTable& all_sp_tb,bool print_yes=false);
 
 double CalSumEnergyByXYZ(bool print_yes, XYZ_TB& xyz_tb, const NeedCal& need_cal, const vector<double>& alpha_tb, const SP_SpTable& all_sp_tb,
 	const EnergySolidParam& esp, int limitpos = -1);

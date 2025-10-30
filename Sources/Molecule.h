@@ -124,7 +124,19 @@ public:
 	string GetBondSym()const { return bondsym; }
 	void Print(string sep = "\t", bool title_state = TITLE_OFF)const;
 };
+// --- 面向2D网页的读取 ---
+class SimpleMNode
+{
+public:
+	int seq;
+	string sym;
+	SimpleMNode(int s = 0, string sy = "None") :seq(s), sym(sy) {}
+	void Print(string sep = "\t")const
+	{
+		cout << seq << sep << sym;
+	}
 
+};
 
 //邻接表单行
 class NodeBonds
@@ -160,7 +172,12 @@ private:
 public:
 	Mole(const vector<Atom>& etb, const string& smiles);
 	Mole(const vector<MNode>& now_nodetb, const  vector<NodeBonds>& bondtb);
-
+	Mole(const Mole& m);
+	Mole(const vector<Atom>& etb, const vector<SimpleMNode>& sn_tb, const vector<AdjLine>& adj_list);
+	Mole():
+		nodetb(vector<MNode>()), bondtb(vector<NodeBonds>()), sortedtb(vector<bool>()), ranktb(vector<int>()), com_smiles(""), can_smiles(""), has_circle(false)
+	{
+	}
 	void PrintOriRank();
 	void PrintNodeTable();
 	void PrintBondTable();
