@@ -119,6 +119,7 @@ private:
 public:
 	AdjLine(const vector<string>& info, const vector<int>& titlenum);
 	AdjLine(int i, int j, string bs) :seq_i(i), seq_j(j), bondsym(bs) {}
+	AdjLine() : seq_i(-1), seq_j(-1), bondsym("None") {}
 	int GetSeqI()const { return seq_i; }
 	int GetSeqJ()const { return seq_j; }
 	string GetBondSym()const { return bondsym; }

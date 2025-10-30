@@ -3,6 +3,14 @@
 #ifndef TYPES_H
 #define TYPES_H
 
+// --- Socket通信相关 (必须在windows.h之前) ---
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#pragma comment(lib, "ws2_32.lib")
+#endif
+
 #include <iostream>
 #include <vector>
 #include <fstream>
@@ -18,11 +26,11 @@
 #include <functional>
 #include <random>
 
-//#include <winsock2.h>
-//#include <ws2tcpip.h>
-
 using namespace std;
 
+
+#define DEFAULT_PORT "8765"
+#define DEFAULT_BUFLEN 8192
 // --- 常量定义 ---
 #define YES true
 #define NO false

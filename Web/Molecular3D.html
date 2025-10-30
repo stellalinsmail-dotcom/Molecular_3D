@@ -2,7 +2,7 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>有机分子结构绘制与3D可视化工具</title>
+    <title>Molecular3D-MMFFOpt</title>
 
     <!-- 全局和布局样式 -->
     <style>
@@ -26,6 +26,7 @@
             height: 100%;
             position: relative;
             overflow: hidden; /* 隐藏内部溢出 */
+
         }
 
         #draw-container {
@@ -33,6 +34,10 @@
             min-width: 300px; /* 最小宽度 */
             display: flex;
             flex-direction: row;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
         }
 
         #d3-container {
@@ -47,6 +52,102 @@
             cursor: col-resize;
             flex-shrink: 0;
             z-index: 200;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #conversion-controls {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            z-index: 201;
+            /* 新增：背景装饰 */
+            padding: 15px 10px;
+            background: rgb(60, 66, 79);
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        #convert-btn {
+            writing-mode: vertical-rl;
+            text-orientation: upright;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 8px;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+            letter-spacing: 2px;
+
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        #convert-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.4);
+        }
+
+        #convert-btn:active {
+            transform: scale(0.95);
+        }
+
+        #convert-btn:disabled {
+            background: #555;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        #server-status {
+            writing-mode: vertical-rl;
+            text-orientation: upright;
+            background: rgba(40, 44, 52, 0.9);
+            color: #ddd;
+            padding: 10px 6px;
+            font-size: 11px;
+            border-radius: 4px;
+            border: 1px solid #555;
+            letter-spacing: 1px;
+            min-height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        #server-status.running {
+            background: rgba(76, 175, 80, 0.2);
+            border-color: #4CAF50;
+            color: #4CAF50;
+        }
+
+        #server-status.error {
+            background: rgba(200, 67, 54, 0.2);
+            border-color: #f44336;
+            color: #f44336;
+        }
+
+        #server-status.converting {
+            background: rgba(255, 193, 7, 0.2);
+            border-color: #FFC107;
+            color: #FFC107;
         }
     </style>
 
@@ -98,7 +199,7 @@
             #draw-container .divider {
                 height: 1px;
                 background: var(--border-color);
-                margin: 5px 0;
+                margin: 1px 0;
             }
 
             #draw-container .section-title {
@@ -210,19 +311,6 @@
                     border-color: #D4AF37;
                 }
 
-            #draw-container #exportJsonBtn {
-                background: #FFE599;
-                border-color: #FFE599;
-                color: #282C34;
-                font-weight: bold;
-                margin-top: 5px;
-            }
-
-                #draw-container #exportJsonBtn:hover {
-                    background: #FFEB9C;
-                    border-color: #FFEB9C;
-                }
-
             #draw-container #deleteBtn {
                 background: var(--delete-color);
                 border-color: var(--delete-color);
@@ -313,12 +401,12 @@
             --color-params-dark: #86A890;
             --color-export-dark: #7096B0;
             --color-text-light: #333333;
-            --current-text-color: var(--color-text-dark);
-            --current-load-color: var(--color-load-light);
-            --current-light-color: var(--color-light-light);
-            --current-params-color: var(--color-params-light);
-            --current-export-color: var(--color-export-light);
-            --current-toggle-active: var(--color-params-light);
+            --current-text-color: var(--color-text-light);
+            --current-load-color: var(--color-load-dark);
+            --current-light-color: var(--color-light-dark);
+            --current-params-color: var(--color-params-dark);
+            --current-export-color: var(--color-export-dark);
+            --current-toggle-active: var(--color-params-dark);
             --axis-x-color: #D62828;
             --axis-y-color: #008000;
             --axis-z-color: #0000FF;
@@ -330,7 +418,7 @@
             padding: 0;
             height: 100%;
             overflow: hidden;
-            background-color: #000000;
+            background-color: #FFFFFF;
         }
 
             #d3-container canvas {
@@ -355,19 +443,24 @@
                 backdrop-filter: blur(5px);
                 border-radius: 12px;
                 box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.15);
-                width: 200px;
+                width: 180px;
                 box-sizing: border-box;
                 color: var(--current-text-color);
+                user-select: none;
+                -webkit-user-select: none;
+                -moz-user-select: none;
+                -ms-user-select: none;
             }
 
                 #d3-container .control-panel h3 {
                     margin-top: 0;
                     margin-bottom: 8px;
                     font-size: 15px;
-                    font-weight: 600;
+                    font-weight: 500;
                     color: var(--current-load-color);
                     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
                     padding-bottom: 4px;
+                    text-shadow: -0.1px -0.1px #000,0.1px 0.1px #ccc;
                 }
 
             #d3-container .control-group {
@@ -606,7 +699,7 @@
                 left: 0;
                 right: 0;
                 bottom: 0;
-                background-color: #5A5A5A;
+                background-color: #444;
                 transition: background-color .4s;
                 border-radius: 10px;
                 display: flex;
@@ -618,6 +711,11 @@
                 font-size: 11px;
                 box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
                 text-shadow: none;
+                user-select: none;
+
+                -webkit-user-select: none;
+                -moz-user-select: none;
+                -ms-user-select: none;
             }
 
                 #d3-container .slider:before {
@@ -718,12 +816,12 @@
                     <button data-bond="triple" class="bond-btn">三键</button>
 
                     <button data-bond="wedge-up" class="bond-btn" id="wedgeUpBtn">
-                        <svg class="wedge-icon" viewBox="0 0 16 10" >
+                        <svg class="wedge-icon" viewBox="0 0 16 10">
                             <polygon points="0,5 16,10 16,0" fill="#fff" />
                         </svg>
                     </button>
                     <button data-bond="wedge-down" class="bond-btn" id="wedgeDownBtn">
-                        <svg class="wedge-icon" viewBox="0 0 16 10" >
+                        <svg class="wedge-icon" viewBox="0 0 16 10">
                             <g fill="#fff">
                                 <polygon points="0,5 4,7 4,3" />
                                 <polygon points="6,6 10,8 10,2 6,4" />
@@ -750,7 +848,6 @@
                         <div class="draw-color-swatch" style="background-color: #000000;" data-color="#000000"></div>
                     </div>
 
-                    <button id="exportJsonBtn">📄 导出 JSON</button>
                     <button id="exportPngBtn">📷 导出 PNG</button>
 
                     <button id="deleteBtn">🗑️ 删除</button>
@@ -762,7 +859,12 @@
         </div>
 
         <!-- 拖动条 -->
-        <div id="resizer"></div>
+        <div id="resizer">
+            <div id="conversion-controls">
+                <button id="convert-btn">3D构象生成</button>
+                <div id="server-status">未连接</div>
+            </div>
+        </div>
 
         <!-- 右侧：3D_V3.html 内容 (HTML调整为单一文件输入) -->
         <div id="d3-container">
@@ -785,17 +887,15 @@
             </div>
             <div id="controls-container-wrapper">
                 <div id="file-input-panel" class="control-panel">
-                    <h3>分子数据加载 (3d.json)</h3>
-                    <label class="file-upload-label" for="json3d-file">选择 3d.json</label>
-                    <input type="file" id="json3d-file" accept=".json">
+                    <h3>模型选择</h3>
                     <div id="render-buttons">
-                        <button class="load-button" onclick="d3App.loadAndDraw('ball_stick')">球棍模型</button>
-                        <button class="load-button" onclick="d3App.loadAndDraw('stick')">棒状模型</button>
+                        <button class="load-button" onclick="d3App.loadAndDraw('ball_stick')">球棍</button>
+                        <button class="load-button" onclick="d3App.loadAndDraw('stick')">棒状</button>
                     </div>
-                    <p id="status-message"></p>
+                    <p id="status-message">等待从左侧画布转换数据...</p>
                 </div>
                 <div id="light-controls-panel" class="control-panel">
-                    <h3>光照强度调节</h3>
+                    <h3>光照调节</h3>
                     <div class="control-group">
                         <label>环境光强度 (<span id="ambient-value">4.0</span>)</label>
                         <div class="light-control-row">
@@ -814,12 +914,12 @@
                     </div>
                 </div>
                 <div id="params-controls-panel" class="control-panel">
-                    <h3>相关参数修改</h3>
+                    <h3>参数修改</h3>
                     <div class="control-group">
                         <label>背景颜色</label>
                         <div id="background-picker-group-wrapper">
-                            <div id="background-color-picker-container" style="background-color: #000000;">
-                                <input type="color" id="background-color-picker" value="#000000">
+                            <div id="background-color-picker-container" style="background-color: #FFFFFF;">
+                                <input type="color" id="background-color-picker" value="#FFFFFF">
                             </div>
                             <div id="background-picker-group">
                                 <div class="color-swatch" style="background-color: #000000;" data-color="#000000"></div>
@@ -829,7 +929,7 @@
                         </div>
                     </div>
                     <div class="control-group" id="hydrogen-toggle-group">
-                        <label>显示氢原子</label>
+                        <label>显示H</label>
                         <label class="toggle-switch">
                             <input type="checkbox" id="show-hydrogen" checked>
                             <span class="slider">
@@ -855,12 +955,146 @@
 
     <!-- 拖动条脚本 -->
     <script>
+        // Socket通信管理
+        const socketManager = {
+            serverUrl: 'http://localhost:8765',
+            isConnected: false,
+
+            updateStatus: function (status, message) {
+                const statusEl = document.getElementById('server-status');
+                const convertBtn = document.getElementById('convert-btn');
+
+                statusEl.className = status;
+                statusEl.textContent = message;
+
+                if (status === 'running') {
+                    convertBtn.disabled = false;
+                } else if (status === 'converting') {
+                    convertBtn.disabled = true;
+                } else {
+                    convertBtn.disabled = true;
+                }
+            },
+
+            checkConnection: async function () {
+                try {
+                    const response = await fetch(this.serverUrl + '/status', {
+                        method: 'GET',
+                        signal: AbortSignal.timeout(1000)
+                    });
+
+                    if (response.ok) {
+                        this.updateStatus('running', '服务运行中');
+                        this.isConnected = true;
+                        return true;
+                    }
+                } catch (error) {
+                    this.updateStatus('error', '未连接');
+                    this.isConnected = false;
+                    return false;
+                }
+            },
+
+            sendData: async function (jsonData) {
+                this.updateStatus('converting', '转换中...');
+
+                try {
+                    const response = await fetch(this.serverUrl + '/convert', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: jsonData,
+                        signal: AbortSignal.timeout(300000) // 300秒超时
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('服务器响应错误: ' + response.status);
+                    }
+
+                    const result = await response.json();
+                    this.updateStatus('running', '服务运行中');
+                    return result;
+                } catch (error) {
+                    console.error('发送数据失败:', error);
+                    this.updateStatus('error', '转换失败');
+
+                    let errorMsg = '转换失败：' + error.message + '\n\n请确认：\n';
+                    errorMsg += '1. C++程序正在运行\n';
+                    errorMsg += '2. 端口8765未被占用\n';
+                    errorMsg += '3. 防火墙允许本地连接';
+                    alert(errorMsg);
+                    return null;
+                }
+            }
+        };
+
+        // 页面加载时检查连接
+        window.addEventListener('DOMContentLoaded', function () {
+            // 延迟1秒后开始检查连接，给C++程序启动时间
+            setTimeout(() => {
+                socketManager.checkConnection();
+                // 每5秒检查一次连接状态
+                setInterval(() => {
+                    socketManager.checkConnection();
+                }, 5000);
+            }, 1000);
+        });
+
+        // 转换按钮事件
+        document.getElementById('convert-btn').addEventListener('click', async function () {
+            console.log('转换按钮被点击');
+
+            // 先检查连接
+            const connected = await socketManager.checkConnection();
+            if (!connected) {
+                alert('无法连接到C++程序！\n\n请确保：\n1. Main_MMFF94.exe正在运行\n2. 程序显示"Socket服务器已启动"');
+                return;
+            }
+
+            // 从Draw部分获取分子数据
+            if (!window.drawApp || !window.drawApp.getJsonData) {
+                alert('画布数据不可用！');
+                return;
+            }
+
+            const drawData = window.drawApp.getJsonData();
+            if (!drawData || !drawData.Atom || drawData.Atom.length === 0) {
+                alert('画布为空，无法转换！\n\n请先在左侧画布中绘制分子结构。');
+                return;
+            }
+
+            console.log('发送数据:', drawData);
+
+            // 发送到C++程序
+            const result = await socketManager.sendData(JSON.stringify(drawData));
+
+            if (result && result.status === 'success' && result.data) {
+                console.log('接收到3D数据:', result.data);
+
+                // 将数据传递给3D部分
+                if (window.d3App && window.d3App.loadJsonData) {
+                    window.d3App.loadJsonData(result.data);
+                    alert('转换成功！\n\n3D结构已加载到右侧视图。');
+                } else {
+                    console.error('3D模块未就绪');
+                    alert('3D模块加载失败，请刷新页面重试。');
+                }
+            }
+        });
+
         document.addEventListener('DOMContentLoaded', function () {
             const resizer = document.getElementById('resizer');
             const drawContainer = document.getElementById('draw-container');
             const d3Container = document.getElementById('d3-container');
             let isResizing = false;
             resizer.addEventListener('mousedown', (e) => {
+                // 检查是否点击在按钮或状态框上
+                if (e.target.id === 'convert-btn' || e.target.id === 'server-status' ||
+                    e.target.closest('#conversion-controls')) {
+                    return;
+                }
+
                 isResizing = true;
                 document.body.style.cursor = 'col-resize';
                 document.body.style.userSelect = 'none';
@@ -914,14 +1148,14 @@
                     rootStyle.setProperty('--draw-atom-H', '#A9A9A9');
                     rootStyle.setProperty('--draw-atom-O', '#7CBDE6');
                     rootStyle.setProperty('--draw-atom-N', '#DAA520');
-                    rootStyle.setProperty('--draw-atom-S', '#DB9DA6');
+                    rootStyle.setProperty('--draw-atom-S', '#FFB6C1');
                     rootStyle.setProperty('--draw-bond-color', '#282C34');
                 } else {
                     rootStyle.setProperty('--draw-atom-C', '#CCCCCC');
                     rootStyle.setProperty('--draw-atom-H', '#A9A9A9');
                     rootStyle.setProperty('--draw-atom-O', '#87CEFA');
                     rootStyle.setProperty('--draw-atom-N', '#FFD700');
-                    rootStyle.setProperty('--draw-atom-S', '#FFB6C1');
+                    rootStyle.setProperty('--draw-atom-S', '#DB9DA6');
                     rootStyle.setProperty('--draw-bond-color', '#CCCCCC');
                 }
                 draw();
@@ -964,6 +1198,19 @@
             const WEDGE_WIDTH = 8;
             const HOVER_COLOR = 'rgba(97, 175, 239, 0.5)';
             const CLICK_THRESHOLD = 5;
+
+            // 暴露获取JSON数据的接口
+            window.drawApp = {
+                getJsonData: function () {
+                    if (!atoms || atoms.length === 0) {
+                        return null;
+                    }
+                    // 按照cpp中AnalysisJsonFile期望的格式生成数据
+                    const atomArr = atoms.slice().sort((a, b) => a.id - b.id).map(a => [a.id, a.elem]);
+                    const adjArr = bonds.map(b => [b.a1, b.a2, b.type]);
+                    return { "Atom": atomArr, "Adj": adjArr };
+                }
+            };
 
             function draw() {
                 svg.innerHTML = '';
@@ -1450,6 +1697,7 @@
                     deleteSelectedElements();
                 }
             });
+
             // 导出 PNG：修复实现，排除热点与 hover-effect，保留颜色
             document.getElementById('exportPngBtn').addEventListener('click', () => {
                 const svgElement = document.getElementById('draw-svg');
@@ -1527,77 +1775,82 @@
                 img.src = url;
             });
 
-            // 导出 JSON: 按指定格式导出 draw.js（JSON 内容）
-            document.getElementById('exportJsonBtn').addEventListener('click', () => {
-                if (!atoms || atoms.length === 0) {
-                    alert('画布为空，无法导出 JSON！');
-                    return;
-                }
-                // Atom: [[id, "Symbol"], ...]
-                const atomArr = atoms.slice().sort((a, b) => a.id - b.id).map(a => [a.id, a.elem]);
-                // Adj: list of [a1,a2,bond] excluding duplicates
-                const adjArr = bonds.map(b => [b.a1, b.a2, b.type]);
-                const obj = { "Atom": atomArr, "Adj": adjArr };
-                const jsonStr = JSON.stringify(obj);
-                const blob = new Blob([jsonStr], { type: 'application/javascript;charset=utf-8' });
+            function downloadJSON(data) {
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = 'draw.json';
-                document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                a.download = 'molecular_structure.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
                 URL.revokeObjectURL(url);
-            });
+            }
 
-            // 背景选择逻辑 & 工具栏
-            const bgPicker = document.getElementById('draw-bg-picker');
-            const bgContainer = document.getElementById('draw-bg-picker-container');
-            const bgSwatches = document.querySelectorAll('.draw-color-swatch');
-
-            const setDrawBg = (color) => {
-                bgPicker.value = color;
-                bgContainer.style.backgroundColor = color;
-                updateDrawTheme(color);
-            };
-            bgPicker.addEventListener('input', (e) => setDrawBg(e.target.value));
-            bgSwatches.forEach(s => s.addEventListener('click', (e) => setDrawBg(e.target.dataset.color)));
-
-            document.querySelectorAll('#draw-container #toolbar button').forEach(btn => {
+            // --- 工具栏按钮逻辑 ---
+            document.querySelectorAll('#toolbar button').forEach(btn => {
                 btn.addEventListener('click', () => {
-                    if (btn.id === 'deleteBtn') { deleteSelectedElements(); return; }
-                    if (btn.id === 'exportPngBtn' || btn.id === 'exportCsvBtn') return;
+
+                    if (btn.id === 'deleteBtn' || btn.id === 'exportPngBtn') {
+                        if (btn.id === 'deleteBtn') deleteSelectedElements();
+                        // 导出按钮逻辑已在上方实现
+                        return;
+                    }
 
                     clearSelection();
-                    const parentGroup = btn.closest('.button-group');
-                    if (parentGroup) {
-                        parentGroup.querySelectorAll('button').forEach(b => b.classList.remove('active'));
-                    }
-                    btn.classList.add('active');
 
                     if (btn.classList.contains('mode-btn')) {
-                        mode = btn.id.replace('Btn', '');
+                        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                        mode = btn.id === 'drawBtn' ? 'draw' : btn.id === 'moveBtn' ? 'move' : 'lasso';
                     } else if (btn.classList.contains('atom-btn')) {
+                        document.querySelectorAll('.atom-btn').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
                         currentTool = btn.dataset.tool;
-                        mode = 'draw';
-                        document.querySelectorAll('#draw-container .mode-btn').forEach(b => b.classList.remove('active'));
-                        document.getElementById('drawBtn').classList.add('active');
+                        document.getElementById('drawBtn').click();
                     } else if (btn.classList.contains('bond-btn')) {
+                        document.querySelectorAll('.bond-btn').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
                         currentBond = btn.dataset.bond;
-                        mode = 'draw';
-                        document.querySelectorAll('#draw-container .mode-btn').forEach(b => b.classList.remove('active'));
-                        document.getElementById('drawBtn').classList.add('active');
+                        document.getElementById('drawBtn').click();
                     }
                     updateCanvasCursor();
                 });
             });
 
+            // 背景颜色选择器
+            const drawBgPicker = document.getElementById('draw-bg-picker');
+            const drawBgPickerContainer = document.getElementById('draw-bg-picker-container');
+            const drawColorSwatches = document.querySelectorAll('.draw-color-swatch');
+
+            drawBgPicker.addEventListener('input', (e) => {
+                updateDrawTheme(e.target.value);
+                drawBgPickerContainer.style.backgroundColor = e.target.value;
+            });
+
+            drawColorSwatches.forEach(swatch => {
+                swatch.addEventListener('click', (e) => {
+                    const color = e.target.getAttribute('data-color');
+                    drawBgPicker.value = color;
+                    updateDrawTheme(color);
+                    drawBgPickerContainer.style.backgroundColor = color;
+                });
+            });
+
+            // 初始设置默认工具
             document.getElementById('drawBtn').click();
-            setDrawBg('#FFFFFF'); // 默认白色背景
+            document.querySelector('.atom-btn[data-tool="C"]').classList.add('active');
+            document.querySelector('.bond-btn[data-bond="single"]').classList.add('active');
+
+            draw();
         })();
     </script>
 
-    <!-- 3D_V3.html 脚本 (已封装并改为读取 3d.json) -->
+    <!-- 3D部分脚本 -->
     <script>
+        // 3D应用对象
         window.d3App = (function () {
+ 
             const ATOM_RADII = { 'C': 0.77, 'H': 0.37, 'O': 0.73, 'N': 0.75, 'S': 1.02 };
             const ATOM_COLORS = { 'C': 0xBBBBBB, 'H': 0x888888, 'O': 0x6495ED, 'N': 0xB2B01D, 'S': 0xCC99A2 };
             const BALL_STICK_SCALE_FACTOR = 0.4, BOND_RADIUS_BALL_STICK = 0.08, STICK_RADIUS = 0.12;
@@ -1605,9 +1858,10 @@
 
             let scene, camera, renderer, controls, moleculeGroup, ambientLight, directionalLight;
             let atomMeshes = [], bondMeshes = [], highlightedAtom = null, sxyzData = null, adjData = null;
-            let currentRenderType = 'ball_stick', currentBackgroundColor = 0x000000;
+            let currentRenderType = 'ball_stick', currentBackgroundColor = 0xFFFFFF;
             let axisScene, axisCamera, axisRenderer, axisGroup, axisRendererContainer;
             const AXIS_SIZE = 80;
+            // let currentRenderType = 'ball_stick';
 
             const d3Container = document.getElementById('d3-container');
 
@@ -1897,61 +2151,6 @@
                 new ResizeObserver(updateTransform).observe(wrapper);
             }
 
-            // 读取 3d.json 文件并解析为 sxyzData / adjData（与原 CSV 兼容结构）
-            function load3DJson(fileInputId) {
-                return new Promise((resolve, reject) => {
-                    const fileInput = d3Container.querySelector(`#${fileInputId}`);
-                    if (!fileInput || !fileInput.files.length) {
-                        reject(new Error('请选择 3d.json 文件。'));
-                        return;
-                    }
-                    const file = fileInput.files[0];
-                    const fr = new FileReader();
-                    fr.onload = () => {
-                        try {
-                            const parsed = JSON.parse(fr.result);
-                            // 支持 SXYZ / ADJ_AB 两种键名（示例中为 SXYZ / ADJ_AB）
-                            const sxyzRaw = parsed.SXYZ || parsed.sxyz || parsed.Sxyz;
-                            const adjRaw = parsed.ADJ_AB || parsed.adj_ab || parsed.ADJAB || parsed.ADJ_AB;
-                            if (!sxyzRaw || !adjRaw) {
-                                reject(new Error('3d.json 格式不正确，缺少 SXYZ 或 ADJ_AB 字段。'));
-                                return;
-                            }
-                            // 转换 SXYZ 为对象数组： { Symbol, X, Y, Z }
-                            const sxyz = sxyzRaw.map(row => {
-                                return { Symbol: String(row[0]).trim(), X: Number(row[1]), Y: Number(row[2]), Z: Number(row[3]) };
-                            });
-                            // 转换 ADJ_AB 为对象数组： { A, B }
-                            const adj = adjRaw.map(pair => {
-                                return { A: Number(pair[0]), B: Number(pair[1]) };
-                            });
-                            resolve({ sxyz, adj });
-                        } catch (err) {
-                            reject(new Error('解析 3d.json 出错：' + err.message));
-                        }
-                    };
-                    fr.onerror = () => reject(new Error('读取 3d.json 文件失败。'));
-                    fr.readAsText(file, 'utf-8');
-                });
-            }
-
-            async function loadAndDraw(renderType) {
-                const status = d3Container.querySelector('#status-message');
-                status.textContent = "正在加载...";
-                try {
-                    const parsed = await load3DJson('json3d-file');
-                    sxyzData = parsed.sxyz;
-                    adjData = parsed.adj;
-                    if (!sxyzData || sxyzData.length === 0) throw new Error("SXYZ 数据为空或格式不正确。");
-                    if (!adjData || adjData.length === 0) throw new Error("ADJ_AB 数据为空或格式不正确。");
-                    currentRenderType = renderType;
-                    drawMolecule(renderType, sxyzData, adjData);
-                    status.textContent = `分子结构渲染完成 (${renderType === 'ball_stick' ? '球棍' : '棒状'} 模型)。`;
-                } catch (error) {
-                    status.textContent = `错误: ${error.message}`;
-                    console.error(error);
-                }
-            }
             function drawMolecule(renderType, sxyzData, adjData) {
                 if (moleculeGroup) scene.remove(moleculeGroup);
                 atomMeshes = []; bondMeshes = []; clearHighlight();
@@ -2054,18 +2253,111 @@
                 controls.update();
             }
 
-            init();
-            d3Container.querySelector('#status-message').textContent = "请通过“选择 3d.json”上传数据，然后选择模型并加载。";
 
+            // 添加从JSON直接加载数据的函数
+            function loadJsonData(jsonData, renderType = 'ball_stick') {
+                console.log('加载JSON数据:', jsonData, '渲染类型:', renderType);
+
+                try {
+                    // 将SXYZ格式转换为CSV格式
+                    // jsonData.SXYZ格式: [["C", 0.0, 0.0, 0.0], ...]
+                    // 需要转换为: [{Symbol: "C", X: 0.0, Y: 0.0, Z: 0.0}, ...]
+                    const convertedSXYZ = jsonData.SXYZ.map((item, index) => ({
+                        Symbol: item[0],
+                        X: parseFloat(item[1]),
+                        Y: parseFloat(item[2]),
+                        Z: parseFloat(item[3])
+                    }));
+
+                    // 将ADJ_AB格式转换为CSV格式
+                    // jsonData.ADJ_AB格式: [[1, 2], [1, 3], ...]
+                    // 需要转换为: [{A: 1, B: 2}, ...]
+                    const convertedADJ = jsonData.ADJ_AB.map(item => ({
+                        A: parseInt(item[0]),
+                        B: parseInt(item[1])
+                    }));
+
+                    console.log('转换后的SXYZ数据:', convertedSXYZ);
+                    console.log('转换后的ADJ数据:', convertedADJ);
+
+                    // 保存数据
+                    sxyzData = convertedSXYZ;
+                    adjData = convertedADJ;
+
+                    // 使用传入的渲染类型
+                    currentRenderType = renderType;
+                    const status = document.getElementById('status-message');
+                    if (status) {
+                        status.textContent = '正在渲染3D结构...';
+                    }
+
+                    // 调用渲染函数
+                    drawMolecule(renderType, sxyzData, adjData);
+                    if (status) {
+                        const modelName = renderType === 'stick' ? '棒状模型' : '球棍模型';
+                        status.textContent = `3D结构已渲染 (${modelName})`;
+                    }
+
+                } catch (error) {
+                    console.error('加载JSON数据失败:', error);
+                    const status = document.getElementById('status-message');
+                    if (status) {
+                        status.textContent = '错误: ' + error.message;
+                    }
+                }
+            }
+
+            // 从文件加载和绘制
+            async function loadAndDraw(renderType) {
+                const status = document.getElementById('status-message');
+                status.textContent = "正在加载...";
+
+                try {
+                    // 如果已经有数据，直接重新渲染
+                    if (sxyzData && adjData) {
+                        console.log('使用已加载的数据重新渲染:', renderType);
+                        currentRenderType = renderType;
+                        drawMolecule(renderType, sxyzData, adjData);
+                        const modelName = renderType === 'stick' ? '棒状模型' : '球棍模型';
+                        status.textContent = `3D结构已渲染 (${modelName})`;
+                        return;
+                    }
+
+                    // 检查是否有文件选择
+                    const fileInput = document.getElementById('json3d-file');
+                    if (!fileInput.files.length) {
+                        throw new Error('请先选择3d.json文件或使用左侧转换功能');
+                    }
+
+                    // 读取JSON文件
+                    const file = fileInput.files[0];
+                    const text = await file.text();
+                    const jsonData = JSON.parse(text);
+
+                    console.log('从文件加载的JSON数据:', jsonData);
+
+                    // 使用相同的加载函数，传入渲染类型
+                    loadJsonData(jsonData, renderType);
+
+                } catch (error) {
+                    status.textContent = `错误: ${error.message}`;
+                    console.error(error);
+                }
+            }
+
+            init();
+            d3Container.querySelector('#status-message').textContent = "等待从左侧画布转换数据...";
+
+            // 暴露公共接口
             return {
-                loadAndDraw,
-                setLightPreset,
-                exportView,
-                onWindowResize,
-                controls
+                loadJsonData: loadJsonData,
+                loadAndDraw: loadAndDraw,
+                setLightPreset: setLightPreset,
+                exportView: exportView,
+                onWindowResize: onWindowResize,
+                controls: controls
             };
         })();
     </script>
-
 </body>
 </html>

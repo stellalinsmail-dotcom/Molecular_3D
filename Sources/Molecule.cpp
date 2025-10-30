@@ -346,6 +346,7 @@ Mole::Mole(const vector<Atom>& etb, const string& smiles) :com_smiles(smiles),ha
 			//cout << "Pop!\n";
 		}
 	}
+	if (nodetb.size() == 1) nodetb[0].CalConHyd();
 	delete[]rec;
 	//cout << "size2: " << nodetb.size() << endl;
 	vector<bool> stb(nodetb.size(), 0);

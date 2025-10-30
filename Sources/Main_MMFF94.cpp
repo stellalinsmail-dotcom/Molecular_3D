@@ -5,9 +5,210 @@
 #include "MMFF94Table.h"
 #include "MMFF94Cal.h"
 
-
 using namespace std;
 
+// --- Socket Server Functions ---
+SOCKET serverSocket = INVALID_SOCKET;
+bool serverRunning = false;
+
+// 初始化Winsock
+bool InitializeWinsock() {
+	WSADATA wsaData;
+	int iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+	if (iResult != 0) {
+		cout << "WSAStartup失败，错误码: " << iResult << endl;
+		return false;
+	}
+	return true;
+}
+
+// 启动Socket服务器 (使用HTTP协议)
+bool StartSocketServer(const char* port) {
+	struct addrinfo* result = NULL, hints;
+	ZeroMemory(&hints, sizeof(hints));
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_protocol = IPPROTO_TCP;
+	hints.ai_flags = AI_PASSIVE;
+
+	int iResult = getaddrinfo(NULL, port, &hints, &result);
+	if (iResult != 0) {
+		cout << "getaddrinfo失败，错误码: " << iResult << endl;
+		WSACleanup();
+		return false;
+	}
+
+	serverSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
+	if (serverSocket == INVALID_SOCKET) {
+		cout << "创建socket失败，错误码: " << WSAGetLastError() << endl;
+		freeaddrinfo(result);
+		WSACleanup();
+		return false;
+	}
+
+	// 设置SO_REUSEADDR选项，避免端口占用问题
+	int opt = 1;
+	setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt));
+
+	iResult = ::bind(serverSocket, result->ai_addr, (int)result->ai_addrlen);
+	if (iResult == SOCKET_ERROR) {
+		cout << "绑定端口失败，错误码: " << WSAGetLastError() << endl;
+		cout << "请检查端口" << port << "是否被其他程序占用" << endl;
+		freeaddrinfo(result);
+		closesocket(serverSocket);
+		WSACleanup();
+		return false;
+	}
+
+	freeaddrinfo(result);
+
+	iResult = listen(serverSocket, SOMAXCONN);
+	if (iResult == SOCKET_ERROR) {
+		cout << "监听失败，错误码: " << WSAGetLastError() << endl;
+		closesocket(serverSocket);
+		WSACleanup();
+		return false;
+	}
+
+	// 设置为非阻塞模式
+	u_long mode = 1;
+	ioctlsocket(serverSocket, FIONBIO, &mode);
+
+	serverRunning = true;
+	cout << "\n========================================" << endl;
+	cout << "Socket服务器已启动（HTTP模式）" << endl;
+	cout << "监听端口: " << port << endl;
+	cout << "服务地址: http://localhost:" << port << endl;
+	cout << "等待网页连接..." << endl;
+	cout << "========================================\n" << endl;
+	return true;
+}
+
+// 解析HTTP请求头
+string ParseHttpRequest(const string& request, string& method, string& path) {
+	size_t methodEnd = request.find(' ');
+	if (methodEnd == string::npos) return "";
+
+	method = request.substr(0, methodEnd);
+
+	size_t pathStart = methodEnd + 1;
+	size_t pathEnd = request.find(' ', pathStart);
+	if (pathEnd == string::npos) return "";
+
+	path = request.substr(pathStart, pathEnd - pathStart);
+
+	// 找到请求体（在两个\r\n\r\n之后）
+	size_t bodyStart = request.find("\r\n\r\n");
+	if (bodyStart == string::npos) return "";
+
+	return request.substr(bodyStart + 4);
+}
+
+// 发送HTTP响应
+bool SendHTTPResponse(SOCKET clientSocket, int statusCode, const string& contentType, const string& body) {
+	string statusText;
+	switch (statusCode) {
+	case 200: statusText = "OK"; break;
+	case 400: statusText = "Bad Request"; break;
+	case 404: statusText = "Not Found"; break;
+	case 500: statusText = "Internal Server Error"; break;
+	default: statusText = "Unknown"; break;
+	}
+
+	stringstream response;
+	response << "HTTP/1.1 " << statusCode << " " << statusText << "\r\n";
+	response << "Content-Type: " << contentType << "\r\n";
+	response << "Content-Length: " << body.length() << "\r\n";
+	response << "Access-Control-Allow-Origin: *\r\n";
+	response << "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n";
+	response << "Access-Control-Allow-Headers: Content-Type\r\n";
+	response << "Connection: close\r\n";
+	response << "\r\n";
+	response << body;
+
+	string responseStr = response.str();
+	int iSendResult = send(clientSocket, responseStr.c_str(), (int)responseStr.length(), 0);
+
+	if (iSendResult == SOCKET_ERROR) {
+		cout << "发送响应失败，错误码: " << WSAGetLastError() << endl;
+		return false;
+	}
+
+	return true;
+}
+
+// 接收完整的HTTP请求
+string ReceiveHTTPRequest(SOCKET clientSocket) {
+	string fullData = "";
+	char recvbuf[DEFAULT_BUFLEN];
+	int recvbuflen = DEFAULT_BUFLEN;
+	int iResult;
+
+	// 设置为阻塞模式接收
+	u_long mode = 0;
+	ioctlsocket(clientSocket, FIONBIO, &mode);
+
+	// 设置接收超时
+	int timeout = 30000; // 30秒
+	setsockopt(clientSocket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
+
+	do {
+		iResult = recv(clientSocket, recvbuf, recvbuflen, 0);
+		if (iResult > 0) {
+			fullData.append(recvbuf, iResult);
+
+			// 检查是否接收完整HTTP请求
+			// HTTP请求以\r\n\r\n分隔头和体
+			size_t headerEnd = fullData.find("\r\n\r\n");
+			if (headerEnd != string::npos) {
+				// 检查Content-Length
+				size_t lengthPos = fullData.find("Content-Length:");
+				if (lengthPos != string::npos) {
+					size_t lengthStart = lengthPos + 15;
+					size_t lengthEnd = fullData.find("\r\n", lengthStart);
+					string lengthStr = fullData.substr(lengthStart, lengthEnd - lengthStart);
+					int contentLength = atoi(lengthStr.c_str());
+
+					size_t bodyStart = headerEnd + 4;
+					if (fullData.length() >= bodyStart + contentLength) {
+						break; // 接收完整
+					}
+				}
+				else {
+					// 没有Content-Length，可能是GET请求
+					break;
+				}
+			}
+		}
+		else if (iResult == 0) {
+			cout << "连接关闭" << endl;
+			break;
+		}
+		else {
+			int error = WSAGetLastError();
+			if (error == WSAETIMEDOUT) {
+				cout << "接收超时" << endl;
+			}
+			else {
+				cout << "接收失败，错误码: " << error << endl;
+			}
+			break;
+		}
+	} while (iResult > 0);
+
+	return fullData;
+}
+
+// 关闭Socket服务器
+void StopSocketServer() {
+	if (serverSocket != INVALID_SOCKET) {
+		closesocket(serverSocket);
+		serverSocket = INVALID_SOCKET;
+	}
+	WSACleanup();
+	serverRunning = false;
+	cout << "\nSocket服务器已关闭" << endl;
+}
 
 //--- 优化相关函数 ---
 template<typename T>
@@ -165,8 +366,8 @@ AlphaOpt1:
 	}
 
 	// --- alpha 第二次优化 精细 ---
-	
-	
+
+
 	double old_energy = INFINITY;
 
 	double new_energy = CalSumEnergyByXYZ(detail_print, xyz_tb, NeedCal(), new_alpha_tb, all_sp_tb, esp);
@@ -271,7 +472,7 @@ AlphaOpt2:
 			}
 			turn2count++;
 			bool print_yes = false;
-			if(detail_print)print_yes=(turn2count % print_turn == 0);
+			if (detail_print)print_yes = (turn2count % print_turn == 0);
 			if (turn2count % angle_half_turn == 0)
 			{
 				for (int i = 0; i < nhc; i++)
@@ -331,7 +532,7 @@ AlphaOpt2:
 	//------------------------------**计时结束**------------------------------
 
 	double duration = (stop.QuadPart - start.QuadPart) * 1000.0 / 1000.0 / frequency.QuadPart;
-	cout << "\n(^-^)Alpha优化用时： " << duration << " s" << endl<<endl;
+	cout << "\n(^-^)Alpha优化用时： " << duration << " s" << endl << endl;
 
 	return new_alpha_tb;
 }
@@ -579,6 +780,7 @@ string VectorToJsonArray(string stdtitle, const vector<T>& v)
 		string line = ss.str();
 		vector<string> value_tb;
 		Split(value_tb, line, ',');
+
 		int m = title_tb.size();
 		for (int j = 0; j < m; j++)
 		{
@@ -587,6 +789,7 @@ string VectorToJsonArray(string stdtitle, const vector<T>& v)
 			if (j < m - 1) json += ", ";
 		}
 		json += "}";
+
 		if (i < n - 1) json += ",\n";
 		else json += "\n";
 	}
@@ -603,6 +806,7 @@ string VectorToJsonPart(string nametitle, const vector<T>& v)
 	//title_tb存储各个字段的标题
 	//vector<string> title_tb;
 	//Split(title_tb, stdtitle, ',');
+
 	string json = "\"" + nametitle + "\": [\n";
 	size_t n = v.size();
 	//通过循环输入v中的每个元素，格式为"title":value，value的顺序由重载的operator<<决定，与title_tb顺序一致
@@ -614,6 +818,7 @@ string VectorToJsonPart(string nametitle, const vector<T>& v)
 		string line = ss.str();
 		vector<string> value_tb;
 		Split(value_tb, line, ',');
+
 		size_t m = value_tb.size();
 		for (size_t j = 0; j < m; j++)
 		{
@@ -621,6 +826,7 @@ string VectorToJsonPart(string nametitle, const vector<T>& v)
 			if (j < m - 1) json += ", ";
 		}
 		json += "]";
+
 		if (i < n - 1) json += ",\n";
 		else json += "\n";
 	}
@@ -629,10 +835,6 @@ string VectorToJsonPart(string nametitle, const vector<T>& v)
 	return json;
 }
 
-void Save3DCSV()
-{
-
-}
 
 bool WriteJsonFile(const string& filepath, const string& json)
 {
@@ -663,6 +865,7 @@ string ReadJsonFile(const string& filepath)
 /*
 示例格式：
 {"Atom":[[5,"C"],[6,"C"],[7,"C"]],"Adj":[[5,6,"single"],[5,7,"single"]]}
+
 部分解析代码示例：
 		string bondsym;
 		string bondname = fields[2];
@@ -698,7 +901,6 @@ bool AnalysisJsonFile(const string& json, vector<SimpleMNode>& sntb, vector<AdjL
 	vector<SimpleMNode> mid_sntb;
 	vector<AdjLine> mid_adj_list;
 	int max_seq = -1;
-
 
 	Split(atom_entries, atom_array_str, "],");
 	for (const string& entry : atom_entries)
@@ -745,25 +947,89 @@ bool AnalysisJsonFile(const string& json, vector<SimpleMNode>& sntb, vector<AdjL
 			else if (bondname == "\"double\"") bondsym = DOUBLE_BOND;
 			else if (bondname == "\"triple\"") bondsym = TRIPLE_BOND;
 			else bondsym = "";
+
+			if (seq1 > seq2)
+			{
+				swap(seq1, seq2);
+			}
 			mid_adj_list.push_back(AdjLine(seq1, seq2, bondsym));
 		}
 	}
+	//通过并查集思想去除其他无关原子
 
+
+	vector<int> rootfindset(max_seq + 1, -1);
+	vector<int> rootfindcount(max_seq + 1, 0);
+	int max_root = -1;
+	int max_count = -1;
+
+	for (auto& adj : mid_adj_list)
+	{
+		int seq1 = adj.GetSeqI();
+		int seq2 = adj.GetSeqJ();
+
+		if (rootfindset[seq1] == -1)
+		{
+			rootfindset[seq1] = seq1;
+			rootfindcount[seq1] = 1;
+		}
+		rootfindset[seq2] = rootfindset[seq1];
+		rootfindcount[rootfindset[seq1]]++;
+	}
+	//找出最大的连通分量的根节点
+
+	for (int i = 0; i <= max_seq; i++)
+	{
+		if (rootfindcount[i] > max_count)
+		{
+			max_count = rootfindcount[i];
+			max_root = i;
+		}
+	}
+
+	//for (int i = 0; i <= max_seq; i++)
+	//{
+	//	if (rootfindset[i] != -1 && rootfindset[i] == max_root)
+	//	{
+	//		new_seq_tb[i] = count;
+	//		count++;
+	//	}
+	//}
+	//cout << "MaxSeq: " << max_seq << endl;
+	//cout << seq_tb.size() << endl;
+	int count = 0;
 	vector<int> new_seq_tb(max_seq + 1, -1);
 	for (int i = 0; i < seq_tb.size(); i++)
 	{
-		new_seq_tb[seq_tb[i]] = i;
+		int r = seq_tb[i];
+
+		if (rootfindset[r] != -1 && rootfindset[r] == max_root)
+		{
+			new_seq_tb[r] = count;
+			count++;
+		}
 	}
+
+	if (mid_adj_list.size() == 0)
+	{
+		new_seq_tb[max_seq] = 0;
+	}
+
+	cout << "NewAtomCount: " << count << endl;
 	for (auto& node : mid_sntb)
 	{
-
 		int old_seq = node.seq;
 		node.seq = new_seq_tb[old_seq];
 
-		if (node.seq == -1 ) continue;
+		if (node.seq == -1) continue;
 
 		sntb.push_back(node);
 	}
+	if (mid_adj_list.size() == 0)
+	{
+		adj_list = vector<AdjLine>();
+	}
+	//vector<AdjLine> adj_list_temp;
 	for (auto& adj : mid_adj_list)
 	{
 		int old_seq1 = adj.GetSeqI();
@@ -775,6 +1041,7 @@ bool AnalysisJsonFile(const string& json, vector<SimpleMNode>& sntb, vector<AdjL
 		if (new_seq1 == -1 || new_seq2 == -1) continue;
 		adj_list.push_back(AdjLine(new_seq1, new_seq2, adj.GetBondSym()));
 	}
+
 }
 
 
@@ -783,272 +1050,271 @@ int main()
 	EnergyFundTable eft = ReadEnergySolidParam();
 	SmilesFundTable sft = ReadSmilesSolidParam();
 	SP_SpTable all_sp_tb;
-	string output_folder = "File/Output";
-	bool smiles_detail_print = YES;
+	string output_folder = "File/OutputJson";
+	bool smiles_detail_print = false;
 	bool mmff_detail_print = false;
 
 	cout << "\n数据初始化已完成(o゜▽゜)o☆\n";
+
+	// 启动Socket服务器
+	if (!InitializeWinsock()) {
+		cout << "Winsock初始化失败！" << endl;
+		return -1;
+	}
+	if (!StartSocketServer(DEFAULT_PORT)) {
+		cout << "Socket服务器启动失败！" << endl;
+		return -1;
+	}
+
 	int turncount = 0;
-	while (1)
+	while (serverRunning)
 	{
-
-		turncount++;
-		PrintCmdSepTitle("第" + to_string(turncount) + "轮结构式解析");
-		Mole c;
-
-		cout << "请选择解析方法：\n1. 普通SMILES\n2. JSON格式\n默认SMILES，输入数字选择：";
-		string method_choice;
-		cin >> method_choice;
-
-		if (method_choice == "2")
-		{
-			cout << "请输入JSON文件名：" << endl;
-			string json_filepath;
-			cin >> json_filepath;
-			string json = ReadJsonFile("File/Sources/" + json_filepath);
-			if (json.empty())
-			{
-				cout << "\n无法读取JSON文件，请检查路径！" << endl;
-				continue;
+		// 检查是否有客户端连接
+		SOCKET clientSocket = accept(serverSocket, NULL, NULL);
+		if (clientSocket == INVALID_SOCKET) {
+			int error = WSAGetLastError();
+			if (error != WSAEWOULDBLOCK) {
+				cout << "接受连接失败，错误码: " << error << endl;
 			}
-			vector<SimpleMNode> sn_tb;
-			vector<AdjLine> adj_list;
-			if (!AnalysisJsonFile(json, sn_tb, adj_list))
-			{
-				cout << "\nJSON文件解析失败，请检查格式！" << endl;
-				continue;
-			}
-			PrintCmdSepTitle("简化分子节点表");
-			PrintSpecialVector(sn_tb);
-			PrintCmdSepTitle("简化分子邻接表");
-			PrintSpecialVector(adj_list);
-			c = Mole(sft.atomtable, sn_tb, adj_list);
-		}
-		else
-		{
-			cout << "请输入普通SMILES结构式：" << endl;
-			string smiles;
-			cin >> smiles;
-			if (smiles.empty())
-			{
-				cout << "\n请输入有效格式!" << endl;
-				continue;
-			}
-			smiles = DeleteHydrogen(smiles);
-			c = Mole(sft.atomtable, smiles);
-		}
-		/*
-		vector<SimpleMNode> sn_tb;
-		vector<AdjLine> adj_list;
-		string json = ReadJsonFile("E:/VScode/Proj_Molecular3D_V1/File/Sources/draw.json");
-		AnalysisJsonFile(json, sn_tb, adj_list);
-		//cout << json << endl;
-
-
-		PrintCmdSepTitle("简化分子节点表");
-		PrintSpecialVector(sn_tb);
-		PrintCmdSepTitle("简化分子邻接表");
-		PrintSpecialVector(adj_list);
-
-		Mole c(sft.atomtable,sn_tb, adj_list);
-		*/
-
-		/*
-		cout << "请输入普通SMILES结构式：" << endl;
-		string smiles;
-		cin >> smiles;
-		if (smiles.empty())
-		{
-			cout << "\n请输入有效格式!" << endl;
+			// 没有连接时休眠，降低CPU占用
+			Sleep(100);
 			continue;
 		}
-		
-		smiles = DeleteHydrogen(smiles);
-		Mole c(sft.atomtable, smiles);
-		
-		*/
 
-		string now_smiles = c.GenerateCanSmiles(sft.primetable);
+		cout << "\n========================================" << endl;
+		cout << "客户端已连接！" << endl;
+		cout << "========================================\n" << endl;
 
-		if (smiles_detail_print)
-		{
-			
+		// 接收HTTP请求
+		string httpRequest = ReceiveHTTPRequest(clientSocket);
+
+		if (httpRequest.empty()) {
+			cout << "未接收到有效请求" << endl;
+			closesocket(clientSocket);
+			continue;
+		}
+
+		// 解析HTTP请求
+		string method, path;
+		string requestBody = ParseHttpRequest(httpRequest, method, path);
+
+		cout << "收到请求: " << method << " " << path << endl;
+
+		// 处理OPTIONS请求（CORS预检）
+		if (method == "OPTIONS") {
+			SendHTTPResponse(clientSocket, 200, "text/plain", "OK");
+			closesocket(clientSocket);
+			cout << "处理OPTIONS预检请求完成\n" << endl;
+			continue;
+		}
+
+		// 处理GET /status 请求（连接状态检查）
+		if (method == "GET" && path == "/status") {
+			string statusResponse = "{\"status\":\"running\",\"message\":\"服务器运行中\"}";
+			SendHTTPResponse(clientSocket, 200, "application/json", statusResponse);
+			closesocket(clientSocket);
+			//cout << "状态检查请求处理完成\n" << endl;
+			continue;
+		}
+
+		// 处理POST /convert 请求（分子转换）
+		if (method == "POST" && path == "/convert") {
+			turncount++;
+			PrintCmdSepTitle("第" + to_string(turncount) + "轮结构式解析");
+
+			cout << "接收到 " << requestBody.length() << " 字节JSON数据" << endl;
+
+			// 解析JSON并构建分子
+			vector<SimpleMNode> sn_tb;
+			vector<AdjLine> adj_list;
+			if (!AnalysisJsonFile(requestBody, sn_tb, adj_list))
+			{
+				cout << "\nJSON数据解析失败，请检查格式！" << endl;
+				string errorResponse = "{\"status\":\"error\",\"message\":\"JSON解析失败\"}";
+				SendHTTPResponse(clientSocket, 400, "application/json", errorResponse);
+				closesocket(clientSocket);
+				continue;
+			}
+
+
+
+			Mole c;
+
+			string now_smiles;
+			if (adj_list.size() == 0)
+			{
+				c = Mole(sft.atomtable,sn_tb[0].sym);
+				now_smiles = sn_tb[0].sym;
+			}
+			else {
+				c = Mole(sft.atomtable, sn_tb, adj_list);
+				now_smiles = c.GenerateCanSmiles(sft.primetable);
+			}
+
+			if (smiles_detail_print)
+			{
+				PrintCmdSepTitle("简化分子节点表");
+				PrintSpecialVector(sn_tb);
+				PrintCmdSepTitle("简化分子邻接表");
+				PrintSpecialVector(adj_list);
+
+				PrintCmdSepTitle("分子节点提取");
+				c.PrintNodeTable();
+
+				PrintCmdSepTitle("分子节点邻接表");
+				c.PrintBondTable();
+
+				PrintCmdSepTitle("秩排序结果");
+				c.PrintRank();
+				cout << "\n是否含环: " << (c.HasCircle() ? "是" : "否") << endl;
+			}
+
+			PrintCmdSepTitle("唯一SMILES生成");
+			cout << "原SMILES：\n";
+			cout << c.GetComSmiles() << endl << endl;
+			cout << "唯一SMILES：\n";
+			cout << now_smiles << endl;
+
+			Mole d(sft.atomtable, now_smiles);
+
 			PrintCmdSepTitle("分子节点提取");
-			c.PrintNodeTable();
-
+			d.PrintNodeTable();
 			PrintCmdSepTitle("分子节点邻接表");
-			c.PrintBondTable();
+			d.PrintBondTable();
 
-			PrintCmdSepTitle("秩排序结果");
-			c.PrintRank();
-			cout << "\n是否含环: " << (c.HasCircle() ? "是" : "否") << endl;
+			const string folderpath = output_folder ;
+
+
+			//---------------------------**MMFF识别**----------------------------------
+			int ac;
+			EnergySolidParam esp = GenEnergySolidParam(ac, eft, d, smiles_detail_print);
+			int nhc = esp.short_adj_list.size();
+			bool has_circle = c.HasCircle();
+
+			//---------------------------**Alpha优化**----------------------------------
+			vector<double> old_alpha_tb(nhc, 0);
+			vector<Vec3> xyz_tb;
+
+			PrintCmdSepTitle("Alpha优化前");
+			double now_energy = CalSumEnergyByXYZ(YES, xyz_tb, NeedCal(), old_alpha_tb, all_sp_tb, esp);
+			WriteTable(GetXYZTbPath(now_smiles, 1), XYZ_TB_TITLE, xyz_tb);
+
+			PrintCmdSepTitle("Alpha优化进度-记时");
+			cout << "优化中……\n";
+
+			XYZ_TB alpha_xyz_tb;
+			double alpha_energy;
+			vector<double> new_alpha_tb = AlphaOpt(has_circle, alpha_energy, alpha_xyz_tb, all_sp_tb, esp, mmff_detail_print);
+
+			cout << "优化完成！\n";
+
+			PrintCmdSepTitle("Alpha优化后");
+			WriteTable(GetXYZTbPath(now_smiles, 2), XYZ_TB_TITLE, alpha_xyz_tb);
+
+			double aaa_energy = CalSumEnergyByXYZ(YES, alpha_xyz_tb, NeedCal(), new_alpha_tb, all_sp_tb, esp);
+
+			//----------------------------**文件导出**-----------------------------------
+
+
+			vector<SXYZ_3D> sxyz_tb = GetSXYZTb(alpha_xyz_tb, esp);
+			vector<AdjAB_3D> adjline_tb = GetAdjABTb(esp);
+
+			//PrintCmdSepTitle("文件夹" + now_smiles + "创建");
+			//if (!CreateFolder(folderpath)) {
+			//	cout << "Warning: 文件夹创建失败！可能已存在。\n";
+			//}
+			//else
+			//{
+			//	cout << "文件夹创建成功！\n";
+			//}
+
+			//PrintCmdSepTitle("CSV文件导出");
+
+			//string sxyz_tb_path = folderpath + "/SXYZ.csv";
+			//WriteTable(sxyz_tb_path, SXYZ_TB_TITLE, sxyz_tb);
+
+			//string adjab_filename = folderpath + "/ADJ_AB.csv";
+			//WriteTable(adjab_filename, ADJ_AB_TB_TITLE, adjline_tb);
+
+			//cout << "文件 SXYZ.csv 和 ADJ_AB.csv 已储存！\n";
+
+			//---------------------------**JSON格式传输**----------------------------------
+			PrintCmdSepTitle("JSON数据生成");
+
+			string sxyz_json_part = VectorToJsonPart("SXYZ", sxyz_tb);
+			string adjab_json_part = VectorToJsonPart("ADJ_AB", adjline_tb);
+
+			string sent_json_path = folderpath + "/"+now_smiles+".json";
+			string sent_json = "{\n" + sxyz_json_part + "\n,\n" + adjab_json_part + "\n}\n";
+
+			WriteJsonFile(sent_json_path, sent_json);
+
+			cout << "文件 3d.json 已储存！\n";
+
+			//---------------------------**HTTP响应发送**----------------------------------
+			PrintCmdSepTitle("HTTP响应发送");
+
+			// 构建响应JSON（包含状态和3D数据）
+			string responseJson = "{\n\"status\":\"success\",\n\"data\":" + sent_json + "\n}";
+
+			cout << "正在发送3D结构数据到网页..." << endl;
+			if (SendHTTPResponse(clientSocket, 200, "application/json", responseJson)) {
+				cout << "3D结构数据发送成功！" << endl;
+				cout << "数据大小: " << responseJson.length() << " 字节" << endl;
+			}
+			else {
+				cout << "3D结构数据发送失败！" << endl;
+			}
+
+			cout << "\nCanSmiles: " << now_smiles << endl;
+
+			// 关闭客户端连接
+			closesocket(clientSocket);
+			cout << "\n客户端连接已关闭，等待下一个连接...\n" << endl;
 		}
-		//PrintCmdSepTitle("初始秩生成");
-		//c.PrintAtomTable();
-		//c.PrintOriRank();
-
-		PrintCmdSepTitle("唯一SMILES生成");
-		cout << "原SMILES：\n";
-		cout << c.GetComSmiles() << endl << endl;
-		cout << "唯一SMILES：\n";
-		cout << c.GetCanSmiles() << endl;
-
-
-
-
-		Mole d(sft.atomtable, now_smiles);
-
-
-		PrintCmdSepTitle("分子节点提取");
-		d.PrintNodeTable();
-		PrintCmdSepTitle("分子节点邻接表");
-		d.PrintBondTable();
-
-
-		const string folderpath = output_folder + "/" + now_smiles;
-
-		//DeleteFolder(folderpath);
-
-		/*
-		//---节点表与邻接表储存---
-		string now_time = GetCurrentTimeString();
-		string atomtable_filename = folderpath + "/MNodeTable.csv";
-		string bondtable_filename = folderpath + "/BondTable.csv";
-		//PrintCmdSepTitle("节点表储存");
-		WriteTable<MNode>(atomtable_filename, MNODE_TB_TITLE, d.GetNodeTable(), true);
-		cout << "节点表已储存至 " << atomtable_filename << endl;
-		//PrintCmdSepTitle("邻接表储存");
-		WriteTable<NodeBonds>(bondtable_filename, ADJ_TB_TITLE, d.GetBondTable(), true);
-		cout << "邻接表已储存至 " << bondtable_filename << endl;
-
-		//return 0;
-
-		PrintCmdSepTitle("分子相关表");
-		string now_smiles = cs;
-
-		//map<vector<int>, BSVal> bs_kb_map = CompressTableToMap<BSLine, BSVal>(bs_tb);
-		//PrintParamMap(bs_kb_map, "\t", max_row_count);
-
-		vector<MNode> mnode_tb;
-		string mnode_tb_path = GetMNodeTbPath(now_smiles);
-		ReadTableByTitle(mnode_tb_path, MNODE_TB_TITLE, mnode_tb);
-		PrintTableTitle(MNODE_TB_TITLE);
-		PrintSpecialVector(mnode_tb);
-
-
-
-		// --- 邻接表格式转换 ---
-		//vector<AdjLine> adj_tb;
-		//string adj_tb_path = GetAdjTbPath(now_smiles);
-		//ReadTableByTitle(adj_tb_path, ADJ_TB_TITLE, adj_tb);
-		//PrintTableTitle(ADJ_TB_TITLE);
-		//PrintSpecialVector(adj_tb);
-
-		*/
-
-		
-		//---------------------------**MMFF识别**----------------------------------
-
-		int ac;
-		EnergySolidParam esp = GenEnergySolidParam(ac, eft, d, smiles_detail_print);
-		int nhc = esp.short_adj_list.size();
-		bool has_circle = c.HasCircle();
-
-
-		
-		//---------------------------**Alpha优化**----------------------------------
-		vector<double> old_alpha_tb(nhc, 0);
-		vector<Vec3> xyz_tb;
-		
-		PrintCmdSepTitle("Alpha优化前");
-		double now_energy = CalSumEnergyByXYZ(YES, xyz_tb, NeedCal(), old_alpha_tb, all_sp_tb, esp);
-		WriteTable(GetXYZTbPath(now_smiles, 1), XYZ_TB_TITLE, xyz_tb);
-		//PrintSpecialVector(xyz_tb);
-
-
-		
-		PrintCmdSepTitle("Alpha优化进度-记时");
-		cout << "优化中……\n";
-
-		XYZ_TB alpha_xyz_tb;
-		double alpha_energy;
-		vector<double> new_alpha_tb = AlphaOpt(has_circle, alpha_energy, alpha_xyz_tb, all_sp_tb, esp,YES);
-
-		cout << "优化完成！\n";
-
-		PrintCmdSepTitle("Alpha优化后");
-		WriteTable(GetXYZTbPath(now_smiles, 2), XYZ_TB_TITLE, alpha_xyz_tb);
-
-		double aaa_energy = CalSumEnergyByXYZ(YES, alpha_xyz_tb, NeedCal(), new_alpha_tb, all_sp_tb, esp);
-		
-		//std::cout << "\n(^-^)Time taken by function: " << duration << " s" << std::endl;
-
-		
-		
-		//---------------------------**粒子群优化**----------------------------------
-		/*
-
-		//粒子群优化
-		vector<double> pso_alpha_tb = AlphaPsoOpt(alpha_energy, xyz_tb, all_sp_tb, esp);
-
-
-		PrintCmdSepTitle("Alpha粒子群优化后");
-		//PrintSpecialVector(xyz_tb);
-		WriteTable(GetXYZTbPath(now_smiles, 3), XYZ_TB_TITLE, xyz_tb);
-		cout << "\nsmiles: " << now_smiles << endl;
-		double pso_energy = CalSumEnergyByXYZ(YES, xyz_tb, NeedCal(), pso_alpha_tb, all_sp_tb, esp);
-
-		*/
-		//----------------------------**文件导出**-----------------------------------
-		
-		
-		PrintCmdSepTitle("文件夹" + now_smiles + "创建");
-		if (!CreateFolder(folderpath)) {
-			cout << "Warning: 文件夹创建失败！可能已存在。\n";
+		else {
+			// 未知请求
+			string errorResponse = "{\"status\":\"error\",\"message\":\"未知请求路径\"}";
+			SendHTTPResponse(clientSocket, 404, "application/json", errorResponse);
+			closesocket(clientSocket);
+			cout << "未知请求: " << method << " " << path << "\n" << endl;
 		}
-		else
-		{
-			cout << "文件夹创建成功！\n";
-		}
-
-		PrintCmdSepTitle("CSV文件导出");
-
-		vector<SXYZ_3D> sxyz_tb = GetSXYZTb(alpha_xyz_tb, esp);
-		vector<AdjAB_3D> adjline_tb = GetAdjABTb(esp);
-		
-		string sxyz_tb_path = folderpath + "/SXYZ.csv";
-		WriteTable(sxyz_tb_path, SXYZ_TB_TITLE, sxyz_tb);
-
-		string adjab_filename = folderpath + "/ADJ_AB.csv";
-		WriteTable(adjab_filename, ADJ_AB_TB_TITLE, adjline_tb);
-
-		cout << "文件 SXYZ.csv 和 ADJ_AB.csv 已储存！\n";
-
-		//---------------------------**JSON格式传输**----------------------------------
-		PrintCmdSepTitle("JSON文件导出");
-
-		//string sxyz_json_path = folderpath + "/SXYZ.json";
-		string sxyz_json_part = VectorToJsonPart("SXYZ", sxyz_tb);
-
-		//WriteJsonFile(sxyz_json_path, sxyz_json);
-		string adjab_json_part = VectorToJsonPart("ADJ_AB", adjline_tb);
-
-		string sent_json_path = folderpath + "/3d.json";
-		string sent_json = "{\n" + sxyz_json_part + "\n,\n" + adjab_json_part + "\n}\n";
-
-		//cout << sent_json << endl;
-		WriteJsonFile(sent_json_path, sent_json);
-
-		cout << "文件 3d.json 已储存！\n";
-
-		cout << "\nCanSmiles: " << now_smiles << endl;
-
-		
-
-		//string stop;
-		//cin >> stop;
-		
 	}
+
+	// 清理
+	StopSocketServer();
+	return 0;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
