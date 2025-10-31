@@ -447,7 +447,7 @@ void Mole::PrintIsSorted()
 {
 	//cout << "size: " << ranktb.size() << endl;
 	int i = 0;
-	for (auto& a : sortedtb)
+	for (auto a : sortedtb)
 	{
 		//vector<PointTo> b(a.GetBonds());
 		if (i != 0) cout << "-";

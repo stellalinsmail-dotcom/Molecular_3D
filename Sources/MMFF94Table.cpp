@@ -28,7 +28,7 @@ EnergyFundTable ReadEnergySolidParam(bool print_yes, int max_row_count)
 	ReadTableByTitle(msys_filepath, MSYM_TB_TITLE, msym_tb);
 
 
-	MSYM_MAP msym_map = ChangeTableToMap(msym_tb);
+	MSYM_MAP msym_map = ChangeTableToMap<MSymLine,int>(msym_tb);
 
 	//
 	if (print_yes)

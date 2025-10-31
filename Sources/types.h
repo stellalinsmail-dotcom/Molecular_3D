@@ -64,7 +64,7 @@ using namespace std;
 #define ATOM_TB_TITLE "Symbol,Number,Mass,Valence"
 #define MNODE_TB_TITLE "Seq,Element,IsAroma,CCount,CHCount,NHBC,CharSym,CharVal,MType"
 #define ADJ_TB_TITLE "Seq1,Seq2,BondSym"
-
+#define OPT_REC_TB_TITLE "Smiles,MinEnergy"
 // --- MMFF94 ---
 
 #define BS_TB_TITLE "BT,MTYPE_I,MTYPE_J,KB,R0,SOURCE"
@@ -84,6 +84,7 @@ using namespace std;
 #define VDW_TB_SHORT_TITLE "MTYPE,ALPHA_I,N_I,A_I,G_I"
 #define	MSYM_TB_SHORT_TITLE "MSYMBOL,MTYPE"
 
+
 #define SP_SPTB_TITLE "Seq,R,Theta,Varphi"
 #define SP_RETB_TITLE "Seq,X,Y,Z"
 #define XYZ_TB_TITLE "X,Y,Z"
@@ -95,6 +96,8 @@ using namespace std;
 #define MMFF_CSV_FOLDER "File/Values/MMFF94_CSV/"
 #define SP_FOLDER "File/Values/C_SP_CSV/"
 #define MMFF_OUTPUT_FOLDER "File/Output/"
+#define JSON_OUTPUT_FOLDER "File/OutputOpt/Json"
+#define OPT_OUTPUT_FOLDER "File/OutputOpt/"
 
 #define BS_FILENAME  "6_MMFFBOND.csv"
 #define AB_FILENAME "8_MMFFANG.csv"
@@ -104,7 +107,7 @@ using namespace std;
 #define VDW_FILENAME "13_MMFFVDW.csv"
 
 #define MSYM_FILENAME "1_MMFFSYMB.csv"
-
+#define OPT_REC_FILENAME "AlphaOptRecord.csv"
 
 #define PI 3.14159265358979323846
 #define PI_HALF 1.57079632679489661923
@@ -165,6 +168,9 @@ using namespace std;
 #define MAX_SP_SIZE 6
 #define MAX_ADJ_NODE_SIZE 6
 #define OPT_RATIO 0.618
+
+
+
 
 
 // --- 文件路径处理 ---
@@ -420,8 +426,8 @@ int ReadTableByTitle(string filename, string stdtitle, vector<T>& table, bool pr
 	ifs.open(filename, ios::in);
 	if (!ifs.is_open())
 	{
-		cout << "表格打开失败！\n";
-		return 0;
+		cout << "表格 "+filename + " 打开失败！\n";
+		return -1;
 	}
 	vector<string> item;		//用于存放文件中的一行数据
 	string temp;				//临时存储文件中的一行数据
@@ -489,16 +495,29 @@ void WriteTable(string filename, string stdtitle, const  vector<T>& table, bool 
 }
 
 // --- 表格处理函数 ---
-template<typename TLine>
-map<string, int> ChangeTableToMap(const vector<TLine>& table)
+template<typename TLine,typename TVal>
+map<string, TVal> ChangeTableToMap(const vector<TLine>& table)
 {
-	map<string, int> table_map;
+	map<string, TVal> table_map;
 	for (auto& line : table)
 	{
 		table_map[line.GetIndex()] = line.GetVal();
 	}
 	return table_map;
 }
+
+template<typename TLine,typename TVal>
+vector<TLine> ChangeMapToTable(const map<string, TVal>& table_map)
+{
+	vector<TLine> table;
+	for (auto& pair : table_map)
+	{
+		TLine line(pair.first, pair.second);
+		table.push_back(line);
+	}
+	return table;
+}
+
 
 //--- 字典打印输出 ---
 // 

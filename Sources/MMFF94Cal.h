@@ -147,7 +147,7 @@ inline double xyz2phi_rad(const Vec3& v1, const Vec3& v2, const Vec3& v3, const 
 	Vec3 c = v4 - v3;
 
 	Vec3 n_ab = Cross(a, b);
-	Vec3 n_bc = Cross(b, c);
+	Vec3 n_bc = Cross(c, b);
 	double phi_rad = acos(Cdot(n_ab, n_bc) / (n_ab.GetLen() * n_bc.GetLen()));
 
 	//cout << endl;
@@ -156,10 +156,10 @@ inline double xyz2phi_rad(const Vec3& v1, const Vec3& v2, const Vec3& v3, const 
 	//cout << "val: " << Cdot(n_ab, n_bc) / (n_ab.GetLen() * n_bc.GetLen()) << endl;
 	//cout << "phi_1: " << phi_rad << endl;
 
-	double k = -Cdot(a, b) / Cdot(b, b);
-	Vec3 d = a + k * b;
-	bool judge = (Cdot(d, c) < 0);
-	if (judge) phi_rad = PI - phi_rad;
+	//double k = -Cdot(a, b) / Cdot(b, b);
+	//Vec3 d = a + k * b;
+	//bool judge = (Cdot(d, c) < 0);
+	//if (judge) phi_rad = PI - phi_rad;
 	return phi_rad;
 }
 inline double xyz2chi_rad(const Vec3& v1, const Vec3& v2, const Vec3& v3, const Vec3& v4)

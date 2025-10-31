@@ -4,211 +4,10 @@
 #include "Matrix.h"
 #include "MMFF94Table.h"
 #include "MMFF94Cal.h"
+#include "MySocket.h"
 
 using namespace std;
 
-// --- Socket Server Functions ---
-SOCKET serverSocket = INVALID_SOCKET;
-bool serverRunning = false;
-
-// 初始化Winsock
-bool InitializeWinsock() {
-	WSADATA wsaData;
-	int iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
-	if (iResult != 0) {
-		cout << "WSAStartup失败，错误码: " << iResult << endl;
-		return false;
-	}
-	return true;
-}
-
-// 启动Socket服务器 (使用HTTP协议)
-bool StartSocketServer(const char* port) {
-	struct addrinfo* result = NULL, hints;
-	ZeroMemory(&hints, sizeof(hints));
-	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_protocol = IPPROTO_TCP;
-	hints.ai_flags = AI_PASSIVE;
-
-	int iResult = getaddrinfo(NULL, port, &hints, &result);
-	if (iResult != 0) {
-		cout << "getaddrinfo失败，错误码: " << iResult << endl;
-		WSACleanup();
-		return false;
-	}
-
-	serverSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
-	if (serverSocket == INVALID_SOCKET) {
-		cout << "创建socket失败，错误码: " << WSAGetLastError() << endl;
-		freeaddrinfo(result);
-		WSACleanup();
-		return false;
-	}
-
-	// 设置SO_REUSEADDR选项，避免端口占用问题
-	int opt = 1;
-	setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt));
-
-	iResult = ::bind(serverSocket, result->ai_addr, (int)result->ai_addrlen);
-	if (iResult == SOCKET_ERROR) {
-		cout << "绑定端口失败，错误码: " << WSAGetLastError() << endl;
-		cout << "请检查端口" << port << "是否被其他程序占用" << endl;
-		freeaddrinfo(result);
-		closesocket(serverSocket);
-		WSACleanup();
-		return false;
-	}
-
-	freeaddrinfo(result);
-
-	iResult = listen(serverSocket, SOMAXCONN);
-	if (iResult == SOCKET_ERROR) {
-		cout << "监听失败，错误码: " << WSAGetLastError() << endl;
-		closesocket(serverSocket);
-		WSACleanup();
-		return false;
-	}
-
-	// 设置为非阻塞模式
-	u_long mode = 1;
-	ioctlsocket(serverSocket, FIONBIO, &mode);
-
-	serverRunning = true;
-	cout << "\n========================================" << endl;
-	cout << "Socket服务器已启动（HTTP模式）" << endl;
-	cout << "监听端口: " << port << endl;
-	cout << "服务地址: http://localhost:" << port << endl;
-	cout << "等待网页连接..." << endl;
-	cout << "========================================\n" << endl;
-	return true;
-}
-
-// 解析HTTP请求头
-string ParseHttpRequest(const string& request, string& method, string& path) {
-	size_t methodEnd = request.find(' ');
-	if (methodEnd == string::npos) return "";
-
-	method = request.substr(0, methodEnd);
-
-	size_t pathStart = methodEnd + 1;
-	size_t pathEnd = request.find(' ', pathStart);
-	if (pathEnd == string::npos) return "";
-
-	path = request.substr(pathStart, pathEnd - pathStart);
-
-	// 找到请求体（在两个\r\n\r\n之后）
-	size_t bodyStart = request.find("\r\n\r\n");
-	if (bodyStart == string::npos) return "";
-
-	return request.substr(bodyStart + 4);
-}
-
-// 发送HTTP响应
-bool SendHTTPResponse(SOCKET clientSocket, int statusCode, const string& contentType, const string& body) {
-	string statusText;
-	switch (statusCode) {
-	case 200: statusText = "OK"; break;
-	case 400: statusText = "Bad Request"; break;
-	case 404: statusText = "Not Found"; break;
-	case 500: statusText = "Internal Server Error"; break;
-	default: statusText = "Unknown"; break;
-	}
-
-	stringstream response;
-	response << "HTTP/1.1 " << statusCode << " " << statusText << "\r\n";
-	response << "Content-Type: " << contentType << "\r\n";
-	response << "Content-Length: " << body.length() << "\r\n";
-	response << "Access-Control-Allow-Origin: *\r\n";
-	response << "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n";
-	response << "Access-Control-Allow-Headers: Content-Type\r\n";
-	response << "Connection: close\r\n";
-	response << "\r\n";
-	response << body;
-
-	string responseStr = response.str();
-	int iSendResult = send(clientSocket, responseStr.c_str(), (int)responseStr.length(), 0);
-
-	if (iSendResult == SOCKET_ERROR) {
-		cout << "发送响应失败，错误码: " << WSAGetLastError() << endl;
-		return false;
-	}
-
-	return true;
-}
-
-// 接收完整的HTTP请求
-string ReceiveHTTPRequest(SOCKET clientSocket) {
-	string fullData = "";
-	char recvbuf[DEFAULT_BUFLEN];
-	int recvbuflen = DEFAULT_BUFLEN;
-	int iResult;
-
-	// 设置为阻塞模式接收
-	u_long mode = 0;
-	ioctlsocket(clientSocket, FIONBIO, &mode);
-
-	// 设置接收超时
-	int timeout = 30000; // 30秒
-	setsockopt(clientSocket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
-
-	do {
-		iResult = recv(clientSocket, recvbuf, recvbuflen, 0);
-		if (iResult > 0) {
-			fullData.append(recvbuf, iResult);
-
-			// 检查是否接收完整HTTP请求
-			// HTTP请求以\r\n\r\n分隔头和体
-			size_t headerEnd = fullData.find("\r\n\r\n");
-			if (headerEnd != string::npos) {
-				// 检查Content-Length
-				size_t lengthPos = fullData.find("Content-Length:");
-				if (lengthPos != string::npos) {
-					size_t lengthStart = lengthPos + 15;
-					size_t lengthEnd = fullData.find("\r\n", lengthStart);
-					string lengthStr = fullData.substr(lengthStart, lengthEnd - lengthStart);
-					int contentLength = atoi(lengthStr.c_str());
-
-					size_t bodyStart = headerEnd + 4;
-					if (fullData.length() >= bodyStart + contentLength) {
-						break; // 接收完整
-					}
-				}
-				else {
-					// 没有Content-Length，可能是GET请求
-					break;
-				}
-			}
-		}
-		else if (iResult == 0) {
-			cout << "连接关闭" << endl;
-			break;
-		}
-		else {
-			int error = WSAGetLastError();
-			if (error == WSAETIMEDOUT) {
-				cout << "接收超时" << endl;
-			}
-			else {
-				cout << "接收失败，错误码: " << error << endl;
-			}
-			break;
-		}
-	} while (iResult > 0);
-
-	return fullData;
-}
-
-// 关闭Socket服务器
-void StopSocketServer() {
-	if (serverSocket != INVALID_SOCKET) {
-		closesocket(serverSocket);
-		serverSocket = INVALID_SOCKET;
-	}
-	WSACleanup();
-	serverRunning = false;
-	cout << "\nSocket服务器已关闭" << endl;
-}
 
 //--- 优化相关函数 ---
 template<typename T>
@@ -257,12 +56,16 @@ vector<double> AlphaOpt(bool has_circle, double& alpha_energy, XYZ_TB& xyz_tb, c
 	int nhc = esp.short_adj_list.size();
 
 	int turn1count = 0;
+	int rough_turncount = 0;
 	int turn2count = 0;
 	double asep = PI_HALF;
 	vector<double> old_alpha_tb(nhc, 0);
 	vector<double> new_alpha_tb(nhc, PI);
 	new_alpha_tb[0] = 0;
-	vector<double> asep_tb = GetAlphaSepTable(esp.short_adj_list);
+
+
+	vector<double> rec_asep_tb = GetAlphaSepTable(esp.short_adj_list);
+	vector<double> asep_tb = rec_asep_tb;
 
 	//PrintCmdSepTitle("sp_tb");
 	//PrintCommonVector(asep_tb);
@@ -288,6 +91,11 @@ vector<double> AlphaOpt(bool has_circle, double& alpha_energy, XYZ_TB& xyz_tb, c
 	int wait_turn_count = 0;
 	bool break_yes_a = false;
 
+	const int max_rough_turn = 10;
+	const int max_rough_big_turn = nhc*100;
+
+	double rough_min_energy = INFINITY;
+	vector<double> rough_min_alpha_tb = old_alpha_tb;
 
 AlphaOpt1:
 	{
@@ -296,7 +104,7 @@ AlphaOpt1:
 		{
 			if (wait_turn_count >= wait_turn_max)
 			{
-				if (detail_print)cout << "等待超过最大轮次，结束粗略优化。" << endl;
+				if (detail_print) cout << "等待超过最大轮次，结束粗略优化。" << endl;
 				new_energy_a = old_energy_a;
 				new_alpha_tb = old_alpha_tb;
 
@@ -350,22 +158,51 @@ AlphaOpt1:
 				new_alpha_tb[i] = min_angle;
 			}
 			new_energy_a = CalSumEnergyByXYZ(NO, xyz_tb, NeedCal(), new_alpha_tb, all_sp_tb, esp);
+			if (new_energy_a < rough_min_energy)
+			{
+				rough_min_energy = new_energy_a;
+				rough_min_alpha_tb = new_alpha_tb;
+			}
 		}
 		for (int i = 0; i < nhc; i++)
 		{
 			asep_tb[i] /= 2;
 			if (asep_tb[i] < acc_angle) asep_tb[i] = acc_angle;
 		}
-		if (turn1count < 15 && !break_yes_a)
+		if (turn1count < max_rough_turn && !break_yes_a)
 		{
 			turn1count++;
 			//cout << "粗略优化进行中，第 " << turn1count << " 轮..." << endl;
 			goto AlphaOpt1;
 		}
-
+		rough_turncount++;
 	}
-
+	if (has_circle)
+	{
+		if (rough_turncount < max_rough_big_turn)
+		{
+			if (new_energy_a < rough_min_energy)
+			{
+				rough_min_energy = new_energy_a;
+				rough_min_alpha_tb = new_alpha_tb;
+			}
+			rough_turncount++;
+			asep_tb = rec_asep_tb;
+			turn1count = 0;
+			//cout << "粗略优化进行中，第 " << turn1count << " 轮..." << endl;
+			goto AlphaOpt1;
+		}
+	}
+	else
+	{
+		rough_min_energy = new_energy_a;
+		rough_min_alpha_tb = new_alpha_tb;
+	}
 	// --- alpha 第二次优化 精细 ---
+
+
+	new_alpha_tb = rough_min_alpha_tb;
+
 
 
 	double old_energy = INFINITY;
@@ -380,7 +217,7 @@ AlphaOpt1:
 
 	old_alpha_tb = new_alpha_tb;
 
-	asep_tb = GetAlphaSepTable(esp.short_adj_list);
+	asep_tb = rec_asep_tb;
 	//for (int i = 0; i < nhc; i++)
 	//{
 	//	asep_tb[i] = min(asep_tb[i],PI_HALF/3);
@@ -673,376 +510,34 @@ vector<double> AlphaPsoOpt(double& alpha_energy, XYZ_TB& xyz_tb, const SP_SpTabl
 	return gbest_pos;
 }
 
-// --- 面向3D网页的导出 ---
 
-class SXYZ_3D {
+class OptRec {
 private:
-	string sym;
-	Vec3 xyz;
+	string smiles;
+	double min_energy;
 public:
-	SXYZ_3D() : sym("None"), xyz(Vec3()) {}
-	SXYZ_3D(string s, Vec3 v) :sym(s), xyz(v) {}
-	string GetSym() const { return sym; }
-	Vec3 GetXYZ() const { return xyz; }
+	OptRec(string s, double e) :smiles(s), min_energy(e) {}
+	OptRec(const vector<string>& info, const vector<int>& titlenum)
+	{
+		smiles = info[titlenum[0]];
+		min_energy = atof(info[titlenum[1]].c_str());
+	}
+	OptRec(const OptRec& r) :smiles(r.smiles), min_energy(r.min_energy) {}
+	string GetIndex()const { return smiles; }
+	double GetVal()const { return min_energy; }
 	void Print(string sep = "\t")const
 	{
-		cout << sym << sep;
-		xyz.Print(sep);
+		cout << smiles << sep << min_energy << endl;
 	}
-	friend ostream& operator<<(ostream& os, const SXYZ_3D& sxyz)
+
+	friend ostream& operator<<(ostream& os, const OptRec& orc)
 	{
-		os << "\"" << sxyz.sym << "\"," << sxyz.xyz;
+		os << orc.smiles << "," << orc.min_energy;
 		return os;
 	}
 };
 
-class AdjAB_3D
-{
-private:
-	int seq1;
-	int seq2;
-	string bondsym;
-public:
-	AdjAB_3D(const vector<string>& info, const vector<int>& titlenum)
-	{
-		seq1 = atoi(info[titlenum[0]].c_str()) + 1;
-		seq2 = atoi(info[titlenum[1]].c_str()) + 1;
-		bondsym = info[titlenum[2]];
-	}
-	AdjAB_3D(int s1 = -0, int s2 = 0) :seq1(s1), seq2(s2) {}
-	int GetIndex1() const { return seq1; }
-	int GetIndex2() const { return seq2; }
-	void Print(string sep = "\t")const
-	{
-		cout << seq1 << sep << seq2 << endl;
-	}
-	friend ostream& operator<<(ostream& os, const AdjAB_3D& adjline)
-	{
-		os << adjline.seq1 << "," << adjline.seq2;
-		return os;
-	}
 
-};
-
-
-
-//--- JSON格式解析 ---
-
-vector<SXYZ_3D> GetSXYZTb(const XYZ_TB& xyz_tb, const  EnergySolidParam& esp)
-{
-	int ac = xyz_tb.size();
-	int nhc = esp.short_adj_list.size();
-	vector<SXYZ_3D> sxyz_tb(ac, SXYZ_3D());
-
-	for (int i = 0; i < ac; i++)
-	{
-		if (i < nhc)sxyz_tb[i] = SXYZ_3D(esp.mnode_tb[i].GetSym(), xyz_tb[i]);
-		else sxyz_tb[i] = SXYZ_3D("H", xyz_tb[i]);
-	}
-	return sxyz_tb;
-
-
-}
-vector<AdjAB_3D> GetAdjABTb(const EnergySolidParam& esp)
-{
-	int nhc = esp.short_adj_list.size();
-	vector<AdjAB_3D> adjline_tb;
-	for (int i = 0; i < nhc; i++)
-	{
-		vector<PointTo> nb_node = esp.short_adj_list[i].GetBonds();
-		int nsize = nb_node.size();
-		for (int j = 0; j < nsize; j++)
-		{
-			int des = nb_node[j].GetDesSeq();
-			if (des > i)
-			{
-				adjline_tb.push_back(AdjAB_3D(i + 1, des + 1));
-			}
-		}
-	}
-	return adjline_tb;
-}
-
-template<typename T>
-string VectorToJsonArray(string stdtitle, const vector<T>& v)
-{
-	//title_tb存储各个字段的标题
-	vector<string> title_tb;
-	Split(title_tb, stdtitle, ',');
-	string json = "{\n";
-	int n = v.size();
-	//通过循环输入v中的每个元素，格式为"title":value，value的顺序由重载的operator<<决定，与title_tb顺序一致
-	for (int i = 0; i < n; i++)
-	{
-		json += "\t\"" + to_string(i) + "\": {";
-		stringstream ss;
-		ss << v[i];
-		string line = ss.str();
-		vector<string> value_tb;
-		Split(value_tb, line, ',');
-
-		int m = title_tb.size();
-		for (int j = 0; j < m; j++)
-		{
-			json += "\"" + title_tb[j] + "\": ";
-			json += value_tb[j];
-			if (j < m - 1) json += ", ";
-		}
-		json += "}";
-
-		if (i < n - 1) json += ",\n";
-		else json += "\n";
-	}
-
-
-	json += "}\n";
-	return json;
-
-}
-
-template<typename T>
-string VectorToJsonPart(string nametitle, const vector<T>& v)
-{
-	//title_tb存储各个字段的标题
-	//vector<string> title_tb;
-	//Split(title_tb, stdtitle, ',');
-
-	string json = "\"" + nametitle + "\": [\n";
-	size_t n = v.size();
-	//通过循环输入v中的每个元素，格式为"title":value，value的顺序由重载的operator<<决定，与title_tb顺序一致
-	for (size_t i = 0; i < n; i++)
-	{
-		json += "[";
-		stringstream ss;
-		ss << v[i];
-		string line = ss.str();
-		vector<string> value_tb;
-		Split(value_tb, line, ',');
-
-		size_t m = value_tb.size();
-		for (size_t j = 0; j < m; j++)
-		{
-			json += value_tb[j];
-			if (j < m - 1) json += ", ";
-		}
-		json += "]";
-
-		if (i < n - 1) json += ",\n";
-		else json += "\n";
-	}
-
-	json += "]";
-	return json;
-}
-
-
-bool WriteJsonFile(const string& filepath, const string& json)
-{
-	ofstream ofs(filepath);
-	if (!ofs.is_open())
-	{
-		cout << "Error: 无法打开文件 " << filepath << " 进行写入！" << endl;
-		return false;
-	}
-	ofs << json;
-	ofs.close();
-	return true;
-}
-
-string ReadJsonFile(const string& filepath)
-{
-	ifstream ifs(filepath);
-	if (!ifs.is_open())
-	{
-		cout << "Error: 无法打开文件 " << filepath << " 进行读取！" << endl;
-		return "";
-	}
-	stringstream ss;
-	ss << ifs.rdbuf();
-	ifs.close();
-	return ss.str();
-}
-/*
-示例格式：
-{"Atom":[[5,"C"],[6,"C"],[7,"C"]],"Adj":[[5,6,"single"],[5,7,"single"]]}
-
-部分解析代码示例：
-		string bondsym;
-		string bondname = fields[2];
-		if (bondname == "single") bondsym = SINGLE_BOND;
-		else if (bondname == "double") bondsym = DOUBLE_BOND;
-		else if (bondname == "triple") bondsym = TRIPLE_BOND;
-		else bondsym = SINGLE_BOND;
-*/
-bool AnalysisJsonFile(const string& json, vector<SimpleMNode>& sntb, vector<AdjLine>& adj_list)
-{
-	size_t atom_pos = json.find("\"Atom\"");
-	if (atom_pos == string::npos)
-	{
-		cout << "Error: JSON文件中未找到Atom部分！" << endl;
-		return false;
-	}
-	size_t adj_pos = json.find("\"Adj\"");
-	if (adj_pos == string::npos)
-	{
-		cout << "Error: JSON文件中未找到Adj部分！" << endl;
-		return false;
-	}
-	size_t atom_start = json.find("[", atom_pos);
-	size_t atom_end = json.find("]]", atom_start);
-	string atom_array_str = json.substr(atom_start + 1, atom_end - atom_start - 1);
-	size_t adj_start = json.find("[", adj_pos);
-	size_t adj_end = json.find("]]", adj_start);
-	string adj_array_str = json.substr(adj_start + 1, adj_end - adj_start - 1);
-	// 解析Atom数组
-	vector<string> atom_entries;
-
-	vector<int> seq_tb;
-	vector<SimpleMNode> mid_sntb;
-	vector<AdjLine> mid_adj_list;
-	int max_seq = -1;
-
-	Split(atom_entries, atom_array_str, "],");
-	for (const string& entry : atom_entries)
-	{
-		string clean_entry = entry;
-		clean_entry.erase(remove(clean_entry.begin(), clean_entry.end(), '['), clean_entry.end());
-		clean_entry.erase(remove(clean_entry.begin(), clean_entry.end(), ']'), clean_entry.end());
-		vector<string> fields;
-		Split(fields, clean_entry, ",");
-		if (fields.size() >= 2)
-		{
-			int seq = atoi(fields[0].c_str());
-			string sym = fields[1];
-			//去除sym中的引号
-			sym.erase(remove(sym.begin(), sym.end(), '\"'), sym.end());
-
-			if (sym == "H") {
-				continue;
-			}
-			if (seq > max_seq) max_seq = seq;
-			seq_tb.push_back(seq);
-			mid_sntb.push_back(SimpleMNode(seq, sym));
-		}
-	}
-	// 解析Adj数组
-	vector<string> adj_entries;
-	Split(adj_entries, adj_array_str, "],");
-	for (const string& entry : adj_entries)
-	{
-		string clean_entry = entry;
-		clean_entry.erase(remove(clean_entry.begin(), clean_entry.end(), '['), clean_entry.end());
-		clean_entry.erase(remove(clean_entry.begin(), clean_entry.end(), ']'), clean_entry.end());
-		vector<string> fields;
-		Split(fields, clean_entry, ",");
-		if (fields.size() >= 3)
-		{
-			int seq1 = atoi(fields[0].c_str());
-			int seq2 = atoi(fields[1].c_str());
-
-			if (seq1 > max_seq || seq2 > max_seq) continue;
-			string bondname = fields[2];
-			string bondsym;
-			if (bondname == "\"single\"") bondsym = SINGLE_BOND;
-			else if (bondname == "\"double\"") bondsym = DOUBLE_BOND;
-			else if (bondname == "\"triple\"") bondsym = TRIPLE_BOND;
-			else bondsym = "";
-
-			if (seq1 > seq2)
-			{
-				swap(seq1, seq2);
-			}
-			mid_adj_list.push_back(AdjLine(seq1, seq2, bondsym));
-		}
-	}
-	//通过并查集思想去除其他无关原子
-
-
-	vector<int> rootfindset(max_seq + 1, -1);
-	vector<int> rootfindcount(max_seq + 1, 0);
-	int max_root = -1;
-	int max_count = -1;
-
-	for (auto& adj : mid_adj_list)
-	{
-		int seq1 = adj.GetSeqI();
-		int seq2 = adj.GetSeqJ();
-
-		if (rootfindset[seq1] == -1)
-		{
-			rootfindset[seq1] = seq1;
-			rootfindcount[seq1] = 1;
-		}
-		rootfindset[seq2] = rootfindset[seq1];
-		rootfindcount[rootfindset[seq1]]++;
-	}
-	//找出最大的连通分量的根节点
-
-	for (int i = 0; i <= max_seq; i++)
-	{
-		if (rootfindcount[i] > max_count)
-		{
-			max_count = rootfindcount[i];
-			max_root = i;
-		}
-	}
-
-	//for (int i = 0; i <= max_seq; i++)
-	//{
-	//	if (rootfindset[i] != -1 && rootfindset[i] == max_root)
-	//	{
-	//		new_seq_tb[i] = count;
-	//		count++;
-	//	}
-	//}
-	//cout << "MaxSeq: " << max_seq << endl;
-	//cout << seq_tb.size() << endl;
-	int count = 0;
-	vector<int> new_seq_tb(max_seq + 1, -1);
-	for (int i = 0; i < seq_tb.size(); i++)
-	{
-		int r = seq_tb[i];
-
-		if (rootfindset[r] != -1 && rootfindset[r] == max_root)
-		{
-			new_seq_tb[r] = count;
-			count++;
-		}
-	}
-
-	if (mid_adj_list.size() == 0)
-	{
-		new_seq_tb[max_seq] = 0;
-	}
-
-	cout << "NewAtomCount: " << count << endl;
-	for (auto& node : mid_sntb)
-	{
-		int old_seq = node.seq;
-		node.seq = new_seq_tb[old_seq];
-
-		if (node.seq == -1) continue;
-
-		sntb.push_back(node);
-	}
-	if (mid_adj_list.size() == 0)
-	{
-		adj_list = vector<AdjLine>();
-	}
-	//vector<AdjLine> adj_list_temp;
-	for (auto& adj : mid_adj_list)
-	{
-		int old_seq1 = adj.GetSeqI();
-		int old_seq2 = adj.GetSeqJ();
-
-		int new_seq1 = new_seq_tb[old_seq1];
-		int new_seq2 = new_seq_tb[old_seq2];
-
-		if (new_seq1 == -1 || new_seq2 == -1) continue;
-		adj_list.push_back(AdjLine(new_seq1, new_seq2, adj.GetBondSym()));
-	}
-
-}
 
 
 int main()
@@ -1050,9 +545,17 @@ int main()
 	EnergyFundTable eft = ReadEnergySolidParam();
 	SmilesFundTable sft = ReadSmilesSolidParam();
 	SP_SpTable all_sp_tb;
-	string output_folder = "File/OutputJson";
-	bool smiles_detail_print = false;
-	bool mmff_detail_print = false;
+	const string output_folder = JSON_OUTPUT_FOLDER;
+	const string output_csv_folder = OPT_OUTPUT_FOLDER;
+	const bool smiles_detail_print = false;
+	const bool mmff_detail_print = true;
+
+	vector<OptRec> optrec_tb;
+	if (ReadTableByTitle(output_csv_folder + OPT_REC_FILENAME, OPT_REC_TB_TITLE, optrec_tb) == -1) {
+		WriteTable(output_csv_folder + OPT_REC_FILENAME, OPT_REC_TB_TITLE, optrec_tb);
+	}
+	map<string, double> optrec_map = ChangeTableToMap<OptRec, double>(optrec_tb);
+
 
 	cout << "\n数据初始化已完成(o゜▽゜)o☆\n";
 
@@ -1081,9 +584,9 @@ int main()
 			continue;
 		}
 
-		cout << "\n========================================" << endl;
-		cout << "客户端已连接！" << endl;
-		cout << "========================================\n" << endl;
+		//cout << "\n========================================" << endl;
+		//cout << "客户端已连接！" << endl;
+		//cout << "========================================\n" << endl;
 
 		// 接收HTTP请求
 		string httpRequest = ReceiveHTTPRequest(clientSocket);
@@ -1136,14 +639,12 @@ int main()
 				continue;
 			}
 
-
-
 			Mole c;
 
 			string now_smiles;
 			if (adj_list.size() == 0)
 			{
-				c = Mole(sft.atomtable,sn_tb[0].sym);
+				c = Mole(sft.atomtable, sn_tb[0].sym);
 				now_smiles = sn_tb[0].sym;
 			}
 			else {
@@ -1170,19 +671,20 @@ int main()
 			}
 
 			PrintCmdSepTitle("唯一SMILES生成");
-			cout << "原SMILES：\n";
-			cout << c.GetComSmiles() << endl << endl;
+			//cout << "原SMILES：\n";
+			//cout << c.GetComSmiles() << endl << endl;
 			cout << "唯一SMILES：\n";
 			cout << now_smiles << endl;
 
 			Mole d(sft.atomtable, now_smiles);
 
+			/*
 			PrintCmdSepTitle("分子节点提取");
 			d.PrintNodeTable();
 			PrintCmdSepTitle("分子节点邻接表");
 			d.PrintBondTable();
-
-			const string folderpath = output_folder ;
+			*/
+			const string folderpath = output_folder;
 
 
 			//---------------------------**MMFF识别**----------------------------------
@@ -1193,31 +695,69 @@ int main()
 
 			//---------------------------**Alpha优化**----------------------------------
 			vector<double> old_alpha_tb(nhc, 0);
-			vector<Vec3> xyz_tb;
+			vector<Vec3> old_xyz_tb;
+
+			bool alpha_successful = false;
 
 			PrintCmdSepTitle("Alpha优化前");
-			double now_energy = CalSumEnergyByXYZ(YES, xyz_tb, NeedCal(), old_alpha_tb, all_sp_tb, esp);
-			WriteTable(GetXYZTbPath(now_smiles, 1), XYZ_TB_TITLE, xyz_tb);
+			double before_energy = CalSumEnergyByXYZ(YES, old_xyz_tb, NeedCal(), old_alpha_tb, all_sp_tb, esp);
+			//WriteTable(GetXYZTbPath(now_smiles, 1), XYZ_TB_TITLE, xyz_tb);
 
 			PrintCmdSepTitle("Alpha优化进度-记时");
 			cout << "优化中……\n";
 
-			XYZ_TB alpha_xyz_tb;
+			XYZ_TB new_xyz_tb;
 			double alpha_energy;
-			vector<double> new_alpha_tb = AlphaOpt(has_circle, alpha_energy, alpha_xyz_tb, all_sp_tb, esp, mmff_detail_print);
+			vector<double> new_alpha_tb = AlphaOpt(has_circle, alpha_energy, new_xyz_tb, all_sp_tb, esp, mmff_detail_print);
 
 			cout << "优化完成！\n";
 
 			PrintCmdSepTitle("Alpha优化后");
-			WriteTable(GetXYZTbPath(now_smiles, 2), XYZ_TB_TITLE, alpha_xyz_tb);
+			//WriteTable(GetXYZTbPath(now_smiles, 2), XYZ_TB_TITLE, alpha_xyz_tb);
 
-			double aaa_energy = CalSumEnergyByXYZ(YES, alpha_xyz_tb, NeedCal(), new_alpha_tb, all_sp_tb, esp);
+			double final_energy = CalSumEnergyByXYZ(YES, new_xyz_tb, NeedCal(), new_alpha_tb, all_sp_tb, esp);
+
+			if (before_energy < final_energy)
+			{
+				final_energy = before_energy;
+				new_xyz_tb = old_xyz_tb;
+			}
+
+			bool rec_find = optrec_map.find(now_smiles) != optrec_map.end();
+			double rec_energy = rec_find ? optrec_map[now_smiles] : INFINITY;
+
+			//---------------------------**JSON格式传输**----------------------------------
+
+			string sent_json;
+			if (final_energy < rec_energy)
+			{
+				vector<SXYZ_3D> sxyz_tb = GetSXYZTb(new_xyz_tb, esp);
+				vector<AdjAB_3D> adjline_tb = GetAdjABTb(esp);
+				cout << "\n优化成功！最终能量: " << final_energy << " kcal/mol\n";
+
+				alpha_successful = true;
+				PrintCmdSepTitle("JSON数据生成");
+
+				string sxyz_json_part = VectorToJsonPart("SXYZ", sxyz_tb);
+				string adjab_json_part = VectorToJsonPart("ADJ_AB", adjline_tb);
+
+				string sent_json_path = folderpath + "/" + now_smiles + ".json";
+				sent_json = "{\n" + sxyz_json_part + "\n,\n" + adjab_json_part + "\n}\n";
+
+				WriteJsonFile(sent_json_path, sent_json);
+
+				optrec_map[now_smiles] = final_energy;
+			}
+			else
+			{
+				cout << "\n优化未达预期，采用优化前结构。最终能量: " << rec_energy << " kcal/mol\n";
+				sent_json = ReadJsonFile(folderpath + "/" + now_smiles + ".json");
+			}
 
 			//----------------------------**文件导出**-----------------------------------
 
+			//cout << "文件 3d.json 已储存！\n";
 
-			vector<SXYZ_3D> sxyz_tb = GetSXYZTb(alpha_xyz_tb, esp);
-			vector<AdjAB_3D> adjline_tb = GetAdjABTb(esp);
 
 			//PrintCmdSepTitle("文件夹" + now_smiles + "创建");
 			//if (!CreateFolder(folderpath)) {
@@ -1237,19 +777,6 @@ int main()
 			//WriteTable(adjab_filename, ADJ_AB_TB_TITLE, adjline_tb);
 
 			//cout << "文件 SXYZ.csv 和 ADJ_AB.csv 已储存！\n";
-
-			//---------------------------**JSON格式传输**----------------------------------
-			PrintCmdSepTitle("JSON数据生成");
-
-			string sxyz_json_part = VectorToJsonPart("SXYZ", sxyz_tb);
-			string adjab_json_part = VectorToJsonPart("ADJ_AB", adjline_tb);
-
-			string sent_json_path = folderpath + "/"+now_smiles+".json";
-			string sent_json = "{\n" + sxyz_json_part + "\n,\n" + adjab_json_part + "\n}\n";
-
-			WriteJsonFile(sent_json_path, sent_json);
-
-			cout << "文件 3d.json 已储存！\n";
 
 			//---------------------------**HTTP响应发送**----------------------------------
 			PrintCmdSepTitle("HTTP响应发送");
@@ -1271,6 +798,16 @@ int main()
 			// 关闭客户端连接
 			closesocket(clientSocket);
 			cout << "\n客户端连接已关闭，等待下一个连接...\n" << endl;
+
+
+			//储存OptRec记录
+			if (alpha_successful)
+			{
+				PrintCmdSepTitle("优化记录更新");
+				vector<OptRec> optrec_tb = ChangeMapToTable<OptRec, double>(optrec_map);
+				WriteTable(output_csv_folder + OPT_REC_FILENAME, OPT_REC_TB_TITLE, optrec_tb);
+			}
+
 		}
 		else {
 			// 未知请求
@@ -1285,36 +822,4 @@ int main()
 	StopSocketServer();
 	return 0;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

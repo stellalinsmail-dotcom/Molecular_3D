@@ -874,6 +874,7 @@
                 <div>原子编号：<span id="highlight-index">--</span></div>
                 <div>原子颜色：<span id="highlight-color">#--</span></div>
                 <div>原子坐标：<span id="highlight-coords">----</span></div>
+
             </div>
             <div id="toggle-button-wrapper">
                 <span id="controls-label">功能区:</span>
@@ -959,6 +960,7 @@
         const socketManager = {
             serverUrl: 'http://localhost:8765',
             isConnected: false,
+            isConverting: false,
 
             updateStatus: function (status, message) {
                 const statusEl = document.getElementById('server-status');
@@ -977,6 +979,9 @@
             },
 
             checkConnection: async function () {
+                if (this.isConverting) {
+                    return true;
+                }
                 try {
                     const response = await fetch(this.serverUrl + '/status', {
                         method: 'GET',
@@ -996,6 +1001,8 @@
             },
 
             sendData: async function (jsonData) {
+                // 标记转换开始
+                this.isConverting = true;
                 this.updateStatus('converting', '转换中...');
 
                 try {
@@ -1025,6 +1032,9 @@
                     errorMsg += '3. 防火墙允许本地连接';
                     alert(errorMsg);
                     return null;
+                } finally {
+                    // 无论成功或失败，清理转换标志
+                    this.isConverting = false;
                 }
             }
         };
@@ -1034,9 +1044,11 @@
             // 延迟1秒后开始检查连接，给C++程序启动时间
             setTimeout(() => {
                 socketManager.checkConnection();
-                // 每5秒检查一次连接状态
+                // 每5秒检查一次连接状态，若正在转换则跳过
                 setInterval(() => {
-                    socketManager.checkConnection();
+                    if (!socketManager.isConverting) {
+                        socketManager.checkConnection();
+                    }
                 }, 5000);
             }, 1000);
         });
@@ -2023,7 +2035,7 @@
                 scene = new THREE.Scene();
                 scene.background = new THREE.Color(currentBackgroundColor);
                 camera = new THREE.PerspectiveCamera(75, d3Container.clientWidth / d3Container.clientHeight, 0.1, 1000);
-                camera.position.set(-INITIAL_CAMERA_DISTANCE, -INITIAL_CAMERA_DISTANCE, -INITIAL_CAMERA_DISTANCE);
+                camera.position.set(INITIAL_CAMERA_DISTANCE, INITIAL_CAMERA_DISTANCE, INITIAL_CAMERA_DISTANCE);
                 camera.lookAt(0, 0, 0);
 
                 renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
@@ -2248,7 +2260,7 @@
                 let camDist = Math.abs(maxDim / 2 / Math.tan(camera.fov * (Math.PI / 180) / 2)) * 1.5;
                 controls.target.set(0, 0, 0);
                 const d = camDist / Math.sqrt(3);
-                camera.position.set(-d, -d, -d).multiplyScalar(1.7);
+                camera.position.set(d, d, d).multiplyScalar(1.7);
                 camera.lookAt(controls.target);
                 controls.update();
             }
