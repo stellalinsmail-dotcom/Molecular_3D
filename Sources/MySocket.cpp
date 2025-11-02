@@ -323,8 +323,15 @@ bool AnalysisJsonFile(const string& json, vector<SimpleMNode>& sntb, vector<AdjL
 			mid_adj_list.push_back(AdjLine(seq1, seq2, bondsym));
 		}
 	}
-	//通过并查集思想去除其他无关原子
 
+	sort(mid_adj_list.begin(), mid_adj_list.end(),
+		[](const AdjLine& a, const AdjLine& b) {
+			if (a.GetSeqI() != b.GetSeqI())
+				return a.GetSeqI() < b.GetSeqI();
+			else
+				return a.GetSeqJ() < b.GetSeqJ();
+		});
+	//通过并查集思想去除其他无关原子
 
 	vector<int> rootfindset(max_seq + 1, -1);
 	vector<int> rootfindcount(max_seq + 1, 0);
@@ -430,10 +437,10 @@ vector<SXYZ_3D> GetSXYZTb(const XYZ_TB& xyz_tb, const  EnergySolidParam& esp)
 
 }
 
-vector<AdjAB_3D> GetAdjABTb(const EnergySolidParam& esp)
+vector<AdjABS_3D> GetAdjABSTb(const EnergySolidParam& esp)
 {
 	int nhc = esp.short_adj_list.size();
-	vector<AdjAB_3D> adjline_tb;
+	vector<AdjABS_3D> adjline_tb;
 	for (int i = 0; i < nhc; i++)
 	{
 		vector<PointTo> nb_node = esp.short_adj_list[i].GetBonds();
@@ -443,7 +450,7 @@ vector<AdjAB_3D> GetAdjABTb(const EnergySolidParam& esp)
 			int des = nb_node[j].GetDesSeq();
 			if (des > i)
 			{
-				adjline_tb.push_back(AdjAB_3D(i + 1, des + 1));
+				adjline_tb.push_back(AdjABS_3D(i + 1, des + 1,nb_node[j].GetBondSymbol()));
 			}
 		}
 	}

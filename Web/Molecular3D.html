@@ -26,7 +26,6 @@
             height: 100%;
             position: relative;
             overflow: hidden; /* 隐藏内部溢出 */
-
         }
 
         #draw-container {
@@ -79,7 +78,7 @@
         #convert-btn {
             writing-mode: vertical-rl;
             text-orientation: upright;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(0deg, rgba(29,155,157,1) 0%, rgba(222,164,39,1) 100%);
             color: white;
             border: none;
             padding: 15px 8px;
@@ -90,27 +89,26 @@
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
             transition: all 0.3s ease;
             letter-spacing: 2px;
-
             user-select: none;
             -webkit-user-select: none;
             -moz-user-select: none;
             -ms-user-select: none;
         }
 
-        #convert-btn:hover {
-            transform: scale(1.05);
-            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.4);
-        }
+            #convert-btn:hover {
+                transform: scale(1.05);
+                box-shadow: 0 6px 8px rgba(0, 0, 0, 0.4);
+            }
 
-        #convert-btn:active {
-            transform: scale(0.95);
-        }
+            #convert-btn:active {
+                transform: scale(0.95);
+            }
 
-        #convert-btn:disabled {
-            background: #555;
-            cursor: not-allowed;
-            opacity: 0.6;
-        }
+            #convert-btn:disabled {
+                background: #555;
+                cursor: not-allowed;
+                opacity: 0.6;
+            }
 
         #server-status {
             writing-mode: vertical-rl;
@@ -132,23 +130,23 @@
             -ms-user-select: none;
         }
 
-        #server-status.running {
-            background: rgba(76, 175, 80, 0.2);
-            border-color: #4CAF50;
-            color: #4CAF50;
-        }
+            #server-status.running {
+                background: rgba(76, 175, 80, 0.2);
+                border-color: #4CAF50;
+                color: #4CAF50;
+            }
 
-        #server-status.error {
-            background: rgba(200, 67, 54, 0.2);
-            border-color: #f44336;
-            color: #f44336;
-        }
+            #server-status.error {
+                background: rgba(200, 67, 54, 0.2);
+                border-color: #f44336;
+                color: #f44336;
+            }
 
-        #server-status.converting {
-            background: rgba(255, 193, 7, 0.2);
-            border-color: #FFC107;
-            color: #FFC107;
-        }
+            #server-status.converting {
+                background: rgba(255, 193, 7, 0.2);
+                border-color: #FFC107;
+                color: #FFC107;
+            }
     </style>
 
     <!-- Draw.html 的样式 (已用 #draw-container 作用域限定) -->
@@ -238,7 +236,7 @@
                 #draw-container button.active {
                     background: var(--active-bg);
                     border-color: var(--active-bg);
-                    box-shadow: 0 0 5px rgba(97, 175, 239, 0.5);
+                    box-shadow: 0 0 5px rgba(97, 175, 239, 0.8);
                 }
 
             #draw-container #draw-bg-controls {
@@ -327,37 +325,38 @@
             #draw-container #canvas-wrapper {
                 flex: 1;
                 background: var(--canvas-bg);
-                overflow: hidden;
+                overflow: auto; /* ⭐ 改为auto，当内容溢出时显示滚动条 */
+                position: relative; /* ⭐ 添加相对定位 */
             }
 
             #draw-container svg {
-                width: 100%;
-                height: 100%;
+                display: block; /* ⭐ 改为block，避免底部留白 */
                 cursor: crosshair;
-                background-color: var(--canvas-bg); /* Use variable for SVG background */
+                background-color: var(--canvas-bg);
+                /* ⭐ 移除width和height的100%，让JavaScript动态控制 */
             }
 
                 #draw-container svg .selectable-atom {
                     stroke: transparent;
                     fill: transparent;
                     stroke-width: 2;
-                    cursor: pointer;
+                    cursor: crosshair !important; /* 改为crosshair */
                 }
 
                     #draw-container svg .selectable-atom.selected {
                         stroke: #FFD700;
-                        stroke-width: 3;
-                        fill: rgba(255, 255, 0, 0.1);
+                        stroke-width: 2;
+                        /*fill: rgba(255, 255, 153, 0.4);*/
                     }
 
                 #draw-container svg .selectable-bond {
                     stroke: transparent;
-                    stroke-width: 10;
-                    cursor: pointer;
+                    stroke-width: 20;
+                    cursor: crosshair !important; /* 改为crosshair */
                 }
 
                     #draw-container svg .selectable-bond.selected {
-                        stroke: #FFD700;
+                        stroke: rgba(255, 208, 0, 0.6);
                     }
 
                 #draw-container svg text {
@@ -365,17 +364,22 @@
                     pointer-events: none;
                 }
 
+                #draw-container svg .hover-effect {
+                    pointer-events: none !important; /* 确保hover效果永不响应鼠标事件 */
+                }
+
             #draw-container .wedge-icon {
                 width: 16px;
                 height: 10px;
                 overflow: visible;
                 background-color: var(--toolbar-bg);
-               /* 确保SVG图标颜色跟随按钮文本颜色 */
+                /* 确保SVG图标颜色跟随按钮文本颜色 */
             }
+
                 #draw-container.wedge-icon.active {
                     background-color: var(--active-bg)
-
                 }
+
                 #draw-container.wedge-icon:hover {
                     background-color: var(--hover-bg);
                 }
@@ -401,12 +405,26 @@
             --color-params-dark: #86A890;
             --color-export-dark: #7096B0;
             --color-text-light: #333333;
+            /*  新增：导出按钮渐变颜色（浅色主题 - 灰色系） */
+            --export-png-dark: #9487B0; /* 偏灰的紫色 */
+            --export-stl-dark: #8788B0; /* 偏灰的蓝紫色 */
+            --export-glb-dark: #7B8FA3; /* 偏灰的蓝色 */
+            /* 导出按钮渐变颜色（深色主题 - 鲜艳的蓝紫渐变） */
+            --export-png-light: #C3A4FA; /* 紫色 */
+            --export-stl-light: #B7BDFF; /* 蓝紫色 */
+            --export-glb-light: #B2CEFA; /* 蓝色 */
+
+
             --current-text-color: var(--color-text-light);
             --current-load-color: var(--color-load-dark);
             --current-light-color: var(--color-light-dark);
             --current-params-color: var(--color-params-dark);
             --current-export-color: var(--color-export-dark);
             --current-toggle-active: var(--color-params-dark);
+            /*新增：当前导出按钮颜色（默认使用深色主题） */
+            --current-export-png: var(--export-png-dark);
+            --current-export-stl: var(--export-stl-dark);
+            --current-export-glb: var(--export-glb-dark);
             --axis-x-color: #D62828;
             --axis-y-color: #008000;
             --axis-z-color: #0000FF;
@@ -514,7 +532,7 @@
                 font-weight: 600;
                 transition: all 0.2s;
                 box-shadow: 0 3px 0 0 rgba(0, 0, 0, 0.2);
-                color: #333;
+                color: #FFF;
             }
 
                 #d3-container button:hover {
@@ -527,6 +545,21 @@
                     transform: translateY(2px);
                     box-shadow: 0 1px 0 0 rgba(0, 0, 0, 0.2);
                 }
+
+            #d3-container #export-controls-panel .export-button:nth-child(2) {
+                /* PNG按钮 */
+                background-color: var(--current-export-png);
+            }
+
+            #d3-container #export-controls-panel .export-button.export-stl-button {
+                /* STL按钮 */
+                background-color: var(--current-export-stl);
+            }
+
+            #d3-container #export-controls-panel .export-button.export-glb-button {
+                /* GLB按钮 */
+                background-color: var(--current-export-glb);
+            }
 
             #d3-container #render-buttons {
                 display: flex;
@@ -712,7 +745,6 @@
                 box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
                 text-shadow: none;
                 user-select: none;
-
                 -webkit-user-select: none;
                 -moz-user-select: none;
                 -ms-user-select: none;
@@ -941,19 +973,21 @@
                     </div>
                 </div>
                 <div id="export-controls-panel" class="control-panel">
-                    <h3>图片导出</h3>
-                    <button class="export-button" onclick="d3App.exportView('png')">导出 PNG (无背景)</button>
+                    <h3>分子导出</h3>
+                    <button class="export-button" onclick="d3App.exportView('png')">导出 PNG 图片</button>
+                    <button class="export-button export-stl-button" onclick="d3App.exportView('stl')">导出 STL 模型</button>
+                    <button class="export-button export-glb-button" onclick="d3App.exportView('glb')">导出 GLB 模型</button>
                 </div>
             </div>
         </div>
     </div>
-
     <!-- 依赖库 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/canvg/3.0.10/canvg.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.0/papaparse.min.js"></script>
-
+    <!-- 新增：GLTFExporter用于导出GLB格式 -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js"></script>
     <!-- 拖动条脚本 -->
     <script>
         // Socket通信管理
@@ -989,7 +1023,7 @@
                     });
 
                     if (response.ok) {
-                        this.updateStatus('running', '服务运行中');
+                        this.updateStatus('running', '服务已连接');
                         this.isConnected = true;
                         return true;
                     }
@@ -1026,10 +1060,16 @@
                     console.error('发送数据失败:', error);
                     this.updateStatus('error', '转换失败');
 
-                    let errorMsg = '转换失败：' + error.message + '\n\n请确认：\n';
-                    errorMsg += '1. C++程序正在运行\n';
-                    errorMsg += '2. 端口8765未被占用\n';
-                    errorMsg += '3. 防火墙允许本地连接';
+                    let errorMsg = '转换失败：' + error.message + "\n\n";
+                    if (error.message === "signal time out") {
+                        errorMsg += "转换超时，服务器正在计算，有概率计算失败。\n请勿关闭网页，请稍后再次转换。"
+                    }
+                    else {
+                        errorMsg += + '请确认：\n';
+                        errorMsg += '1. C++程序正在运行\n';
+                        errorMsg += '2. 端口8765未被占用\n';
+                        errorMsg += '3. 防火墙允许本地连接';
+                    }
                     alert(errorMsg);
                     return null;
                 } finally {
@@ -1087,7 +1127,19 @@
                 // 将数据传递给3D部分
                 if (window.d3App && window.d3App.loadJsonData) {
                     window.d3App.loadJsonData(result.data);
-                    alert('转换成功！\n\n3D结构已加载到右侧视图。');
+                    alert('计算转换成功！\n\n3D结构已加载到右侧视图。');
+                } else {
+                    console.error('3D模块未就绪');
+                    alert('3D模块加载失败，请刷新页面重试。');
+                }
+            }
+            if (result && result.status === 'precal' && result.data) {
+                console.log('接收到3D数据:', result.data);
+
+                // 将数据传递给3D部分
+                if (window.d3App && window.d3App.loadJsonData) {
+                    window.d3App.loadJsonData(result.data);
+                    alert('转换成功！\n\n服务器将继续计算请求，预计将断联一段时间。\n\n3D结构已加载到右侧视图。');
                 } else {
                     console.error('3D模块未就绪');
                     alert('3D模块加载失败，请刷新页面重试。');
@@ -1188,13 +1240,19 @@
             let currentTool = 'C';
             let currentBond = 'single';
             let nextAtomId = 1;
-            let nextBondId = 0;
+            let nextBondId = 1;
             let mode = 'draw';
             let dragStartPos = { x: 0, y: 0 };
             let isDraggingAtom = false;
             let dragTargetId = null;
             let dragStartOffset = { x: 0, y: 0 };
             let isDraggingSelection = false;
+
+
+            // ⭐ 新增：追踪当前高亮的元素
+            let currentHoveredAtomId = null;
+            let currentHoveredBondId = null;
+
 
             const svg = document.getElementById('draw-svg');
             let isSelecting = false;
@@ -1207,9 +1265,19 @@
             const BOND_STROKE_WIDTH = 2;
             const BOND_END_OFFSET = 10;
             const BOND_TYPE_OFFSET = 3;
+            const BOND_DOUBLE_OFFSET = 6;
             const WEDGE_WIDTH = 8;
             const HOVER_COLOR = 'rgba(97, 175, 239, 0.5)';
+            const SELECT_COLOR = 'rgba(255, 255, 153, 0.4)';
             const CLICK_THRESHOLD = 5;
+
+            // 新增：键和原子的交互范围常量
+            const ATOM_HOVER_RADIUS = 10;  // 原子高亮范围（缩小了2px）
+            const BOND_HOTSPOT_WIDTH = 20; // 键的可点击范围（从10增加到16）
+            const BOND_HOVER_WIDTH = BOND_HOTSPOT_WIDTH;   // 键的hover高亮宽度（从8增加到12）
+
+            let hoverDebounceTimer = null;
+
 
             // 暴露获取JSON数据的接口
             window.drawApp = {
@@ -1224,8 +1292,15 @@
                 }
             };
 
+            // 修改draw函数中双键绘制部分
             function draw() {
                 svg.innerHTML = '';
+
+                // ⭐ 创建高亮层容器，放在最底层
+                const hoverLayer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                hoverLayer.setAttribute('id', 'hover-layer');
+                svg.appendChild(hoverLayer);
+
                 const atomMap = new Map(atoms.map(a => [a.id, a]));
                 const bondCount = atoms.reduce((acc, atom) => {
                     acc[atom.id] = bonds.filter(b => b.a1 === atom.id || b.a2 === atom.id).length;
@@ -1284,18 +1359,53 @@
                     if (dist <= 0) return;
                     const startX = a1.x + startOffset * Math.cos(angle), startY = a1.y + startOffset * Math.sin(angle);
                     const endX = a2.x - endOffset * Math.cos(angle), endY = a2.y - endOffset * Math.sin(angle);
+
                     const hotspot = document.createElementNS('http://www.w3.org/2000/svg', 'line');
                     hotspot.setAttribute('x1', startX); hotspot.setAttribute('y1', startY);
                     hotspot.setAttribute('x2', endX); hotspot.setAttribute('y2', endY);
                     hotspot.setAttribute('class', `selectable-bond${selectedBonds.has(b.id) ? ' selected' : ''}`);
                     hotspot.setAttribute('data-bond-id', b.id);
                     svg.appendChild(hotspot);
-                    const strokeColor = selectedBonds.has(b.id) ? '#FFD700' : bondColor;
+
+                    const strokeColor = bondColor;
                     const offset = BOND_TYPE_OFFSET, perpAngle = angle + Math.PI / 2;
                     const offX = offset * Math.cos(perpAngle), offY = offset * Math.sin(perpAngle);
+
                     if (b.type === 'double') {
-                        createLine(startX + offX, startY + offY, endX + offX, endY + offY, BOND_STROKE_WIDTH, strokeColor);
-                        createLine(startX - offX, startY - offY, endX - offX, endY - offY, BOND_STROKE_WIDTH, strokeColor);
+
+                        // 根据displayStyle绘制不同样式的双键
+                        const style = b.displayStyle || 'center';
+                        const mainLineLength = Math.hypot(endX - startX, endY - startY);
+                        const shortLineRatio = 0.7; // 短线长度为主线的70%
+                        const shortLineLength = mainLineLength * shortLineRatio;
+                        const shortLineOffset = (mainLineLength - shortLineLength) / 2;
+
+                        if (style === 'center') {
+
+                            // 居中显示（原有画法）
+                            createLine(startX + offX, startY + offY, endX + offX, endY + offY, BOND_STROKE_WIDTH, strokeColor);
+                            createLine(startX - offX, startY - offY, endX - offX, endY - offY, BOND_STROKE_WIDTH, strokeColor);
+                        } else if (style === 'left') {
+                            // 左侧短线
+                            const offset = BOND_DOUBLE_OFFSET, perpAngle = angle + Math.PI / 2;
+                            const offX = offset * Math.cos(perpAngle), offY = offset * Math.sin(perpAngle);
+                            createLine(startX, startY, endX, endY, BOND_STROKE_WIDTH, strokeColor);
+                            const shortStartX = startX + offX + shortLineOffset * Math.cos(angle);
+                            const shortStartY = startY + offY + shortLineOffset * Math.sin(angle);
+                            const shortEndX = shortStartX + shortLineLength * Math.cos(angle);
+                            const shortEndY = shortStartY + shortLineLength * Math.sin(angle);
+                            createLine(shortStartX, shortStartY, shortEndX, shortEndY, BOND_STROKE_WIDTH, strokeColor);
+                        } else if (style === 'right') {
+                            const offset = BOND_DOUBLE_OFFSET, perpAngle = angle + Math.PI / 2;
+                            const offX = offset * Math.cos(perpAngle), offY = offset * Math.sin(perpAngle);
+                            // 右侧短线
+                            createLine(startX, startY, endX, endY, BOND_STROKE_WIDTH, strokeColor);
+                            const shortStartX = startX - offX + shortLineOffset * Math.cos(angle);
+                            const shortStartY = startY - offY + shortLineOffset * Math.sin(angle);
+                            const shortEndX = shortStartX + shortLineLength * Math.cos(angle);
+                            const shortEndY = shortStartY + shortLineLength * Math.sin(angle);
+                            createLine(shortStartX, shortStartY, shortEndX, shortEndY, BOND_STROKE_WIDTH, strokeColor);
+                        }
                     } else if (b.type === 'triple') {
                         createLine(startX + offX, startY + offY, endX + offX, endY + offY, BOND_STROKE_WIDTH, strokeColor);
                         createLine(startX, startY, endX, endY, BOND_STROKE_WIDTH, strokeColor);
@@ -1329,16 +1439,224 @@
                 });
 
                 if (isSelecting && selectionRect) svg.appendChild(selectionRect);
+                updateCanvasSize();
+            }
+            // ⭐ 新增：获取当前视野边界
+            function getViewBoundary() {
+                const wrapper = document.getElementById('canvas-wrapper');
+                return {
+                    left: wrapper.scrollLeft,
+                    top: wrapper.scrollTop,
+                    right: wrapper.scrollLeft + wrapper.clientWidth,
+                    bottom: wrapper.scrollTop + wrapper.clientHeight,
+                    viewWidth: wrapper.clientWidth,
+                    viewHeight: wrapper.clientHeight
+                };
             }
 
-            function addAtom(elem, x, y) { atoms.push({ id: nextAtomId++, elem, x, y }); draw(); }
+            // ⭐ 新增：检查原子是否在padding区域，并返回需要的调整
+            function checkAtomPlacementAndAdjust(x, y) {
+                const padding = 50;
+                const view = getViewBoundary();
+                const currentWidth = parseFloat(svg.getAttribute('width')) || view.viewWidth;
+                const currentHeight = parseFloat(svg.getAttribute('height')) || view.viewHeight;
+
+                let needCanvasResize = false;
+                let newWidth = currentWidth;
+                let newHeight = currentHeight;
+                let offsetX = 0;
+                let offsetY = 0;
+                let scrollAdjustX = 0;
+                let scrollAdjustY = 0;
+
+                // 检查是否需要扩展画布（原子超出实际边界）
+                if (x + padding > currentWidth) {
+                    newWidth = x + padding;
+                    needCanvasResize = true;
+                }
+                if (y + padding > currentHeight) {
+                    newHeight = y + padding;
+                    needCanvasResize = true;
+                }
+
+                // 检查是否需要向左扩展画布（原子在左侧padding区域）
+                if (x < padding) {
+                    offsetX = padding - x;
+                    newWidth += offsetX;
+                    needCanvasResize = true;
+                }
+
+                // 检查是否需要向上扩展画布（原子在顶部padding区域）
+                if (y < padding) {
+                    offsetY = padding - y;
+                    newHeight += offsetY;
+                    needCanvasResize = true;
+                }
+
+                // 检查视野调整（原子在视野边界的padding区域内）
+                const atomInView = {
+                    left: x - view.left,
+                    top: y - view.top,
+                    right: view.right - x,
+                    bottom: view.bottom - y
+                };
+
+                // 如果原子在视野左侧padding区域
+                if (atomInView.left < padding && atomInView.left >= 0) {
+                    scrollAdjustX = -(padding - atomInView.left);
+                }
+                // 如果原子在视野右侧padding区域
+                else if (atomInView.right < padding && atomInView.right >= 0) {
+                    scrollAdjustX = padding - atomInView.right;
+                }
+
+                // 如果原子在视野顶部padding区域
+                if (atomInView.top < padding && atomInView.top >= 0) {
+                    scrollAdjustY = -(padding - atomInView.top);
+                }
+                // 如果原子在视野底部padding区域
+                else if (atomInView.bottom < padding && atomInView.bottom >= 0) {
+                    scrollAdjustY = padding - atomInView.bottom;
+                }
+
+                return {
+                    needCanvasResize,
+                    newWidth,
+                    newHeight,
+                    offsetX,
+                    offsetY,
+                    scrollAdjustX,
+                    scrollAdjustY
+                };
+            }
+
+            // ⭐ 修改：updateCanvasSize - 只负责画布大小调整，不再处理视野
+            function updateCanvasSize() {
+                const wrapper = document.getElementById('canvas-wrapper');
+                const rect = wrapper.getBoundingClientRect();
+
+                if (atoms.length === 0) {
+                    // 没有原子时，使用容器大小
+                    svg.setAttribute('width', rect.width);
+                    svg.setAttribute('height', rect.height);
+                    return;
+                }
+
+                // 计算所有原子的边界框
+                let minX = Infinity, minY = Infinity;
+                let maxX = -Infinity, maxY = -Infinity;
+
+                atoms.forEach(a => {
+                    minX = Math.min(minX, a.x);
+                    minY = Math.min(minY, a.y);
+                    maxX = Math.max(maxX, a.x);
+                    maxY = Math.max(maxY, a.y);
+                });
+
+                const padding = 50;
+
+                // 计算需要的画布大小
+                const requiredMinX = minX - padding;
+                const requiredMinY = minY - padding;
+                const requiredMaxX = maxX + padding;
+                const requiredMaxY = maxY + padding;
+
+                // 计算画布的最小尺寸
+                const minCanvasWidth = Math.max(rect.width, requiredMaxX);
+                const minCanvasHeight = Math.max(rect.height, requiredMaxY);
+
+                let offsetX = 0;
+                let offsetY = 0;
+
+                // 检查是否有原子超出左侧或顶部边界
+                if (requiredMinX < 0) {
+                    offsetX = -requiredMinX;
+                }
+
+                if (requiredMinY < 0) {
+                    offsetY = -requiredMinY;
+                }
+
+                // 只有在需要偏移时才调整原子位置
+                if (offsetX > 0 || offsetY > 0) {
+                    atoms.forEach(a => {
+                        a.x += offsetX;
+                        a.y += offsetY;
+                    });
+
+                    // 重新绘制以应用偏移
+                    draw();
+                    return;
+                }
+
+                // 设置画布大小
+                svg.setAttribute('width', minCanvasWidth);
+                svg.setAttribute('height', minCanvasHeight);
+            }
+
+            // ⭐ 修改：addAtom - 添加原子前检查并调整
+            function addAtom(elem, x, y) {
+                const adjustment = checkAtomPlacementAndAdjust(x, y);
+
+                // 1. 如果需要扩展画布，先扩展
+                if (adjustment.needCanvasResize) {
+                    // 先调整所有现有原子的位置（如果有左/上偏移）
+                    if (adjustment.offsetX > 0 || adjustment.offsetY > 0) {
+                        atoms.forEach(a => {
+                            a.x += adjustment.offsetX;
+                            a.y += adjustment.offsetY;
+                        });
+                        // 调整当前要添加的原子位置
+                        x += adjustment.offsetX;
+                        y += adjustment.offsetY;
+                    }
+
+                    // 设置新的画布大小
+                    svg.setAttribute('width', adjustment.newWidth);
+                    svg.setAttribute('height', adjustment.newHeight);
+                }
+
+                // 2. 添加原子
+                atoms.push({ id: nextAtomId++, elem, x, y });
+
+                // 3. 重绘
+                draw();
+
+                // 4. 最后调整视野（在draw之后，确保DOM已更新）
+                if (adjustment.scrollAdjustX !== 0 || adjustment.scrollAdjustY !== 0) {
+                    const wrapper = document.getElementById('canvas-wrapper');
+                    // 使用requestAnimationFrame确保在渲染完成后调整滚动
+                    requestAnimationFrame(() => {
+                        wrapper.scrollLeft += adjustment.scrollAdjustX;
+                        wrapper.scrollTop += adjustment.scrollAdjustY;
+                    });
+                }
+            }
+            // 修改bond数据结构，添加displayStyle属性
             function addBond(id1, id2) {
                 const existing = bonds.find(b => (b.a1 === id1 && b.a2 === id2) || (b.a1 === id2 && b.a2 === id1));
                 if (existing) {
-                    if (currentBond === 'single') existing.type = existing.type === 'single' ? 'double' : existing.type === 'double' ? 'triple' : 'single';
-                    else existing.type = currentBond;
+                    if (currentBond === 'single') {
+                        if (existing.type === 'single') {
+                            existing.type = 'double';
+                            existing.displayStyle = 'center'; // 默认居中显示
+                        } else if (existing.type === 'double') {
+                            existing.type = 'triple';
+                        } else if (existing.type === 'triple') {
+                            existing.type = 'single';
+                        }
+                    } else {
+                        existing.type = currentBond;
+                        if (currentBond === 'double') {
+                            existing.displayStyle = 'center'; // 重置为居中显示
+                        }
+                    }
                 } else {
-                    bonds.push({ id: nextBondId++, a1: id1, a2: id2, type: currentBond });
+                    const newBond = { id: nextBondId++, a1: id1, a2: id2, type: currentBond };
+                    if (currentBond === 'double') {
+                        newBond.displayStyle = 'center'; // 默认居中显示
+                    }
+                    bonds.push(newBond);
                 }
                 draw();
             }
@@ -1406,6 +1724,15 @@
             function clearSelection() {
                 selectedAtoms.clear();
                 selectedBonds.clear();
+
+                // ⭐ 清理hover追踪状态和hover层内容
+                currentHoveredAtomId = null;
+                currentHoveredBondId = null;
+                const hoverLayer = svg.querySelector('#hover-layer');
+                if (hoverLayer) {
+                    hoverLayer.innerHTML = '';
+                }
+
                 if (selectionRect && selectionRect.parentNode) {
                     selectionRect.parentNode.removeChild(selectionRect);
                 }
@@ -1447,17 +1774,23 @@
 
                 if (atomsToDelete.size === 0 && bondsToDelete.size === 0) return;
 
-                bonds.forEach(b => {
-                    if (atomsToDelete.has(b.a1) || atomsToDelete.has(b.a2)) {
-                        bondsToDelete.add(b.id);
-                    }
-                });
+                // ⭐ 修改：只在选中了原子时，才删除连接到这些原子的键
+                if (atomsToDelete.size > 0) {
+                    bonds.forEach(b => {
+                        if (atomsToDelete.has(b.a1) || atomsToDelete.has(b.a2)) {
+                            bondsToDelete.add(b.id);
+                        }
+                    });
+                    // 删除原子
+                    atoms = atoms.filter(a => !atomsToDelete.has(a.id));
+                }
 
+                // 删除键（如果只选中了键，不会删除原子）
                 bonds = bonds.filter(b => !bondsToDelete.has(b.id));
-                atoms = atoms.filter(a => !atomsToDelete.has(a.id));
 
                 clearSelection();
             }
+            // 修改mousedown事件处理，添加双键样式切换逻辑
             svg.addEventListener('mousedown', e => {
                 const pos = getMousePos(e);
                 dragStartPos = pos;
@@ -1500,8 +1833,29 @@
                         dragStartOffset.x = pos.x - atom.x;
                         dragStartOffset.y = pos.y - atom.y;
                     } else if (bondId) {
-                        clearSelection();
-                        toggleSelectBond(parseInt(bondId));
+                        // ⭐ 新增：点击键时，只选中键，不选中原子
+                        const bond = bonds.find(b => b.id === parseInt(bondId));
+                        if (bond) {
+                            clearSelection();
+                            // ⭐ 只选中键，不添加原子到选择集
+                            toggleSelectBond(parseInt(bondId));
+
+                            // 准备拖动这个键（实际上是拖动它的两个原子）
+                            isDraggingSelection = true;
+                            dragStartPos = pos;
+
+                            // 计算选择框（用于后续拖动）
+                            const a1 = atoms.find(a => a.id === bond.a1);
+                            const a2 = atoms.find(a => a.id === bond.a2);
+                            if (a1 && a2) {
+                                selectionBox.left = Math.min(a1.x, a2.x);
+                                selectionBox.right = Math.max(a1.x, a2.x);
+                                selectionBox.top = Math.min(a1.y, a2.y);
+                                selectionBox.bottom = Math.max(a1.y, a2.y);
+                            }
+
+                            draw();
+                        }
                     } else {
                         clearSelection();
                     }
@@ -1513,12 +1867,42 @@
                         const bond = bonds.find(b => b.id === parseInt(bondId));
                         if (bond) {
                             if (currentBond === 'single') {
-                                if (bond.type === 'single') bond.type = 'double';
-                                else if (bond.type === 'double') bond.type = 'triple';
-                                else if (bond.type === 'triple') bond.type = 'single';
-                                else bond.type = 'single';
+                                if (bond.type === 'single') {
+                                    bond.type = 'double';
+                                    bond.displayStyle = 'center';
+                                } else if (bond.type === 'double') {
+                                    bond.type = 'triple';
+                                    delete bond.displayStyle; // 三键不需要displayStyle
+                                } else if (bond.type === 'triple') {
+                                    bond.type = 'single';
+                                } else {
+                                    bond.type = 'single';
+                                }
+                            } else if (currentBond === 'double') {
+                                // 在构造状态下选择了双键按钮，点击双键进行样式切换
+                                if (bond.type === 'double') {
+                                    // 切换displayStyle: center -> left -> right -> center
+                                    const currentStyle = bond.displayStyle || 'center';
+                                    if (currentStyle === 'center') {
+                                        bond.displayStyle = 'left';
+                                    } else if (currentStyle === 'left') {
+                                        bond.displayStyle = 'right';
+                                    } else {
+                                        bond.displayStyle = 'center';
+                                    }
+                                } else {
+                                    // 不是双键，转换为双键并设置默认样式
+                                    bond.type = 'double';
+                                    bond.displayStyle = 'center';
+                                }
                             } else {
+                                // 其他键类型
                                 bond.type = currentBond;
+                                if (currentBond === 'double') {
+                                    bond.displayStyle = 'center';
+                                } else {
+                                    delete bond.displayStyle;
+                                }
                             }
                             draw();
                         }
@@ -1528,7 +1912,6 @@
                     }
                 }
             });
-
             svg.addEventListener('mousemove', e => {
                 const pos = getMousePos(e);
 
@@ -1536,13 +1919,34 @@
                     const dx = pos.x - dragStartPos.x;
                     const dy = pos.y - dragStartPos.y;
 
-                    selectedAtoms.forEach(id => {
-                        const atom = atoms.find(a => a.id === id);
-                        if (atom) {
-                            atom.x += dx;
-                            atom.y += dy;
-                        }
-                    });
+                    // ⭐ 修改：如果只选中了键，移动键的端点原子
+                    if (selectedBonds.size > 0 && selectedAtoms.size === 0) {
+                        // 只有键被选中，移动键的端点
+                        selectedBonds.forEach(bondId => {
+                            const bond = bonds.find(b => b.id === bondId);
+                            if (bond) {
+                                const a1 = atoms.find(a => a.id === bond.a1);
+                                const a2 = atoms.find(a => a.id === bond.a2);
+                                if (a1) {
+                                    a1.x += dx;
+                                    a1.y += dy;
+                                }
+                                if (a2) {
+                                    a2.x += dx;
+                                    a2.y += dy;
+                                }
+                            }
+                        });
+                    } else {
+                        // 原有逻辑：移动选中的原子
+                        selectedAtoms.forEach(id => {
+                            const atom = atoms.find(a => a.id === id);
+                            if (atom) {
+                                atom.x += dx;
+                                atom.y += dy;
+                            }
+                        });
+                    }
 
                     selectionBox.left += dx;
                     selectionBox.right += dx;
@@ -1563,53 +1967,102 @@
                     selectionRect.setAttribute('y', newY);
                     selectionRect.setAttribute('width', width);
                     selectionRect.setAttribute('height', height);
-                } else if (mode === 'move' && isDraggingAtom) {
+                    return;
+                }
+
+                if (mode === 'move' && isDraggingAtom) {
                     const atom = atoms.find(a => a.id === dragTargetId);
                     if (atom) {
                         atom.x = pos.x - dragStartOffset.x;
                         atom.y = pos.y - dragStartOffset.y;
                         draw();
                     }
-                } else {
-                    svg.querySelectorAll('.hover-effect').forEach(el => el.remove());
+                    return;
+                }
+
+
+                if (!isDraggingSelection && !(mode === 'lasso' && isSelecting)) {
                     const targetElem = e.target;
+
+                    // ⭐ 关键修复：忽略hover效果元素本身
+                    if (targetElem.classList.contains('hover-effect')) {
+                        return;
+                    }
+
                     const atomId = targetElem.getAttribute('data-atom-id');
                     const bondId = targetElem.getAttribute('data-bond-id');
-                    const atomMapForHover = new Map(atoms.map(a => [a.id, a]));
 
-                    if (atomId && !selectedAtoms.has(parseInt(atomId))) {
-                        const atom = atoms.find(a => a.id === parseInt(atomId));
-                        if (atom) {
-                            const hoverCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                            hoverCircle.setAttribute('cx', atom.x);
-                            hoverCircle.setAttribute('cy', atom.y);
-                            hoverCircle.setAttribute('r', ATOM_RADIUS + 2);
-                            hoverCircle.setAttribute('stroke', HOVER_COLOR);
-                            hoverCircle.setAttribute('stroke-width', 2);
-                            hoverCircle.setAttribute('fill', 'none');
-                            hoverCircle.setAttribute('class', 'hover-effect');
-                            svg.appendChild(hoverCircle);
+                    // 转换为整数或null
+                    const newHoveredAtomId = atomId ? parseInt(atomId) : null;
+                    const newHoveredBondId = bondId ? parseInt(bondId) : null;
+
+                    // ⭐ 检查高亮状态是否真正改变
+                    const atomChanged = newHoveredAtomId !== currentHoveredAtomId;
+                    const bondChanged = newHoveredBondId !== currentHoveredBondId;
+
+                    // 只有当高亮对象改变时才重绘
+                    if (atomChanged || bondChanged) {
+                        // 清除之前的定时器
+                        if (hoverDebounceTimer) {
+                            clearTimeout(hoverDebounceTimer);
                         }
-                    } else if (bondId && !selectedBonds.has(parseInt(bondId))) {
-                        const bond = bonds.find(b => b.id === parseInt(bondId));
-                        if (bond) {
-                            const a1 = atomMapForHover.get(bond.a1);
-                            const a2 = atomMapForHover.get(bond.a2);
-                            if (!a1 || !a2) return;
-                            const hoverLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                            hoverLine.setAttribute('x1', a1.x);
-                            hoverLine.setAttribute('y1', a1.y);
-                            hoverLine.setAttribute('x2', a2.x);
-                            hoverLine.setAttribute('y2', a2.y);
-                            hoverLine.setAttribute('stroke', HOVER_COLOR);
-                            hoverLine.setAttribute('stroke-width', 8);
-                            hoverLine.setAttribute('class', 'hover-effect');
-                            svg.appendChild(hoverLine);
-                        }
+
+                        // ⭐ 添加10ms延迟防抖
+                        hoverDebounceTimer = setTimeout(() => {
+                            currentHoveredAtomId = newHoveredAtomId;
+                            currentHoveredBondId = newHoveredBondId;
+
+                            // ⭐ 获取高亮层容器
+                            const hoverLayer = svg.querySelector('#hover-layer');
+                            if (hoverLayer) {
+                                // 清空高亮层的内容
+                                hoverLayer.innerHTML = '';
+                            }
+
+                            const atomMapForHover = new Map(atoms.map(a => [a.id, a]));
+
+                            // 绘制原子hover效果
+                            if (newHoveredAtomId && !selectedAtoms.has(newHoveredAtomId)) {
+                                const atom = atoms.find(a => a.id === newHoveredAtomId);
+                                if (atom && hoverLayer) {
+                                    const hoverCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                                    hoverCircle.setAttribute('cx', atom.x);
+                                    hoverCircle.setAttribute('cy', atom.y);
+                                    hoverCircle.setAttribute('r', ATOM_HOVER_RADIUS);
+                                    hoverCircle.setAttribute('stroke', HOVER_COLOR);
+                                    hoverCircle.setAttribute('stroke-width', 2);
+                                    hoverCircle.setAttribute('fill', 'none');
+                                    hoverCircle.setAttribute('class', 'hover-effect');
+                                    hoverCircle.setAttribute('pointer-events', 'none');
+                                    // ⭐ 添加到底层容器而不是顶层
+                                    hoverLayer.appendChild(hoverCircle);
+                                }
+                            }
+                            // 绘制键hover效果
+                            else if (newHoveredBondId && !selectedBonds.has(newHoveredBondId)) {
+                                const bond = bonds.find(b => b.id === newHoveredBondId);
+                                if (bond && hoverLayer) {
+                                    const a1 = atomMapForHover.get(bond.a1);
+                                    const a2 = atomMapForHover.get(bond.a2);
+                                    if (a1 && a2) {
+                                        const hoverLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                                        hoverLine.setAttribute('x1', a1.x);
+                                        hoverLine.setAttribute('y1', a1.y);
+                                        hoverLine.setAttribute('x2', a2.x);
+                                        hoverLine.setAttribute('y2', a2.y);
+                                        hoverLine.setAttribute('stroke', HOVER_COLOR);
+                                        hoverLine.setAttribute('stroke-width', BOND_HOVER_WIDTH);
+                                        hoverLine.setAttribute('class', 'hover-effect');
+                                        hoverLine.setAttribute('pointer-events', 'none');
+                                        // ⭐ 添加到底层容器而不是顶层
+                                        hoverLayer.appendChild(hoverLine);
+                                    }
+                                }
+                            }
+                        }, 30);
                     }
                 }
             });
-
             svg.addEventListener('mouseup', e => {
                 const pos = getMousePos(e);
                 dragEndPos = pos;
@@ -1695,13 +2148,21 @@
                 isDraggingAtom = false;
                 isDraggingSelection = false;
                 dragTargetId = null;
+
+                // ⭐ 清理hover追踪状态和hover层内容
+                currentHoveredAtomId = null;
+                currentHoveredBondId = null;
+
+                const hoverLayer = svg.querySelector('#hover-layer');
+                if (hoverLayer) {
+                    hoverLayer.innerHTML = '';
+                }
+
                 if (selectionRect) {
                     svg.removeChild(selectionRect);
                     selectionRect = null;
                 }
-                svg.querySelectorAll('.hover-effect').forEach(el => el.remove());
             });
-
 
             document.addEventListener('keydown', e => {
                 if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -1849,6 +2310,15 @@
                 });
             });
 
+            window.addEventListener('resize', () => {
+                // 延迟执行，确保容器已调整大小
+                setTimeout(() => {
+                    if (atoms.length > 0) {
+                        updateCanvasSize();
+                    }
+                }, 100);
+            });
+
             // 初始设置默认工具
             document.getElementById('drawBtn').click();
             document.querySelector('.atom-btn[data-tool="C"]').classList.add('active');
@@ -1862,10 +2332,10 @@
     <script>
         // 3D应用对象
         window.d3App = (function () {
- 
+
             const ATOM_RADII = { 'C': 0.77, 'H': 0.37, 'O': 0.73, 'N': 0.75, 'S': 1.02 };
             const ATOM_COLORS = { 'C': 0xBBBBBB, 'H': 0x888888, 'O': 0x6495ED, 'N': 0xB2B01D, 'S': 0xCC99A2 };
-            const BALL_STICK_SCALE_FACTOR = 0.4, BOND_RADIUS_BALL_STICK = 0.08, STICK_RADIUS = 0.12;
+            const BALL_STICK_SCALE_FACTOR = 0.4, BOND_RADIUS_BALL_STICK = 0.05, STICK_RADIUS = 0.12;
             const HIGHLIGHT_COLOR = 0xFFFF00, INITIAL_CAMERA_DISTANCE = 15, AXIS_CAMERA_DISTANCE = 3.5;
 
             let scene, camera, renderer, controls, moleculeGroup, ambientLight, directionalLight;
@@ -1894,6 +2364,12 @@
                     root.setProperty(`--current-${type}-color`, `var(--color-${type}-${theme})`);
                 });
                 root.setProperty('--current-toggle-active', `var(--color-params-${theme})`);
+
+                // 🔑 新增：根据主题切换导出按钮颜色
+                root.setProperty('--current-export-png', `var(--export-png-${theme})`);
+                root.setProperty('--current-export-stl', `var(--export-stl-${theme})`);
+                root.setProperty('--current-export-glb', `var(--export-glb-${theme})`);
+
                 setupUIStyles();
                 const textColor = getComputedStyle(d3Container).getPropertyValue('--current-text-color');
                 d3Container.querySelector('#background-color-picker-container').style.borderColor = textColor;
@@ -1932,16 +2408,340 @@
             }
 
             function exportView(format) {
-                if (format !== 'png' || !renderer) return;
-                const originalBackground = scene.background, originalAlpha = renderer.getClearAlpha();
-                scene.background = null; if (renderer.setClearAlpha) renderer.setClearAlpha(0);
-                renderer.render(scene, camera);
-                const imgData = renderer.domElement.toDataURL('image/png');
+                if (format === 'png') {
+                    if (!renderer) return;
+                    const originalBackground = scene.background, originalAlpha = renderer.getClearAlpha();
+                    scene.background = null;
+                    if (renderer.setClearAlpha) renderer.setClearAlpha(0);
+                    renderer.render(scene, camera);
+                    const imgData = renderer.domElement.toDataURL('image/png');
+                    const link = document.createElement('a');
+                    link.download = 'molecule_3d_view.png';
+                    link.href = imgData;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    if (renderer.setClearAlpha) renderer.setClearAlpha(originalAlpha);
+                    scene.background = originalBackground;
+                    renderer.render(scene, camera);
+                } else if (format === 'stl') {
+                    exportSTL();
+                } else if (format === 'glb') {
+                    exportGLB();
+                }
+            }
+
+            function exportSTL() {
+                if (!moleculeGroup || atomMeshes.length === 0) {
+                    alert('没有可导出的3D模型！');
+                    return;
+                }
+
+                // 生成STL内容
+                let stlString = 'solid molecule\n';
+
+                // 遍历所有mesh对象，提取几何体
+                moleculeGroup.traverse((object) => {
+                    if (object.isMesh && object.geometry) {
+                        const geometry = object.geometry;
+                        const matrix = object.matrixWorld;
+
+                        // 确保几何体有索引
+                        let positions = geometry.attributes.position;
+                        let indices = geometry.index;
+
+                        if (!indices) {
+                            // 如果没有索引，创建非索引几何体
+                            const tempGeometry = geometry.toNonIndexed();
+                            positions = tempGeometry.attributes.position;
+
+                            // 每3个顶点组成一个三角形
+                            for (let i = 0; i < positions.count; i += 3) {
+                                const v1 = new THREE.Vector3().fromBufferAttribute(positions, i).applyMatrix4(matrix);
+                                const v2 = new THREE.Vector3().fromBufferAttribute(positions, i + 1).applyMatrix4(matrix);
+                                const v3 = new THREE.Vector3().fromBufferAttribute(positions, i + 2).applyMatrix4(matrix);
+
+                                // 计算法向量
+                                const normal = new THREE.Vector3();
+                                const edge1 = new THREE.Vector3().subVectors(v2, v1);
+                                const edge2 = new THREE.Vector3().subVectors(v3, v1);
+                                normal.crossVectors(edge1, edge2).normalize();
+
+                                stlString += `  facet normal ${normal.x.toExponential(6)} ${normal.y.toExponential(6)} ${normal.z.toExponential(6)}\n`;
+                                stlString += '    outer loop\n';
+                                stlString += `      vertex ${v1.x.toExponential(6)} ${v1.y.toExponential(6)} ${v1.z.toExponential(6)}\n`;
+                                stlString += `      vertex ${v2.x.toExponential(6)} ${v2.y.toExponential(6)} ${v2.z.toExponential(6)}\n`;
+                                stlString += `      vertex ${v3.x.toExponential(6)} ${v3.y.toExponential(6)} ${v3.z.toExponential(6)}\n`;
+                                stlString += '    endloop\n';
+                                stlString += '  endfacet\n';
+                            }
+                        } else {
+                            // 有索引的情况
+                            for (let i = 0; i < indices.count; i += 3) {
+                                const i1 = indices.getX(i);
+                                const i2 = indices.getX(i + 1);
+                                const i3 = indices.getX(i + 2);
+
+                                const v1 = new THREE.Vector3().fromBufferAttribute(positions, i1).applyMatrix4(matrix);
+                                const v2 = new THREE.Vector3().fromBufferAttribute(positions, i2).applyMatrix4(matrix);
+                                const v3 = new THREE.Vector3().fromBufferAttribute(positions, i3).applyMatrix4(matrix);
+
+                                // 计算法向量
+                                const normal = new THREE.Vector3();
+                                const edge1 = new THREE.Vector3().subVectors(v2, v1);
+                                const edge2 = new THREE.Vector3().subVectors(v3, v1);
+                                normal.crossVectors(edge1, edge2).normalize();
+
+                                stlString += `  facet normal ${normal.x.toExponential(6)} ${normal.y.toExponential(6)} ${normal.z.toExponential(6)}\n`;
+                                stlString += '    outer loop\n';
+                                stlString += `      vertex ${v1.x.toExponential(6)} ${v1.y.toExponential(6)} ${v1.z.toExponential(6)}\n`;
+                                stlString += `      vertex ${v2.x.toExponential(6)} ${v2.y.toExponential(6)} ${v2.z.toExponential(6)}\n`;
+                                stlString += `      vertex ${v3.x.toExponential(6)} ${v3.y.toExponential(6)} ${v3.z.toExponential(6)}\n`;
+                                stlString += '    endloop\n';
+                                stlString += '  endfacet\n';
+                            }
+                        }
+                    }
+                });
+
+                stlString += 'endsolid molecule\n';
+
+                // 下载STL文件
+                const blob = new Blob([stlString], { type: 'text/plain' });
                 const link = document.createElement('a');
-                link.download = 'molecule_3d_view.png';
-                link.href = imgData;
-                document.body.appendChild(link); link.click(); document.body.removeChild(link);
-                if (renderer.setClearAlpha) renderer.setClearAlpha(originalAlpha); scene.background = originalBackground; renderer.render(scene, camera);
+                link.href = URL.createObjectURL(blob);
+                link.download = 'molecule_3d_model.stl';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(link.href);
+
+                alert('STL模型导出成功！');
+            }
+            function exportGLB() {
+                if (!moleculeGroup || atomMeshes.length === 0) {
+                    alert('没有可导出的3D模型！');
+                    return;
+                }
+
+                // 使用Three.js的GLTFExporter
+                // 需要先加载GLTFExporter库
+                if (typeof THREE.GLTFExporter === 'undefined') {
+                    alert('正在加载导出器，请稍候...');
+                    const script = document.createElement('script');
+                    script.src = 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js';
+                    script.onload = () => {
+                        performGLBExport();
+                    };
+                    script.onerror = () => {
+                        alert('导出器加载失败！请检查网络连接。');
+                    };
+                    document.head.appendChild(script);
+                } else {
+                    performGLBExport();
+                }
+            }
+
+            function performGLBExport() {
+                if (!moleculeGroup || atomMeshes.length === 0) {
+                    alert('没有可导出的3D模型！');
+                    return;
+                }
+
+                try {
+                    if (typeof THREE.GLTFExporter === 'undefined') {
+                        throw new Error('GLTFExporter未加载');
+                    }
+
+                    // 🎨 新增：颜色增强函数
+                    function enhanceColor(color) {
+                        // 将Three.js颜色转换为RGB
+                        const r = (color >> 16) & 0xff;
+                        const g = (color >> 8) & 0xff;
+                        const b = color & 0xff;
+
+                        // 转换到HSL色彩空间以调整饱和度和亮度
+                        const max = Math.max(r, g, b);
+                        const min = Math.min(r, g, b);
+                        let h, s, l = (max + min) / 510; // 归一化到[0,1]
+
+                        if (max === min) {
+                            h = s = 0; // 灰色
+                        } else {
+                            const d = max - min;
+                            s = l > 0.5 ? d / (510 - max - min) : d / (max + min);
+
+                            switch (max) {
+                                case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+                                case g: h = ((b - r) / d + 2) / 6; break;
+                                case b: h = ((r - g) / d + 4) / 6; break;
+                            }
+                        }
+
+                        // 🔑 关键调整：
+                        // 1. 增加饱和度 30%（让颜色更鲜艳）
+                        s = Math.min(1, s * 1.3);
+
+                        // 2. 增加亮度 20%（让颜色更明亮）
+                        l = Math.min(0.9, l * 0.6);
+
+                        // 转换回RGB
+                        let r2, g2, b2;
+                        if (s === 0) {
+                            r2 = g2 = b2 = l;
+                        } else {
+                            const hue2rgb = (p, q, t) => {
+                                if (t < 0) t += 1;
+                                if (t > 1) t -= 1;
+                                if (t < 1 / 6) return p + (q - p) * 6 * t;
+                                if (t < 1 / 2) return q;
+                                if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+                                return p;
+                            };
+
+                            const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+                            const p = 2 * l - q;
+                            r2 = hue2rgb(p, q, h + 1 / 3);
+                            g2 = hue2rgb(p, q, h);
+                            b2 = hue2rgb(p, q, h - 1 / 3);
+                        }
+
+                        // 转换回16进制颜色
+                        return (Math.round(r2 * 255) << 16) | (Math.round(g2 * 255) << 8) | Math.round(b2 * 255);
+                    }
+
+                    // 创建增强颜色的克隆组
+                    const exportGroup = moleculeGroup.clone(true);
+
+                    // 遍历所有mesh，增强颜色
+                    exportGroup.traverse((object) => {
+                        if (object.isMesh && object.material) {
+                            const originalColor = object.material.color.getHex();
+                            const enhancedColor = enhanceColor(originalColor);
+
+                            // 创建新材质（不影响原始场景）
+                            object.material = object.material.clone();
+                            object.material.color.setHex(enhancedColor);
+
+                            // 🎨 增加金属度和减少粗糙度，让颜色更有光泽
+                            if (object.material.metalness !== undefined) {
+                                object.material.metalness = 0.2; // 轻微金属感
+                            }
+                            if (object.material.roughness !== undefined) {
+                                object.material.roughness = 0.3; // 减少粗糙度，增加光泽
+                            }
+                        }
+                    });
+
+                    const exporter = new THREE.GLTFExporter();
+
+                    const options = {
+                        binary: false,
+                        trs: false,
+                        onlyVisible: true,
+                        truncateDrawRange: false,
+                        embedImages: true,
+                        maxTextureSize: 4096,
+                        includeCustomExtensions: false
+                    };
+
+                    // 执行导出
+                    exporter.parse(
+                        exportGroup,  // 使用增强颜色的克隆组
+                        function (gltfData) {
+                            try {
+                                if (typeof gltfData === 'object' && gltfData.scenes !== undefined) {
+                                    const gltfJson = JSON.stringify(gltfData);
+                                    const jsonBuffer = new TextEncoder().encode(gltfJson);
+
+                                    const jsonChunkLength = jsonBuffer.byteLength;
+                                    const jsonPadding = (4 - (jsonChunkLength % 4)) % 4;
+                                    const jsonPaddedLength = jsonChunkLength + jsonPadding;
+                                    const totalLength = 12 + 8 + jsonPaddedLength;
+
+                                    const glbBuffer = new ArrayBuffer(totalLength);
+                                    const glbView = new DataView(glbBuffer);
+                                    let offset = 0;
+
+                                    glbView.setUint32(offset, 0x46546C67, true);
+                                    offset += 4;
+                                    glbView.setUint32(offset, 2, true);
+                                    offset += 4;
+                                    glbView.setUint32(offset, totalLength, true);
+                                    offset += 4;
+
+                                    glbView.setUint32(offset, jsonPaddedLength, true);
+                                    offset += 4;
+                                    glbView.setUint32(offset, 0x4E4F534A, true);
+                                    offset += 4;
+
+                                    const glbArray = new Uint8Array(glbBuffer);
+                                    glbArray.set(jsonBuffer, offset);
+                                    offset += jsonChunkLength;
+
+                                    for (let i = 0; i < jsonPadding; i++) {
+                                        glbArray[offset++] = 0x20;
+                                    }
+
+                                    const blob = new Blob([glbBuffer], { type: 'model/gltf-binary' });
+                                    downloadBlob(blob, 'molecule_3d_model.glb');
+                                    showSuccessMessage(blob.size, atomMeshes.length, bondMeshes.length);
+                                }
+                                else if (gltfData instanceof ArrayBuffer) {
+                                    const blob = new Blob([gltfData], { type: 'model/gltf-binary' });
+                                    downloadBlob(blob, 'molecule_3d_model.glb');
+                                    showSuccessMessage(blob.size, atomMeshes.length, bondMeshes.length);
+                                }
+                                else {
+                                    throw new Error('未知的导出格式: ' + typeof gltfData);
+                                }
+                            } catch (convertError) {
+                                console.error('GLB转换失败:', convertError);
+                                alert('GLB转换失败：' + convertError.message);
+                            }
+                        },
+                        function (error) {
+                            console.error('GLB导出失败:', error);
+                            alert('GLB导出失败：' + error.message);
+                        },
+                        options
+                    );
+
+                } catch (error) {
+                    console.error('导出异常:', error);
+                    alert('导出发生错误：' + error.message);
+                }
+            }
+
+            // 辅助函数：下载Blob
+            function downloadBlob(blob, filename) {
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.style.display = 'none';
+                link.href = url;
+                link.download = filename;
+
+                document.body.appendChild(link);
+                link.click();
+
+                setTimeout(() => {
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                    console.log('✅ 文件下载完成，资源已清理');
+                }, 1000);
+            }
+
+            // 辅助函数：显示成功消息
+            function showSuccessMessage(fileSize, atomCount, bondCount) {
+                const fileSizeKB = (fileSize / 1024).toFixed(2);
+                alert(
+                    '✅ GLB模型导出成功！可导入PowerPoint！\n\n' +
+                    '📊 文件信息：\n' +
+                    '  • 大小: ' + fileSizeKB + ' KB\n' +
+                    '  • 格式: GLB 2.0\n' +
+                    '  • 原子数: ' + atomCount + '\n' +
+                    '  • 键数: ' + bondCount + '\n\n'
+                );
             }
 
             function clearHighlight() {
@@ -2034,7 +2834,8 @@
             function init() {
                 scene = new THREE.Scene();
                 scene.background = new THREE.Color(currentBackgroundColor);
-                camera = new THREE.PerspectiveCamera(75, d3Container.clientWidth / d3Container.clientHeight, 0.1, 1000);
+
+                camera = new THREE.PerspectiveCamera(35, d3Container.clientWidth / d3Container.clientHeight, 0.1, 1000);
                 camera.position.set(INITIAL_CAMERA_DISTANCE, INITIAL_CAMERA_DISTANCE, INITIAL_CAMERA_DISTANCE);
                 camera.lookAt(0, 0, 0);
 
@@ -2048,8 +2849,12 @@
                 renderer.domElement.style.zIndex = '0';
 
                 initAxisHelper();
-                updateInfoTextColor(currentBackgroundColor);
+
+                // 🔑 修改：在初始化的最开始就设置UI样式
+                // 因为默认背景是白色(0xFFFFFF)，亮度>0.3，应该使用dark主题（灰蓝紫色）
                 updateControlTextAndThemeColor(currentBackgroundColor);
+                setupUIStyles();
+                updateInfoTextColor(currentBackgroundColor);
 
                 ambientLight = new THREE.AmbientLight(0x404040, 4.0);
                 scene.add(ambientLight);
@@ -2066,6 +2871,10 @@
                 };
                 controls.enableDamping = true;
                 controls.dampingFactor = 0.05;
+
+                controls.minPolarAngle = 0;
+                controls.maxPolarAngle = Math.PI;
+
                 controls.addEventListener('change', updateAxisHelper);
 
                 const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
@@ -2094,7 +2903,6 @@
                 updateAxisHelper();
                 animate();
             }
-
             function animate() {
                 requestAnimationFrame(animate);
                 if (controls.enabled) controls.update();
@@ -2109,16 +2917,44 @@
                     light: root.getPropertyValue('--current-light-color').trim(),
                     export: root.getPropertyValue('--current-export-color').trim(),
                     params: root.getPropertyValue('--current-params-color').trim(),
+                    // 🔑 获取导出按钮的颜色
+                    exportPng: root.getPropertyValue('--current-export-png').trim(),
+                    exportStl: root.getPropertyValue('--current-export-stl').trim(),
+                    exportGlb: root.getPropertyValue('--current-export-glb').trim(),
                 };
+
+                // 🔑 新增：判断当前主题（根据背景色）
+                const isLightBackground = getLuminance(currentBackgroundColor) > 0.3;
+                const exportButtonTextColor = isLightBackground ? '#FFFFFF':'#333333'  ; // light模式用黑色，dark模式用白色
+
                 d3Container.querySelector('#file-input-panel h3').style.color = colors.load;
-                d3Container.querySelectorAll('#file-input-panel .load-button').forEach(btn => { btn.style.backgroundColor = colors.load; btn.style.color = getButtonTextColor(colors.load); });
+                d3Container.querySelectorAll('#file-input-panel .load-button').forEach(btn => {
+                    btn.style.backgroundColor = colors.load;
+                    btn.style.color = getButtonTextColor(colors.load);
+                });
                 d3Container.querySelector('#status-message').style.color = colors.load;
                 d3Container.querySelector('#light-controls-panel h3').style.color = colors.light;
-                d3Container.querySelectorAll('#light-controls-panel .light-button').forEach(btn => { btn.style.backgroundColor = colors.light; btn.style.color = getButtonTextColor(colors.light); });
+                d3Container.querySelectorAll('#light-controls-panel .light-button').forEach(btn => {
+                    btn.style.backgroundColor = colors.light;
+                    btn.style.color = getButtonTextColor(colors.light);
+                });
                 d3Container.querySelector('#params-controls-panel h3').style.color = colors.params;
                 d3Container.querySelector('#export-controls-panel h3').style.color = colors.export;
-                const exportBtn = d3Container.querySelector('#export-controls-panel .export-button');
-                if (exportBtn) { exportBtn.style.backgroundColor = colors.export; exportBtn.style.color = getButtonTextColor(colors.export); }
+
+                // 🔑 修改：导出按钮文字颜色根据主题决定
+                d3Container.querySelectorAll('#export-controls-panel .export-button').forEach(btn => {
+                    if (btn.classList.contains('export-stl-button')) {
+                        btn.style.backgroundColor = colors.exportStl;
+                        btn.style.color = exportButtonTextColor; // 使用主题决定的颜色
+                    } else if (btn.classList.contains('export-glb-button')) {
+                        btn.style.backgroundColor = colors.exportGlb;
+                        btn.style.color = exportButtonTextColor; // 使用主题决定的颜色
+                    } else {
+                        // PNG按钮
+                        btn.style.backgroundColor = colors.exportPng;
+                        btn.style.color = exportButtonTextColor; // 使用主题决定的颜色
+                    }
+                });
             }
 
             function setLightPreset(preset) {
@@ -2189,23 +3025,65 @@
                     atomMeshes.push(mesh);
                     moleculeGroup.add(mesh);
                 });
+
                 const bondGeom = new THREE.CylinderGeometry(BOND_RADIUS_BALL_STICK, BOND_RADIUS_BALL_STICK, 1, 16);
                 const bondMat = new THREE.MeshStandardMaterial({ color: 0x666666, metalness: 0.1, roughness: 0.8 });
+
                 adjData.forEach(bond => {
                     const iA = (bond.A || 0) - 1, iB = (bond.B || 0) - 1;
                     if (iA < 0 || iB < 0 || iA >= sxyzData.length || iB >= sxyzData.length) return;
                     const sA = String(sxyzData[iA].Symbol).trim().toUpperCase(), sB = String(sxyzData[iB].Symbol).trim().toUpperCase();
                     if (!showH && (sA === 'H' || sB === 'H')) return;
+
                     const posA = new THREE.Vector3(sxyzData[iA].X, sxyzData[iA].Y, sxyzData[iA].Z);
                     const posB = new THREE.Vector3(sxyzData[iB].X, sxyzData[iB].Y, sxyzData[iB].Z);
                     const center = new THREE.Vector3().addVectors(posA, posB).divideScalar(2);
-                    const bondMesh = new THREE.Mesh(bondGeom, bondMat.clone());
-                    bondMesh.scale.set(1, posA.distanceTo(posB), 1);
-                    bondMesh.position.copy(center);
-                    bondMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3().subVectors(posB, posA).normalize());
-                    bondMesh.userData = { isBond: true, atomAIndex: iA + 1, atomBIndex: iB + 1 };
-                    bondMeshes.push(bondMesh);
-                    moleculeGroup.add(bondMesh);
+                    const bondLength = posA.distanceTo(posB);
+                    const direction = new THREE.Vector3().subVectors(posB, posA).normalize();
+
+                    // 获取键型，默认为单键
+                    const bondType = bond.BondType || "-";
+
+                    // 根据键型确定绘制的键数量和偏移
+                    let bondCount = 1;
+                    if (bondType === "=") bondCount = 2;       // 双键
+                    else if (bondType === "#") bondCount = 3;  // 三键
+
+                    // 计算垂直于键方向的向量，用于平行键的偏移
+                    const perpVector = new THREE.Vector3();
+                    if (Math.abs(direction.y) < 0.99) {
+                        // 如果键不是垂直的，使用 Y 轴叉乘
+                        perpVector.crossVectors(direction, new THREE.Vector3(0, 1, 0)).normalize();
+                    } else {
+                        // 如果键接近垂直，使用 X 轴叉乘
+                        perpVector.crossVectors(direction, new THREE.Vector3(1, 0, 0)).normalize();
+                    }
+
+                    const bondSpacing = BOND_RADIUS_BALL_STICK * 3; // 键之间的间距
+
+                    for (let i = 0; i < bondCount; i++) {
+                        const bondMesh = new THREE.Mesh(bondGeom, bondMat.clone());
+                        bondMesh.scale.set(1, bondLength, 1);
+
+                        // 计算偏移位置
+                        let offset = new THREE.Vector3();
+                        if (bondCount === 1) {
+                            // 单键：无偏移
+                            offset.set(0, 0, 0);
+                        } else if (bondCount === 2) {
+                            // 双键：在垂直方向上偏移 ±bondSpacing/2
+                            offset.copy(perpVector).multiplyScalar((i - 0.5) * bondSpacing);
+                        } else if (bondCount === 3) {
+                            // 三键：中间一条无偏移，两侧偏移 ±bondSpacing
+                            offset.copy(perpVector).multiplyScalar((i - 1) * bondSpacing);
+                        }
+
+                        bondMesh.position.copy(center).add(offset);
+                        bondMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
+                        bondMesh.userData = { isBond: true, atomAIndex: iA + 1, atomBIndex: iB + 1 };
+                        bondMeshes.push(bondMesh);
+                        moleculeGroup.add(bondMesh);
+                    }
                 });
             }
 
@@ -2257,14 +3135,15 @@
                 const size = new THREE.Vector3();
                 box.getSize(size);
                 const maxDim = Math.max(size.x, size.y, size.z);
-                let camDist = Math.abs(maxDim / 2 / Math.tan(camera.fov * (Math.PI / 180) / 2)) * 1.5;
+
+                // 修改：使用较小的FOV重新计算相机距离，增加距离系数从1.5到2.2
+                let camDist = Math.abs(maxDim / 2 / Math.tan(camera.fov * (Math.PI / 180) / 2)) * 2.2;
                 controls.target.set(0, 0, 0);
                 const d = camDist / Math.sqrt(3);
                 camera.position.set(d, d, d).multiplyScalar(1.7);
                 camera.lookAt(controls.target);
                 controls.update();
             }
-
 
             // 添加从JSON直接加载数据的函数
             function loadJsonData(jsonData, renderType = 'ball_stick') {
@@ -2282,11 +3161,12 @@
                     }));
 
                     // 将ADJ_AB格式转换为CSV格式
-                    // jsonData.ADJ_AB格式: [[1, 2], [1, 3], ...]
-                    // 需要转换为: [{A: 1, B: 2}, ...]
+                    // jsonData.ADJ_AB格式: [[1, 2, "-"], [1, 3, "="], ...]
+                    // 需要转换为: [{A: 1, B: 2, BondType: "-"}, ...]
                     const convertedADJ = jsonData.ADJ_AB.map(item => ({
                         A: parseInt(item[0]),
-                        B: parseInt(item[1])
+                        B: parseInt(item[1]),
+                        BondType: item[2] || "-"  // 如果没有指定键型，默认为单键
                     }));
 
                     console.log('转换后的SXYZ数据:', convertedSXYZ);
@@ -2318,7 +3198,6 @@
                     }
                 }
             }
-
             // 从文件加载和绘制
             async function loadAndDraw(renderType) {
                 const status = document.getElementById('status-message');

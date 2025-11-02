@@ -143,29 +143,29 @@ public:
 	}
 };
 
-class AdjAB_3D
+class AdjABS_3D
 {
 private:
 	int seq1;
 	int seq2;
 	string bondsym;
 public:
-	AdjAB_3D(const vector<string>& info, const vector<int>& titlenum)
+	AdjABS_3D(const vector<string>& info, const vector<int>& titlenum)
 	{
 		seq1 = atoi(info[titlenum[0]].c_str()) + 1;
 		seq2 = atoi(info[titlenum[1]].c_str()) + 1;
 		bondsym = info[titlenum[2]];
 	}
-	AdjAB_3D(int s1 = -0, int s2 = 0) :seq1(s1), seq2(s2) {}
+	AdjABS_3D(int s1 = -0, int s2 = 0,string sym="") :seq1(s1), seq2(s2), bondsym(sym) {}
 	int GetIndex1() const { return seq1; }
 	int GetIndex2() const { return seq2; }
 	void Print(string sep = "\t")const
 	{
 		cout << seq1 << sep << seq2 << endl;
 	}
-	friend ostream& operator<<(ostream& os, const AdjAB_3D& adjline)
+	friend ostream& operator<<(ostream& os, const AdjABS_3D& adjline)
 	{
-		os << adjline.seq1 << "," << adjline.seq2;
+		os << adjline.seq1 << "," << adjline.seq2<<",\""<<adjline.bondsym<<"\"";
 		return os;
 	}
 
@@ -176,7 +176,7 @@ public:
 
 vector<SXYZ_3D> GetSXYZTb(const XYZ_TB& xyz_tb, const  EnergySolidParam& esp);
 
-vector<AdjAB_3D> GetAdjABTb(const EnergySolidParam& esp);
+vector<AdjABS_3D> GetAdjABSTb(const EnergySolidParam& esp);
 
 
 #endif

@@ -577,7 +577,7 @@ void Mole::MoleSortWithPN(const vector<PrimeNumber>& ptb, bool printyes)
 string Mole::GenerateCanSmiles(const vector<PrimeNumber>& primetable)
 {
 	if (nodetb.size()<=1) return com_smiles;
-	MoleSortWithPN(primetable);
+	MoleSortWithPN(primetable,YES);
 	int rootseq;
 	for (rootseq = 0; rootseq < ranktb.size(); rootseq++)
 		if (ranktb[rootseq] == 0)
@@ -671,6 +671,7 @@ string Mole::GenerateCanSmiles(const vector<PrimeNumber>& primetable)
 		if (i == 1 && leftbracketcount != 0) cs += string(leftbracketcount, ')');
 	}
 
+	//cout << cs << endl;
 	can_smiles = DeleteExtraBracket(cs);
 
 	return can_smiles;

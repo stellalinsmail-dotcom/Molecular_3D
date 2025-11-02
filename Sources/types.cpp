@@ -142,28 +142,62 @@ int FindLastCircleNumber(string str, int startpos)
 	return str.length() - 1;
 }
 
+//string DeleteExtraBracket(string s)
+//{
+//	int leftend = 0, rightend = s.length(), slen = s.length();
+//	while (leftend < rightend)
+//	{
+//		rightend--;
+//		if (s[rightend] == ')' && (rightend == slen - 1 || s[rightend + 1] == ')'))
+//		{
+//			while (leftend < rightend && s[leftend] != '(')
+//			{
+//				leftend++;
+//			}
+//			s.erase(rightend, 1);
+//			rightend--;
+//			s.erase(leftend, 1);
+//			slen = s.length();
+//		}
+//
+//	}
+//	return s;
+//}
 string DeleteExtraBracket(string s)
 {
-	int leftend = 0, rightend = s.length(), slen = s.length();
-	while (leftend < rightend)
+	
+	int rightcount = 0, nowpos = s.length()-1;
+	while (s[nowpos] == ')')
 	{
-		rightend--;
-		if (s[rightend] == ')' && (rightend == slen - 1 || s[rightend + 1] == ')'))
+		s.erase(nowpos, 1);
+		nowpos--;
+		rightcount++;
+	}
+	if (rightcount == 0) return s;
+	
+	int nowcount = 0;
+	while (nowpos >= 0 && rightcount > 0)
+	{
+
+		if (s[nowpos] == '('&&nowcount==0)
 		{
-			while (leftend < rightend && s[leftend] != '(')
-			{
-				leftend++;
-			}
-			s.erase(rightend, 1);
-			rightend--;
-			s.erase(leftend, 1);
-			slen = s.length();
+			s.erase(nowpos, 1);
+			rightcount--;
 		}
 
+		if (s[nowpos] == ')')
+		{
+			nowcount++;
+		}
+
+		if (s[nowpos] == '(')
+		{
+			nowcount--;
+		}
+		nowpos--;
 	}
 	return s;
 }
-
 string GetCurrentTimeString() {
 	SYSTEMTIME st;
 	GetLocalTime(&st); // 获取本地时间

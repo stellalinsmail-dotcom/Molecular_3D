@@ -87,7 +87,7 @@ vector<double> AlphaOpt(bool has_circle, double& alpha_energy, XYZ_TB& xyz_tb, c
 	double old_energy_a = INFINITY;
 	double new_energy_a = start_energy;
 
-	const int wait_turn_max = min(nhc * 2, 50);
+	const int wait_turn_max = min(nhc * 2, 30);
 	int wait_turn_count = 0;
 	bool break_yes_a = false;
 
@@ -626,7 +626,7 @@ int main()
 			PrintCmdSepTitle("第" + to_string(turncount) + "轮结构式解析");
 
 			cout << "接收到 " << requestBody.length() << " 字节JSON数据" << endl;
-
+	
 			// 解析JSON并构建分子
 			vector<SimpleMNode> sn_tb;
 			vector<AdjLine> adj_list;
@@ -639,6 +639,7 @@ int main()
 				continue;
 			}
 
+			cout << requestBody << endl;
 			Mole c;
 
 			string now_smiles;
@@ -665,7 +666,9 @@ int main()
 				PrintCmdSepTitle("分子节点邻接表");
 				c.PrintBondTable();
 
+
 				PrintCmdSepTitle("秩排序结果");
+				c.PrintOriRank();
 				c.PrintRank();
 				cout << "\n是否含环: " << (c.HasCircle() ? "是" : "否") << endl;
 			}
@@ -686,6 +689,25 @@ int main()
 			*/
 			const string folderpath = output_folder;
 
+			//continue;
+
+			bool rec_find = optrec_map.find(now_smiles) != optrec_map.end();
+			double rec_energy = rec_find ? optrec_map[now_smiles] : INFINITY;
+
+			if (rec_find)
+			{
+				string sent_json_rec = ReadJsonFile(folderpath + "/" + now_smiles + ".json");
+				string responseJson_rec = "{\n\"status\":\"precal\",\n\"data\":" + sent_json_rec + "\n}";
+				cout << "正在发送预计算3D结构数据到网页..." << endl;
+				if (SendHTTPResponse(clientSocket, 200, "application/json", responseJson_rec)) {
+					cout << "3D结构数据发送成功！" << endl;
+					cout << "数据大小: " << responseJson_rec.length() << " 字节" << endl;
+				}
+				else {
+					cout << "3D结构数据发送失败！" << endl;
+				}
+			}
+			
 
 			//---------------------------**MMFF识别**----------------------------------
 			int ac;
@@ -723,8 +745,7 @@ int main()
 				new_xyz_tb = old_xyz_tb;
 			}
 
-			bool rec_find = optrec_map.find(now_smiles) != optrec_map.end();
-			double rec_energy = rec_find ? optrec_map[now_smiles] : INFINITY;
+
 
 			//---------------------------**JSON格式传输**----------------------------------
 
@@ -732,7 +753,7 @@ int main()
 			if (final_energy < rec_energy)
 			{
 				vector<SXYZ_3D> sxyz_tb = GetSXYZTb(new_xyz_tb, esp);
-				vector<AdjAB_3D> adjline_tb = GetAdjABTb(esp);
+				vector<AdjABS_3D> adjline_tb = GetAdjABSTb(esp);
 				cout << "\n优化成功！最终能量: " << final_energy << " kcal/mol\n";
 
 				alpha_successful = true;
@@ -779,26 +800,28 @@ int main()
 			//cout << "文件 SXYZ.csv 和 ADJ_AB.csv 已储存！\n";
 
 			//---------------------------**HTTP响应发送**----------------------------------
-			PrintCmdSepTitle("HTTP响应发送");
+			if (!rec_find)
+			{
+				PrintCmdSepTitle("HTTP响应发送");
 
-			// 构建响应JSON（包含状态和3D数据）
-			string responseJson = "{\n\"status\":\"success\",\n\"data\":" + sent_json + "\n}";
+				// 构建响应JSON（包含状态和3D数据）
+				string responseJson = "{\n\"status\":\"success\",\n\"data\":" + sent_json + "\n}";
 
-			cout << "正在发送3D结构数据到网页..." << endl;
-			if (SendHTTPResponse(clientSocket, 200, "application/json", responseJson)) {
-				cout << "3D结构数据发送成功！" << endl;
-				cout << "数据大小: " << responseJson.length() << " 字节" << endl;
+				cout << "正在发送3D结构数据到网页..." << endl;
+				if (SendHTTPResponse(clientSocket, 200, "application/json", responseJson)) {
+					cout << "3D结构数据发送成功！" << endl;
+					cout << "数据大小: " << responseJson.length() << " 字节" << endl;
+				}
+				else {
+					cout << "3D结构数据发送失败！" << endl;
+				}
+
+				cout << "\nCanSmiles: " << now_smiles << endl;
+
+				// 关闭客户端连接
+				closesocket(clientSocket);
+				cout << "\n客户端连接已关闭，等待下一个连接...\n" << endl;
 			}
-			else {
-				cout << "3D结构数据发送失败！" << endl;
-			}
-
-			cout << "\nCanSmiles: " << now_smiles << endl;
-
-			// 关闭客户端连接
-			closesocket(clientSocket);
-			cout << "\n客户端连接已关闭，等待下一个连接...\n" << endl;
-
 
 			//储存OptRec记录
 			if (alpha_successful)
