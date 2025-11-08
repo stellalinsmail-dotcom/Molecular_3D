@@ -37,11 +37,11 @@ private:
 	unsigned long int pn;
 public:
 	PrimeNumber(int n = 0);
-	PrimeNumber(vector<int> v);
-	PrimeNumber(vector<string> vs);
-	PrimeNumber(vector<string> vs, vector<int> seq);
+	PrimeNumber(const vector<int>& v);
+	PrimeNumber(const vector<string>& vs);
+	PrimeNumber(const vector<string>& vs,const  vector<int>& seq);
 	~PrimeNumber() {}
-	void Print(const string sep="\t")const;
+	void Print(string sep="\t")const;
 	int GetPN()const { return pn; }
 };
 
@@ -60,7 +60,7 @@ public:
 	bool IsFirstChild()const { return isfc; }
 	void SetFirstChild() { isfc = true; }
 };
-bool SortTreeNodeCmp(TreeNode a, TreeNode b);
+bool SortTreeNodeCmp(const TreeNode& a,const TreeNode& b);
 
 // --- 分子结构类 ---
 
@@ -103,6 +103,7 @@ private:
 	int dseq;
 public:
 	PointTo(string bondsymbol, int sequence);
+	PointTo(const PointTo& p) : bondsym(p.bondsym), dseq(p.dseq) {}
 	~PointTo() {}
 	void Print()const { cout << "-" << bondsym << "->" << dseq; }
 	int GetDesSeq()const { return dseq; }
@@ -148,6 +149,21 @@ public:
 	NodeBonds(int nodeseq);
 	~NodeBonds() { d.clear(); }
 	void AddBond(PointTo bond);
+	void DeleteBondByIndex(int index)
+	{
+		d.erase(d.begin() + index);
+	}
+	void DeleteBondByDSeq(int dseq)
+	{
+		for (int i = 0; i < d.size(); i++)
+		{
+			if (d[i].GetDesSeq() == dseq)
+			{
+				d.erase(d.begin() + i);
+				break;
+			}
+		}
+	}
 	int CountBound();
 	void Print(string sep = "\t")const;
 	vector<PointTo> GetBonds()const;
@@ -165,6 +181,7 @@ private:
 	string com_smiles;
 	string can_smiles;
 	bool has_circle;
+	bool has_specialbond;
 
 	void ProcessAtom(vector<MNode>& ntb, vector<NodeBonds>& btb, const vector<Atom>& etb, const string& c);
 	int CircleMatch(int*& table, int nodeseq, int circleseq);
@@ -176,7 +193,7 @@ public:
 	Mole(const Mole& m);
 	Mole(const vector<Atom>& etb, const vector<SimpleMNode>& sn_tb, const vector<AdjLine>& adj_list);
 	Mole():
-		nodetb(vector<MNode>()), bondtb(vector<NodeBonds>()), sortedtb(vector<bool>()), ranktb(vector<int>()), com_smiles(""), can_smiles(""), has_circle(false)
+		nodetb(vector<MNode>()), bondtb(vector<NodeBonds>()), sortedtb(vector<bool>()), ranktb(vector<int>()), com_smiles(""), can_smiles(""), has_circle(false),has_specialbond(false)
 	{
 	}
 	void PrintOriRank();
@@ -191,16 +208,19 @@ public:
 	int ComplexSortByRank(const vector<PrimeNumber>& ptb);
 	void MoleSortWithPN(const vector<PrimeNumber>& ptb, bool printyes = false);
 	string GenerateCanSmiles(const vector<PrimeNumber>&);
+	string Mole::GenerateCanSmilesNoCircle(const vector<PrimeNumber>& primetable);
 
 	string GetComSmiles()const { return com_smiles; }
 	string GetCanSmiles();
 	bool HasCircle()const { return has_circle; }
+	bool HasSpecialBond()const { return has_specialbond; }
 	vector <MNode> GetNodeTable()const {
 		return nodetb;
 	}
 	vector <NodeBonds> GetBondTable()const {
 		return bondtb;
 	}
+
 };
 // --- 辅助函数 ---
 int ExpandBondTb(ADJ_LIST& new_bond_tb, const ADJ_LIST& old_bond_tb, const vector<MNode>& mnode_tb);

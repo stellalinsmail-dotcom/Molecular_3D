@@ -95,9 +95,10 @@ using namespace std;
 
 #define MMFF_CSV_FOLDER "File/Values/MMFF94_CSV/"
 #define SP_FOLDER "File/Values/C_SP_CSV/"
-#define MMFF_OUTPUT_FOLDER "File/Output/"
+#define MMFF_OUTPUT_FOLDER "File/Output/CSV/"
 #define JSON_OUTPUT_FOLDER "File/OutputOpt/Json"
 #define OPT_OUTPUT_FOLDER "File/OutputOpt/"
+#define OPT_TIME_FOLDER "File/OutputOpt/TimeRecord/"
 
 #define BS_FILENAME  "6_MMFFBOND.csv"
 #define AB_FILENAME "8_MMFFANG.csv"
@@ -108,10 +109,12 @@ using namespace std;
 
 #define MSYM_FILENAME "1_MMFFSYMB.csv"
 #define OPT_REC_FILENAME "AlphaOptRecord.csv"
+#define OPT_COPY_FILENAME "CopyRecord.csv"
 
 #define PI 3.14159265358979323846
 #define PI_HALF 1.57079632679489661923
 #define PI_DOUBLE 6.2831853071795864769252
+#define PI_270 4.71238898038468985769
 #define cosd(x) cos(x * PI / 180.0)
 #define sind(x) sin(x * PI / 180.0)
 #define acosd(x) (180.0 / PI) * acos(x)
@@ -169,9 +172,22 @@ using namespace std;
 #define MAX_ADJ_NODE_SIZE 6
 #define OPT_RATIO 0.618
 
+// --- 优化记录结构体 ---
+struct OptimizationRecord {
+	double time_ms;           // 时间（毫秒）
+	long long iteration_count;      // 优化次数
+	double min_energy;        // 最低能量
 
+	OptimizationRecord(double t, long long iter, double e)
+		: time_ms(t), iteration_count(iter), min_energy(e) {
+	}
+};
 
-
+// 输出运算符重载（用于CSV导出）
+inline ostream& operator<<(ostream& os, const OptimizationRecord& rec) {
+	os << rec.time_ms << "," << rec.iteration_count << "," << rec.min_energy;
+	return os;
+}
 
 // --- 文件路径处理 ---
 inline string GetMMFFPath(string filename)

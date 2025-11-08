@@ -187,7 +187,7 @@ public:
 		oy = Cross(oz, ox);
 		oy.Normalize();
 	}
-	CoordSys3(Vec3 oz,Vec3 ox_ref):ox(), oy(), oz(oz)
+	CoordSys3(Vec3 vec_oz,Vec3 ox_ref):ox(), oy(), oz(vec_oz)
 	{
 		oz.Normalize();
 		oy = Cross(oz, ox_ref);

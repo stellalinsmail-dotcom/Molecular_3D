@@ -49,7 +49,7 @@
 #define SEP_SYMBOL '-'
 
 #define ATOM_TITLE "Symbol,Number,Mass,Valence"
-#define MNODE_TITLE "Seq,Element,IsAroma,CCount,CHCount,NHBC,CharSym,CharVal,MType"
+#define MNODE_TITLE "Seq,Element,IsAroma,CCount,CHCount,NHBC,MINH,CharSym,CharVal,MType"
 #define ADJ_TITLE "Seq1,Seq2,BondSym"
 
 using namespace std;
@@ -303,7 +303,7 @@ private:
 	int minhcount;//最少氢数（来自SMILES格式限定）
 	bool csym; //电荷符号
 	int cval; //电荷绝对值
-	unsigned int rank;
+	unsigned long long rank;
 	int mtype;
 
 public:
@@ -324,6 +324,7 @@ public:
 	void AddHydAtom(int n)
 	{
 		minhcount += n;
+		//cout << "Part2" << minhcount << endl;
 	}
 	int CalConHyd() {
 		chcount = max(e.GetHigherVal(ccount + minhcount) - ccount - (2 * csym - 1) * cval, minhcount);
@@ -338,13 +339,25 @@ public:
 			PrintTableTitle(MNODE_TITLE);
 			cout << endl;
 		}
-		cout << seq << sep << e.GetSym() << sep << isa << sep << ccount << sep << chcount << sep << nhbcount << sep << csym << sep << cval << sep << mtype << endl;
+		cout << seq+1 << sep << e.GetSym() << sep << isa << sep << ccount << sep << chcount << sep << nhbcount << sep << csym << sep << cval << sep << mtype << endl;
 	}
-	unsigned long int GetOriRank()
+	//unsigned long long GetOriRank()
+	//{
+	//	unsigned long long r = 0;
+	//	r = ccount;
+	//	r = r << NH_UNIT + nhbcount;
+	//	r = r << AN_UNIT + e.GetNum();
+	//	r = r << CS_UNIT + csym;
+	//	r = r <<CV_UNIT + cval;
+	//	r = r <<CH_UNIT + chcount;
+	//	rank = r;
+	//	return r;
+	//}
+	unsigned long long GetOriRank()
 	{
-		unsigned int r = 0;
+		unsigned long long r = 0;
 		r = ccount;
-		r = r * pow(10, NH_UNIT) + nhbcount;
+		r = r * pow(10,NH_UNIT) + nhbcount;
 		r = r * pow(10, AN_UNIT) + e.GetNum();
 		r = r * pow(10, CS_UNIT) + csym;
 		r = r * pow(10, CV_UNIT) + cval;
@@ -362,7 +375,7 @@ public:
 	//	rank = r;
 	//}
 	friend ostream& operator<<(ostream& out, const MNode& m) {
-		out << m.seq << "," << m.e.GetSym() << "," << m.isa << "," << m.ccount << "," << m.chcount << "," << m.nhbcount << "," << m.csym << "," << m.cval << "," << m.mtype << "," << endl;
+		out << m.seq+1 << "," << m.e.GetSym() << "," << m.isa << "," << m.ccount << "," << m.chcount << "," << m.nhbcount << "," << m.minhcount <<"," << m.csym << "," << m.cval << "," << m.mtype << "," << endl;
 		return out;
 	}
 };
@@ -379,7 +392,7 @@ public:
 	int GetDesSeq()const { return dseq; }
 	string GetBondSymbol()const { return bondsym; }
 	friend ostream& operator<<(ostream& out, const PointTo& p) {
-		out << p.dseq << "," << p.bondsym;
+		out << p.dseq+1 << "," << p.bondsym;
 		return out;
 	}
 };
@@ -417,7 +430,8 @@ public:
 	friend ostream& operator<<(ostream& out, const NodeBonds& n) {
 		for (auto& a : n.d)
 		{
-			out << n.nseq << "," << a << endl;
+			if (a.GetDesSeq()>n.nseq)
+			out << n.nseq+1 << "," << a << endl;
 		}
 		return out;
 	}
@@ -482,19 +496,25 @@ void ProcessAtom(vector<MNode>& ntb, vector<NodeBonds>& btb, const vector<Atom>&
 			endpos--;
 		}
 	}
-	if (IsNumber(c[endpos])) { chcount += int(c[endpos] - '0'); endpos--; }
+	int  minhcount = 0;
+	if (IsNumber(c[endpos])) {
+		
+		minhcount = int(c[endpos] - '0');
+		//cout << "MINH: " << minhcount << endl;
+		chcount += minhcount; endpos--; }
 	int hcount = 0;
 	bool hexist = false;
 	if (c[endpos] == 'H')
 	{
 		endpos--;
 		hexist = true;
+		hcount = 1;
 	}
-	if (IsNumber(c[endpos]))
-	{
-		endpos--;
-		hcount = int(c[endpos] - '0');
-	}
+	//if (IsNumber(c[endpos]))
+	//{
+	//	endpos--;
+	//	hcount = int(c[endpos] - '0');
+	//}
 	string esym = c.substr(startpos, endpos - startpos + 1);
 	Atom e(SearchAtom(etb, esym));
 	//cout << "searCH: " << c.substr(startpos, endpos - startpos+1) << endl;
@@ -506,7 +526,7 @@ void ProcessAtom(vector<MNode>& ntb, vector<NodeBonds>& btb, const vector<Atom>&
 	bool isaroma = false;
 	if (IsLowerLetter(esym[0])) isaroma = true;
 	ntb.push_back(MNode(seq, e, isaroma, 0, 0, chcount, chargesym, chargeval));
-	if (hexist) ntb[seq].AddHydAtom(hcount);
+	ntb[seq].AddHydAtom(max(minhcount,hcount));
 	btb.push_back(NodeBonds(seq));
 	//ntb[seq].CalConHyd();
 }
@@ -779,7 +799,7 @@ public:
 		{
 			//vector<PointTo> b(a.GetBonds());
 			if (i != 0) cout << "-";
-			cout << a;
+			cout << a+1;
 			i++;
 		}
 		cout << endl;
@@ -788,7 +808,7 @@ public:
 	{
 		//cout << "size: " << ranktb.size() << endl;
 		int i = 0;
-		for (auto& a : sortedtb)
+		for (const auto& a : sortedtb)
 		{
 			//vector<PointTo> b(a.GetBonds());
 			if (i != 0) cout << "-";
@@ -1250,13 +1270,15 @@ int main()
 		if (savechoice == 'Y' || savechoice == 'y')
 		{
 			string cs = c.GetCanSmiles();
-			Mole d(atomtable, cs);
+			//Mole d(atomtable, cs);
 			const string folderpath = output_folder + "/" + cs;
 			if (!CreateFolder(folderpath)) {
 				cout << "文件夹创建失败！可能已存在。\n";
 				char savechoice2;
-				cin >> savechoice2;
+				
 				cout << "是否要继续覆盖节点信息表及邻接表？(Y/N)";
+
+				cin >> savechoice2;
 				if (!(savechoice2 == 'Y' || savechoice2 == 'y'))
 				{
 					continue;
@@ -1266,10 +1288,10 @@ int main()
 			string atomtable_filename = folderpath + "/AtomTable.csv";
 			string bondtable_filename = folderpath + "/BondTable.csv";
 			PrintCmdSepTitle("节点表储存");
-			WriteTable<MNode>(atomtable_filename, MNODE_TITLE, d.GetNodeTable(), true);
+			WriteTable<MNode>(atomtable_filename, MNODE_TITLE, c.GetNodeTable(), true);
 			cout << "节点表已储存至 " << atomtable_filename << endl;
 			PrintCmdSepTitle("邻接表储存");
-			WriteTable<NodeBonds>(bondtable_filename, ADJ_TITLE, d.GetBondTable(), true);
+			WriteTable<NodeBonds>(bondtable_filename, ADJ_TITLE, c.GetBondTable(), true);
 			cout << "邻接表已储存至 " << bondtable_filename << endl;
 		}
 	}

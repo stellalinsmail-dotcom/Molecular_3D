@@ -50,7 +50,7 @@ void MNode::Print(string sep, bool title_state)const
 }
 unsigned long int MNode::GetOriRank()
 {
-	unsigned int r = 0;
+	unsigned long int r = 0;
 	r = ccount;
 	r = r * (unsigned long int)pow(10, NH_UNIT) + nhbcount;
 	r = r * (unsigned long int)pow(10, AN_UNIT) + e.GetNum();
@@ -136,10 +136,10 @@ bool SortRankCmp(BinRank a, BinRank b)
 
 // --- PrimeNumber 实现 ---
 PrimeNumber::PrimeNumber(int n) :pn(n) {}
-PrimeNumber::PrimeNumber(vector<int> v) { if (!v.empty()) pn = v[0]; else pn = 0; }
-PrimeNumber::PrimeNumber(vector<string> vs) { if (!vs.empty()) pn = atoi(vs[0].c_str()); else pn = 0; }
-PrimeNumber::PrimeNumber(vector<string> vs, vector<int> seq) :PrimeNumber(vs) {}
-void PrimeNumber::Print(const string sep)const
+PrimeNumber::PrimeNumber(const vector<int>& v) { if (!v.empty()) pn = v[0]; else pn = 0; }
+PrimeNumber::PrimeNumber(const vector<string>& vs) { if (!vs.empty()) pn = atoi(vs[0].c_str()); else pn = 0; }
+PrimeNumber::PrimeNumber(const vector<string>& vs, const vector<int>& seq) :PrimeNumber(vs) {}
+void PrimeNumber::Print(string sep)const
 {
 	cout << pn << endl;
 }
@@ -147,7 +147,7 @@ void PrimeNumber::Print(const string sep)const
 // --- TreeNode 实现 ---
 TreeNode::TreeNode(string bondsymbol, int accordvalue, int sequence, bool isfirstchild) :bondsym(bondsymbol), accordval(accordvalue), seq(sequence), isfc(isfirstchild) {}
 TreeNode::TreeNode(const TreeNode& tn) :bondsym(tn.bondsym), accordval(tn.accordval), seq(tn.seq), isfc(tn.isfc) {}
-bool SortTreeNodeCmp(TreeNode a, TreeNode b)
+bool SortTreeNodeCmp(const TreeNode& a, const TreeNode& b)
 {
 	return a.GetAccordValue() < b.GetAccordValue();
 }
@@ -249,7 +249,7 @@ void Mole::ProcessCircleNumber(vector<string>& s, vector<vector<int>>& v, const 
 
 
 // --- Mole 核心实现 ---
-Mole::Mole(const vector<Atom>& etb, const string& smiles) :com_smiles(smiles),has_circle(false)
+Mole::Mole(const vector<Atom>& etb, const string& smiles) :com_smiles(smiles), has_circle(false),has_specialbond(false)
 {
 	vector<PreNode> p;
 	int* rec = new int[1000];
@@ -353,14 +353,14 @@ Mole::Mole(const vector<Atom>& etb, const string& smiles) :com_smiles(smiles),ha
 	vector<int> rtb(nodetb.size(), 0);
 	sortedtb = stb;
 	ranktb = rtb;
-	
+
 }
-Mole::Mole(const vector<MNode>& now_nodetb, const  vector<NodeBonds>& now_bondtb):
-	nodetb(now_nodetb), bondtb(now_bondtb), sortedtb(vector<bool>(nodetb.size(), 0)), ranktb(vector<int>(nodetb.size(), 0)), has_circle(false)
+Mole::Mole(const vector<MNode>& now_nodetb, const  vector<NodeBonds>& now_bondtb) :
+	nodetb(now_nodetb), bondtb(now_bondtb), sortedtb(vector<bool>(nodetb.size(), 0)), ranktb(vector<int>(nodetb.size(), 0)), has_circle(false),has_specialbond(false)
 {
 }
 Mole::Mole(const Mole& m) :
-	nodetb(m.nodetb), bondtb(m.bondtb), ranktb(m.ranktb), sortedtb(m.sortedtb), com_smiles(m.com_smiles), can_smiles(m.can_smiles), has_circle(m.has_circle)
+	nodetb(m.nodetb), bondtb(m.bondtb), ranktb(m.ranktb), sortedtb(m.sortedtb), com_smiles(m.com_smiles), can_smiles(m.can_smiles), has_circle(m.has_circle),has_specialbond(m.has_specialbond)
 {
 }
 Mole::Mole(const vector<Atom>& etb, const vector<SimpleMNode>& sn_tb, const vector<AdjLine>& adj_list)
@@ -372,6 +372,7 @@ Mole::Mole(const vector<Atom>& etb, const vector<SimpleMNode>& sn_tb, const vect
 	com_smiles = "";
 	can_smiles = "";
 	has_circle = false;
+	has_specialbond = false;
 	//处理节点表
 
 	for (const auto& sn : sn_tb)
@@ -576,8 +577,166 @@ void Mole::MoleSortWithPN(const vector<PrimeNumber>& ptb, bool printyes)
 }
 string Mole::GenerateCanSmiles(const vector<PrimeNumber>& primetable)
 {
-	if (nodetb.size()<=1) return com_smiles;
-	MoleSortWithPN(primetable,YES);
+	if (nodetb.size() <= 1) return com_smiles;
+	MoleSortWithPN(primetable, NO);
+	int rootseq;
+	for (rootseq = 0; rootseq < ranktb.size(); rootseq++)
+		if (ranktb[rootseq] == 0)
+			break;
+
+	string cs = "";
+
+	int circlecount = 0;
+	vector<vector<int>> circleint(nodetb.size());
+	vector<string> circlestr;
+	vector<int> findcounttb(ranktb.size(), -1);
+	vector<bool> firstchild(ranktb.size(), false);
+	firstchild[rootseq] = true;
+
+	//vector<bool> maintree(ranktb.size(), false);
+	//maintree[rootseq] = true;
+	//bool maintreecal = true;
+	vector<int> parenttb(ranktb.size(), -1);//用于防止环的误判
+
+	vector<NodeBonds> new_bond_tb(bondtb);
+
+	//vector<bool> endtb(ranktb.size(), false);
+	//一共两次遍历，第一次通过DFS遍历记录环的标准断开位置，第二次遍历生成can_smiles
+	for (int i = 0; i < 2; i++)
+	{
+		//PrintCmdSepTitle(to_string(i));
+		if (i == 1)ProcessCircleNumber(circlestr, circleint, findcounttb);
+		vector<TreeNode> treetb;
+		treetb.push_back(TreeNode("-", 0, rootseq, true));
+
+		vector<bool> recordtb(ranktb.size(), false);//用于记录节点是否已被遍历
+		treetb.back().SetFirstChild();
+
+		//recordtb[rootseq] = true;//
+
+		int leftbracketcount = 0;
+
+		//int oldseq = -1;
+		int findcount = 0;
+		while (!treetb.empty())
+		{
+			TreeNode top(treetb.back());
+			int topseq = top.GetSeq();
+			treetb.pop_back();
+
+			if (recordtb[topseq]) continue;
+			recordtb[topseq] = true;
+
+			findcounttb[findcount] = topseq;
+			findcount++;
+
+			vector<PointTo> ptb(new_bond_tb[topseq].GetBonds());
+			vector<TreeNode> drtb;
+			//int count = 0;
+
+			//cout << top.GetBondSymbol() << ranktb[topseq] << endl;
+			//int max_dseq = ptb.back().GetDesSeq();
+			//int summain = 0;
+			for (auto& a : ptb)
+			{
+				int dseq = a.GetDesSeq();
+				if (!recordtb[dseq])
+				{
+					if (i == 0) parenttb[dseq] = topseq;
+					int addnum = IsSpecialBond(a.GetBondSymbol());
+					if (addnum > 0) addnum += ranktb.size();
+					drtb.push_back(TreeNode(a.GetBondSymbol(), ranktb[dseq] - addnum, dseq));
+					//cout << "accval: " << a.GetBondSymbol() << ranktb[dseq] << " " << ranktb[dseq] - addnum << endl;
+					//else drtb.push_back(TreeNode(a.GetBondSymbol(), ranktb[dseq] -(maintree[dseq]) ? max_dseq : 0  , dseq));
+					//summain += maintree[dseq];
+				}
+				else if (i == 0 && parenttb[topseq] != dseq)
+				{
+					has_circle = true;
+					circlecount++;
+					circleint[topseq].push_back(circlecount);
+					circleint[dseq].push_back(circlecount);
+					new_bond_tb[topseq].DeleteBondByDSeq(dseq);
+					new_bond_tb[dseq].DeleteBondByDSeq(topseq);
+					//cout << "Delete: " << ranktb[topseq] << " " << ranktb[dseq] << " " << a.GetBondSymbol() << endl;
+				}
+			}
+			//oldseq = topseq;
+			//if (count) cout << endl;
+			if (i == 1)
+			{
+				//cout << top.GetBondSymbol() << ranktb[topseq] << endl;
+
+				if (!firstchild[topseq]) { cs += "("; leftbracketcount++; };
+				//cout << top.GetBondSymbol() << endl;
+				if (top.GetBondSymbol() == DOUBLE_BOND) { cs += DOUBLE_BOND; has_specialbond = true;// PrintCmdSepTitle("special!");
+				}
+				else if (top.GetBondSymbol() == TRIPLE_BOND) { cs += TRIPLE_BOND; has_specialbond = true; //PrintCmdSepTitle("special!");
+				}
+				if (nodetb[topseq].IsAroma()) cs += StringLower(nodetb[topseq].GetSym());
+				else {
+
+					cs += nodetb[topseq].GetSym();
+				}
+
+				cs += circlestr[topseq];
+
+			}
+			if (drtb.empty())
+			{
+				//cout << "NodeEnd!" << endl;
+				//maintreecal = false;
+				//cout << "Empty! LeftBracketCount: "<< leftbracketcount<<endl;
+				//if (i == 1) endtb[topseq] = true;
+				if (leftbracketcount != 0 && i == 1) { cs += ")"; leftbracketcount--; }
+				continue;
+			}
+
+
+			sort(drtb.begin(), drtb.end(), SortTreeNodeCmp);
+
+			//cout << "FirstChild: " << drtb.back().IsFirstChild() << endl;
+			if (i == 0)
+			{
+				//第一次记录，目标是找到主链和环
+				//drtb.back().SetFirstChild();//秩最低为主链
+				//if (maintreecal) maintree[drtb[0].GetSeq()] = true;
+				
+				firstchild[drtb[0].GetSeq()] = true;
+				//cout << "setFirst: " << ranktb[drtb[0].GetSeq()] << endl;
+				//cout << "LeftNode: ";
+				for (int j = drtb.size() - 1; j >= 0; j--)
+				{
+					//cout << drtb[j].GetBondSymbol() << ranktb[drtb[j].GetSeq()] << " ";
+					treetb.push_back(drtb[j]);//先遍历秩最低
+				}
+				//cout << endl;
+			}
+			else {
+				//cout << "LeftNode: ";
+				for (int j = 0; j < drtb.size(); j++)
+				{
+					//cout << drtb[j].GetBondSymbol() << ranktb[drtb[j].GetSeq()] << " ";
+					treetb.push_back(drtb[j]);//先遍历秩最高
+				}
+
+			}
+			//cout <<"左括号数：" << leftbracketcount << endl;
+			//cout << endl << cs << endl << endl;
+		}
+		if (i == 1 && leftbracketcount != 0) cs += string(leftbracketcount, ')');
+	}
+	//PrintCommonVector(maintree);
+	//cout << cs << endl;
+	can_smiles = DeleteExtraBracket(cs);
+
+	return can_smiles;
+}
+
+string Mole::GenerateCanSmilesNoCircle(const vector<PrimeNumber>& primetable)
+{
+	if (nodetb.size() <= 1) return com_smiles;
+	MoleSortWithPN(primetable, NO);
 	int rootseq;
 	for (rootseq = 0; rootseq < ranktb.size(); rootseq++)
 		if (ranktb[rootseq] == 0)
@@ -620,16 +779,16 @@ string Mole::GenerateCanSmiles(const vector<PrimeNumber>& primetable)
 			vector<TreeNode> drtb;
 			//int count = 0;
 
-			int max_dseq = ptb.back().GetDesSeq();
+			//int max_dseq = ptb.back().GetDesSeq();
 			for (auto& a : ptb)
 			{
 				int dseq = a.GetDesSeq();
 				if (!recordtb[dseq])
 				{
 					parenttb[dseq] = topseq;
-					int addnum = IsSpecialBond(a.GetBondSymbol());
-					if (addnum) addnum += max_dseq;
-					drtb.push_back(TreeNode(a.GetBondSymbol(), ranktb[dseq] - addnum,dseq));
+					//int addnum = IsSpecialBond(a.GetBondSymbol());
+					//if (addnum) addnum += ranktb.size();
+					drtb.push_back(TreeNode(a.GetBondSymbol(), ranktb[dseq], dseq));
 				}
 				else if (i == 0 && parenttb[topseq] != dseq)
 				{
@@ -676,6 +835,108 @@ string Mole::GenerateCanSmiles(const vector<PrimeNumber>& primetable)
 
 	return can_smiles;
 }
+//string Mole::GenerateCanSmiles(const vector<PrimeNumber>& primetable)
+//{
+//	if (nodetb.size() <= 1) return com_smiles;
+//	MoleSortWithPN(primetable);
+//	int rootseq;
+//	for (rootseq = 0; rootseq < ranktb.size(); rootseq++)
+//		if (ranktb[rootseq] == 0)
+//			break;
+//
+//	string cs = "";
+//
+//	int circlecount = 0;
+//	vector<vector<int>> circleint(nodetb.size());
+//	vector<string> circlestr;
+//	vector<int> findcounttb(ranktb.size(), -1);
+//	//vector<bool> endtb(ranktb.size(), false);
+//	//一共两次遍历，第一次通过DFS遍历记录环的标准断开位置，第二次遍历生成can_smiles
+//	for (int i = 0; i < 2; i++)
+//	{
+//		if (i == 1)ProcessCircleNumber(circlestr, circleint, findcounttb);
+//		vector<TreeNode> treetb;
+//		treetb.push_back(TreeNode("-", 0, rootseq, true));
+//
+//		vector<bool> recordtb(ranktb.size(), false);//用于记录节点是否已被遍历
+//		vector<int> parenttb(ranktb.size(), -1);//用于防止环的误判
+//		//recordtb[rootseq] = true;//
+//
+//		int leftbracketcount = 0;
+//
+//		//int oldseq = -1;
+//		int findcount = 0;
+//		while (!treetb.empty())
+//		{
+//			TreeNode top(treetb.back());
+//			int topseq = top.GetSeq();
+//			treetb.pop_back();
+//
+//			if (recordtb[topseq]) continue;
+//			recordtb[topseq] = true;
+//			findcounttb[findcount] = topseq;
+//			findcount++;
+//
+//			vector<PointTo> ptb(bondtb[topseq].GetBonds());
+//			vector<TreeNode> drtb;
+//			//int count = 0;
+//
+//			//int max_dseq = ptb.back().GetDesSeq();
+//			for (auto& a : ptb)
+//			{
+//				int dseq = a.GetDesSeq();
+//				if (!recordtb[dseq])
+//				{
+//					parenttb[dseq] = topseq;
+//					int addnum = IsSpecialBond(a.GetBondSymbol());
+//					if (addnum) addnum += ranktb.size();
+//					drtb.push_back(TreeNode(a.GetBondSymbol(), ranktb[dseq] - addnum, dseq));
+//				}
+//				else if (i == 0 && parenttb[topseq] != dseq)
+//				{
+//					has_circle = true;
+//					circlecount++;
+//					circleint[topseq].push_back(circlecount);
+//					circleint[dseq].push_back(circlecount);
+//				}
+//			}
+//			//oldseq = topseq;
+//			//if (count) cout << endl;
+//			if (i == 1)
+//			{
+//				if (!top.IsFirstChild()) { cs += "("; leftbracketcount++; };
+//				//cout << top.GetBondSymbol() << endl;
+//				if (top.GetBondSymbol() == DOUBLE_BOND) cs += DOUBLE_BOND;
+//				else if (top.GetBondSymbol() == TRIPLE_BOND) cs += TRIPLE_BOND;
+//				if (nodetb[topseq].IsAroma()) cs += StringLower(nodetb[topseq].GetSym());
+//				else cs += nodetb[topseq].GetSym();
+//
+//				cs += circlestr[topseq];
+//			}
+//			if (drtb.empty())
+//			{
+//				//cout << "Empty! LeftBracketCount: "<< leftbracketcount<<endl;
+//				//if (i == 1) endtb[topseq] = true;
+//				if (leftbracketcount != 0 && i == 1) { cs += ")"; leftbracketcount--; }
+//				continue;
+//			}
+//			sort(drtb.begin(), drtb.end(), SortTreeNodeCmp);
+//			drtb[0].SetFirstChild();//秩最高为主链
+//			//cout << "FirstChild: " << drtb.back().IsFirstChild() << endl;
+//			for (int j = drtb.size() - 1; j >= 0; j--)
+//			{
+//				treetb.push_back(drtb[j]);//先遍历秩最低
+//			}
+//			//cout <<"左括号数：" << leftbracketcount << endl;
+//		}
+//		if (i == 1 && leftbracketcount != 0) cs += string(leftbracketcount, ')');
+//	}
+//
+//	can_smiles = DeleteExtraBracket(cs);
+//
+//	return can_smiles;
+//}
+
 string Mole::GetCanSmiles()
 {
 	//if (can_smiles.empty()) can_smiles = GenerateCanSmiles();
@@ -683,10 +944,10 @@ string Mole::GetCanSmiles()
 }
 
 // --- 辅助函数实现 ---
-vector<AdjLine> BondTbToAdjTb(const vector<NodeBonds> & bond_tb)
+vector<AdjLine> BondTbToAdjTb(const vector<NodeBonds>& bond_tb)
 {
 	vector<AdjLine> adj_tb;
-	for (int i=0;i<bond_tb.size();i++)
+	for (int i = 0; i < bond_tb.size(); i++)
 	{
 		vector<PointTo> pto_tb = bond_tb[i].GetBonds();
 		for (auto& pto : pto_tb)
@@ -706,7 +967,7 @@ int ExpandBondTb(ADJ_LIST& new_bond_tb, const ADJ_LIST& old_bond_tb, const vecto
 {
 	new_bond_tb = old_bond_tb;
 	int nhc = mnode_tb.size();
-	
+
 	int now_hseq = nhc;
 	for (int i = 0; i < nhc; i++)
 	{
@@ -718,7 +979,7 @@ int ExpandBondTb(ADJ_LIST& new_bond_tb, const ADJ_LIST& old_bond_tb, const vecto
 			new_bond_tb[i].AddBond(ch);
 			now_hseq++;
 		}
-		
+
 	}
 	return now_hseq;
 
@@ -786,7 +1047,7 @@ string DeleteHydrogen(string smiles)
 
 int IsSpecialBond(const string& bondsym)
 {
-	if (bondsym == DOUBLE_BOND|| bondsym == AROMA_BOND) return 2;
+	if (bondsym == DOUBLE_BOND || bondsym == AROMA_BOND) return 2;
 	if (bondsym == TRIPLE_BOND) return 3;
 	return 0;
 }

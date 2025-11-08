@@ -45,15 +45,27 @@ vector<double> AlphaOptRough(bool has_circle, double& alpha_energy, XYZ_TB& xyz_
 
 	return alpha_tb;
 }
-vector<double> AlphaOpt(bool has_circle, double& alpha_energy, XYZ_TB& xyz_tb, const SP_SpTable& all_sp_tb, EnergySolidParam& esp, bool detail_print = false)
+vector<double> AlphaOpt(bool has_circle, double& alpha_energy, XYZ_TB& xyz_tb, const SP_SpTable& all_sp_tb, EnergySolidParam& esp, bool detail_print = false,string now_smiles="")
 {
+
+
+	
 	LARGE_INTEGER frequency;
 	QueryPerformanceFrequency(&frequency);
 	LARGE_INTEGER start, stop;
 	QueryPerformanceCounter(&start);
 	//------------------------------**计时开始**------------------------------
 
+	vector<OptimizationRecord> opt_records;
+	LARGE_INTEGER last_record_time = start;
+	const double record_interval_ms = 0.1;  // 记录间隔（毫秒）
+	long long total_iteration_count = 0;          // 总迭代次数
+	double current_min_energy = INFINITY;   // 当前最低
+
+
 	int nhc = esp.short_adj_list.size();
+
+
 
 	int turn1count = 0;
 	int rough_turncount = 0;
@@ -62,6 +74,27 @@ vector<double> AlphaOpt(bool has_circle, double& alpha_energy, XYZ_TB& xyz_tb, c
 	vector<double> old_alpha_tb(nhc, 0);
 	vector<double> new_alpha_tb(nhc, PI);
 	new_alpha_tb[0] = 0;
+
+
+	int cyc = 0;
+	for (int i = 0; i < nhc; i++)
+	{
+		//bool continue_yes = false;
+		vector<PointTo> nb_node = esp.short_adj_list[i].GetBonds();
+		for (int j = 0; j < nb_node.size(); j++)
+		{
+			int child = nb_node[j].GetDesSeq();
+			string bond_sym = nb_node[j].GetBondSymbol();
+			if (child < i && IsSpecialBond(bond_sym))
+			{
+				//continue_yes = true;
+				cyc++;
+				break;
+			}
+		}
+		//if (continue_yes) continue;
+	}
+	if (cyc == nhc - 1) return old_alpha_tb;
 
 
 	vector<double> rec_asep_tb = GetAlphaSepTable(esp.short_adj_list);
@@ -81,7 +114,7 @@ vector<double> AlphaOpt(bool has_circle, double& alpha_energy, XYZ_TB& xyz_tb, c
 	const double acc_energy = 1e-2;
 	const double acc_angle = 1e-3;
 
-	const int angle_half_turn = nhc * 5;
+	const int angle_half_turn = min(nhc * 5, 20);
 	const int print_turn = 20;
 
 	double old_energy_a = INFINITY;
@@ -92,11 +125,11 @@ vector<double> AlphaOpt(bool has_circle, double& alpha_energy, XYZ_TB& xyz_tb, c
 	bool break_yes_a = false;
 
 	const int max_rough_turn = 10;
-	const int max_rough_big_turn = nhc*100;
+	const int max_rough_big_turn = nhc * 100;
 
 	double rough_min_energy = INFINITY;
 	vector<double> rough_min_alpha_tb = old_alpha_tb;
-
+	bool rough_big_break_yes = false;
 AlphaOpt1:
 	{
 		// --- alpha 第一次优化 粗略 ---
@@ -127,15 +160,49 @@ AlphaOpt1:
 				new_alpha_tb = old_alpha_tb;
 				wait_turn_count++;
 			}
+
+			total_iteration_count++;
+			if (new_energy_a < current_min_energy) {
+				current_min_energy = new_energy_a;
+			}
+
+			LARGE_INTEGER current_time;
+			QueryPerformanceCounter(&current_time);
+			double elapsed_ms = (current_time.QuadPart - last_record_time.QuadPart) * 1000.0 / frequency.QuadPart;
+
+			if (elapsed_ms >= record_interval_ms) {
+				double total_time_ms = (current_time.QuadPart - start.QuadPart) * 1000.0 / frequency.QuadPart;
+				opt_records.push_back(OptimizationRecord(total_time_ms, total_iteration_count, current_min_energy));
+				last_record_time = current_time;
+			}
+
 			//生成一个随机数列，打乱优化顺序
 			vector<int> rand_seq;
+			vector<bool>rec(nhc, false);
 			if (has_circle) rand_seq = GenerateRandSeq(nhc);
-
+			int continue_yes_count = 0;
 			for (int rand_i = 0; rand_i < nhc; rand_i++)
 			{
 				int i;
 				if (has_circle)i = rand_seq[rand_i];
 				else i = rand_i;
+				rec[i] = true;
+
+				//bool continue_yes = false;
+				//vector<PointTo> nb_node = esp.short_adj_list[i].GetBonds();
+				//for (int j = 0; j < nb_node.size(); j++)
+				//{
+				//	int child = nb_node[j].GetDesSeq();
+				//	string bond_sym = nb_node[j].GetBondSymbol();
+				//	if (child < nhc && rec[child] && IsSpecialBond(bond_sym))
+				//	{
+				//		new_alpha_tb[i] = old_alpha_tb[i];
+				//		continue_yes = true;
+				//		continue_yes_count++;
+				//		break;
+				//	}
+				//}
+				//if (continue_yes) continue;
 
 				double now_asep = asep_tb[i];
 				double min_energy = INFINITY;
@@ -156,6 +223,11 @@ AlphaOpt1:
 
 				} while (angle_addup < PI_DOUBLE);
 				new_alpha_tb[i] = min_angle;
+			}
+			if (continue_yes_count == nhc - 1)
+			{
+				cout << "由于全为特殊键，分子无需优化。" << endl;
+				return old_alpha_tb;
 			}
 			new_energy_a = CalSumEnergyByXYZ(NO, xyz_tb, NeedCal(), new_alpha_tb, all_sp_tb, esp);
 			if (new_energy_a < rough_min_energy)
@@ -211,8 +283,8 @@ AlphaOpt1:
 
 	//cout << "\nE: " << new_energy << endl;
 
-	vector<double> final_alpha_tb_a = new_alpha_tb;
-	double final_energy_a = new_energy;
+	vector<double> final_alpha_tb_a = rough_min_alpha_tb;
+	double final_energy_a = rough_min_energy;
 
 
 	old_alpha_tb = new_alpha_tb;
@@ -224,16 +296,19 @@ AlphaOpt1:
 	//	if (asep_tb[i] < acc_angle) asep_tb[i] = acc_angle;
 	//}
 
-	if (detail_print) cout << "粗略优化" << turn1count << "轮完成，进入精细优化阶段..." << endl;
+	if (detail_print) cout << "粗略优化" << max_rough_turn * max_rough_big_turn << "轮完成，进入精细优化阶段..." << endl;
 
 	vector<double> acc_asep_tb(nhc, acc_angle);
 
 	wait_turn_count = 0;
 
+	//return new_alpha_tb;
+
 AlphaOpt2:
 	{
 		do
 		{
+			//cout << turn2count << endl;
 			if (wait_turn_count >= wait_turn_max)
 			{
 				new_energy = old_energy;
@@ -257,14 +332,49 @@ AlphaOpt2:
 				new_alpha_tb = old_alpha_tb;
 				wait_turn_count++;
 			}
+
+			total_iteration_count++;
+			if (new_energy < current_min_energy) {
+				current_min_energy = new_energy;
+			}
+
+			LARGE_INTEGER current_time;
+			QueryPerformanceCounter(&current_time);
+			double elapsed_ms = (current_time.QuadPart - last_record_time.QuadPart) * 1000.0 / frequency.QuadPart;
+
+			if (elapsed_ms >= record_interval_ms) {
+				double total_time_ms = (current_time.QuadPart - start.QuadPart) * 1000.0 / frequency.QuadPart;
+				opt_records.push_back(OptimizationRecord(total_time_ms, total_iteration_count, current_min_energy));
+				last_record_time = current_time;
+			}
+
+
 			vector<int> rand_seq;
+			vector<bool> rec(nhc, false);
 			if (has_circle) rand_seq = GenerateRandSeq(nhc);
 
+			//int continue_yes_count = 0;
 			for (int rand_i = 0; rand_i < nhc; rand_i++)
 			{
 				int i;
 				if (has_circle)i = rand_seq[rand_i];
 				else i = rand_i;
+
+				//bool continue_yes = false;
+				//vector<PointTo> nb_node = esp.short_adj_list[i].GetBonds();
+				//for (int j = 0; j < nb_node.size(); j++)
+				//{
+				//	int child = nb_node[j].GetDesSeq();
+				//	string bond_sym = nb_node[j].GetBondSymbol();
+				//	if (child < nhc && rec[child] && IsSpecialBond(bond_sym))
+				//	{
+				//		continue_yes = true;
+				//		new_alpha_tb[i] = old_alpha_tb[i];
+				//		//continue_yes_count++;
+				//		break;
+				//	}
+				//}
+				//if (continue_yes) continue;
 
 				vector<double>now_alpha_tb = new_alpha_tb;
 				double left_angle = new_alpha_tb[i] - asep_tb[i];
@@ -281,9 +391,14 @@ AlphaOpt2:
 
 				double mid_energy = INFINITY;
 
-				while (!JudgeStop<double>({ left_energy }, { right_energy }, { acc_energy }) ||
+				int turn3count = 0;
+				while (!JudgeStop<double>({ left_energy }, { right_energy }, { acc_energy }) &&
 					!JudgeStop<double>({ left_angle }, { right_angle }, { acc_angle }))
 				{
+					turn3count++;
+					//cout <<"T3: " << turn3count << endl;
+					//cout << fixed << setprecision(4) << left_angle - right_angle << "\t" << acc_angle << endl;
+					//cout << left_energy - right_energy << "\t" << acc_energy << endl;
 					double sep_angle = (right_angle - left_angle) * OPT_RATIO;
 					double mid_left_angle = left_angle + sep_angle;
 					double mid_right_angle = right_angle - sep_angle;
@@ -307,6 +422,11 @@ AlphaOpt2:
 				}
 				new_alpha_tb[i] = (left_angle + right_angle) / 2;
 			}
+			//if (continue_yes_count == nhc)
+			//{
+			//	if (detail_print) cout << "本轮所有原子均因特殊键连接跳过优化，结束精细优化。" << endl;
+			//	break;
+			//}
 			turn2count++;
 			bool print_yes = false;
 			if (detail_print)print_yes = (turn2count % print_turn == 0);
@@ -371,9 +491,436 @@ AlphaOpt2:
 	double duration = (stop.QuadPart - start.QuadPart) * 1000.0 / 1000.0 / frequency.QuadPart;
 	cout << "\n(^-^)Alpha优化用时： " << duration << " s" << endl << endl;
 
+
+	if (!opt_records.empty()) {
+		// 添加最终记录点
+		double final_time_ms = (stop.QuadPart - start.QuadPart) * 1000.0 / frequency.QuadPart;
+		opt_records.push_back(OptimizationRecord(final_time_ms, total_iteration_count, current_min_energy));
+
+		// 生成文件名（使用当前时间戳）
+		string record_filename = OPT_TIME_FOLDER + now_smiles+"_"
+			+ GetCurrentTimeString() + ".csv";
+
+		// 保存到CSV文件
+		WriteTable(record_filename, "Time_ms,Iteration,MinEnergy", opt_records);
+		cout << "优化记录已保存至: " << record_filename << endl;
+	}
+
+	return new_alpha_tb;
+
+
+
 	return new_alpha_tb;
 }
 
+//vector<vector<double>> BetaOpt(bool has_circle, double& alpha_energy, XYZ_TB& xyz_tb, const SP_SpTable& all_sp_tb, EnergySolidParam& esp, bool detail_print = false)
+//{
+//
+//
+//
+//	LARGE_INTEGER frequency;
+//	QueryPerformanceFrequency(&frequency);
+//	LARGE_INTEGER start, stop;
+//	QueryPerformanceCounter(&start);
+//	//------------------------------**计时开始**------------------------------
+//
+//	int nhc = esp.short_adj_list.size();
+//
+//
+//
+//	int turn1count = 0;
+//	int rough_turncount = 0;
+//	int turn2count = 0;
+//	double asep = PI_HALF;
+//	double minval = -PI / 3;
+//	vector<vector<double>> old_alpha_tb(nhc, vector<double>(MAX_ADJ_NODE_SIZE,minval));
+//	vector<vector<double>> new_alpha_tb(nhc, vector<double>(MAX_ADJ_NODE_SIZE, -minval));
+//
+//
+//	int cyc = 0;
+//	for (int i = 0; i < nhc; i++)
+//	{
+//		//bool continue_yes = false;
+//		vector<PointTo> nb_node = esp.short_adj_list[i].GetBonds();
+//		for (int j = 0; j < nb_node.size(); j++)
+//		{
+//			int child = nb_node[j].GetDesSeq();
+//			string bond_sym = nb_node[j].GetBondSymbol();
+//			if (child < i && IsSpecialBond(bond_sym))
+//			{
+//				//continue_yes = true;
+//				cyc++;
+//				break;
+//			}
+//		}
+//		//if (continue_yes) continue;
+//	}
+//	if (cyc == nhc - 1) return old_alpha_tb;
+//
+//
+//	vector<double> rec_asep_tb = GetAlphaSepTable(esp.short_adj_list);
+//	vector<double> asep_tb = rec_asep_tb;
+//
+//	//PrintCmdSepTitle("sp_tb");
+//	//PrintCommonVector(asep_tb);
+//	NeedCal alpha_need_cal;
+//
+//	if (!has_circle)
+//	{
+//		alpha_need_cal = NeedCal(false, false, false, false, true, true);
+//	}
+//
+//	double start_energy = CalSumEnergyByXYZ(NO, xyz_tb, NeedCal(), new_alpha_tb, all_sp_tb, esp);
+//
+//	const double acc_energy = 1e-2;
+//	const double acc_angle = 1e-3;
+//
+//	const int angle_half_turn = min(nhc * 5, 20);
+//	const int print_turn = 20;
+//
+//	double old_energy_a = INFINITY;
+//	double new_energy_a = start_energy;
+//
+//	const int wait_turn_max = min(nhc * 2, 30);
+//	int wait_turn_count = 0;
+//	bool break_yes_a = false;
+//
+//	const int max_rough_turn = 10;
+//	const int max_rough_big_turn = nhc * 100;
+//
+//	double rough_min_energy = INFINITY;
+//	vector<double> rough_min_alpha_tb = old_alpha_tb;
+//	bool rough_big_break_yes = false;
+//AlphaOpt1:
+//	{
+//		// --- alpha 第一次优化 粗略 ---
+//		while (!JudgeStop(new_alpha_tb, old_alpha_tb, asep_tb))
+//		{
+//			if (wait_turn_count >= wait_turn_max)
+//			{
+//				if (detail_print) cout << "等待超过最大轮次，结束粗略优化。" << endl;
+//				new_energy_a = old_energy_a;
+//				new_alpha_tb = old_alpha_tb;
+//
+//				break_yes_a = true;
+//				break;
+//			}
+//			if (new_energy_a <= old_energy_a)
+//			{
+//				//for (int i = 0; i < nhc; i++)
+//				//{
+//				//	new_alpha_tb[i] = fmod((new_alpha_tb[i] + old_alpha_tb[i]) / 2,PI_DOUBLE);
+//				//}
+//				old_alpha_tb = new_alpha_tb;
+//				old_energy_a = new_energy_a;
+//				wait_turn_count = 0;
+//			}
+//			else
+//			{
+//				new_energy_a = old_energy_a;
+//				new_alpha_tb = old_alpha_tb;
+//				wait_turn_count++;
+//			}
+//			//生成一个随机数列，打乱优化顺序
+//			vector<int> rand_seq;
+//			vector<bool>rec(nhc, false);
+//			if (has_circle) rand_seq = GenerateRandSeq(nhc);
+//			int continue_yes_count = 0;
+//			for (int rand_i = 0; rand_i < nhc; rand_i++)
+//			{
+//				int i;
+//				if (has_circle)i = rand_seq[rand_i];
+//				else i = rand_i;
+//				rec[i] = true;
+//
+//				//bool continue_yes = false;
+//				//vector<PointTo> nb_node = esp.short_adj_list[i].GetBonds();
+//				//for (int j = 0; j < nb_node.size(); j++)
+//				//{
+//				//	int child = nb_node[j].GetDesSeq();
+//				//	string bond_sym = nb_node[j].GetBondSymbol();
+//				//	if (child < nhc && rec[child] && IsSpecialBond(bond_sym))
+//				//	{
+//				//		new_alpha_tb[i] = old_alpha_tb[i];
+//				//		continue_yes = true;
+//				//		continue_yes_count++;
+//				//		break;
+//				//	}
+//				//}
+//				//if (continue_yes) continue;
+//
+//				double now_asep = asep_tb[i];
+//				double min_energy = INFINITY;
+//				double min_angle = 0, now_angle = new_alpha_tb[i];
+//				double angle_addup = 0;
+//				do {
+//					new_alpha_tb[i] = now_angle;
+//					int limitpos = (has_circle) ? -1 : i;
+//					double now_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, new_alpha_tb, all_sp_tb, esp, limitpos);
+//					if (now_energy < min_energy)
+//					{
+//						min_energy = now_energy;
+//						min_angle = now_angle;
+//					}
+//
+//					angle_addup += now_asep;
+//					now_angle = fmod(now_angle + angle_addup, PI_DOUBLE);
+//
+//				} while (angle_addup < PI_DOUBLE);
+//				new_alpha_tb[i] = min_angle;
+//			}
+//			if (continue_yes_count == nhc - 1)
+//			{
+//				cout << "由于全为特殊键，分子无需优化。" << endl;
+//				return old_alpha_tb;
+//			}
+//			new_energy_a = CalSumEnergyByXYZ(NO, xyz_tb, NeedCal(), new_alpha_tb, all_sp_tb, esp);
+//			if (new_energy_a < rough_min_energy)
+//			{
+//				rough_min_energy = new_energy_a;
+//				rough_min_alpha_tb = new_alpha_tb;
+//			}
+//		}
+//		for (int i = 0; i < nhc; i++)
+//		{
+//			asep_tb[i] /= 2;
+//			if (asep_tb[i] < acc_angle) asep_tb[i] = acc_angle;
+//		}
+//		if (turn1count < max_rough_turn && !break_yes_a)
+//		{
+//			turn1count++;
+//			//cout << "粗略优化进行中，第 " << turn1count << " 轮..." << endl;
+//			goto AlphaOpt1;
+//		}
+//		rough_turncount++;
+//	}
+//	if (has_circle)
+//	{
+//		if (rough_turncount < max_rough_big_turn)
+//		{
+//			if (new_energy_a < rough_min_energy)
+//			{
+//				rough_min_energy = new_energy_a;
+//				rough_min_alpha_tb = new_alpha_tb;
+//			}
+//			rough_turncount++;
+//			asep_tb = rec_asep_tb;
+//			turn1count = 0;
+//			//cout << "粗略优化进行中，第 " << turn1count << " 轮..." << endl;
+//			goto AlphaOpt1;
+//		}
+//	}
+//	else
+//	{
+//		rough_min_energy = new_energy_a;
+//		rough_min_alpha_tb = new_alpha_tb;
+//	}
+//	// --- alpha 第二次优化 精细 ---
+//
+//
+//	new_alpha_tb = rough_min_alpha_tb;
+//
+//
+//
+//	double old_energy = INFINITY;
+//
+//	double new_energy = CalSumEnergyByXYZ(detail_print, xyz_tb, NeedCal(), new_alpha_tb, all_sp_tb, esp);
+//
+//	//cout << "\nE: " << new_energy << endl;
+//
+//	vector<double> final_alpha_tb_a = rough_min_alpha_tb;
+//	double final_energy_a = rough_min_energy;
+//
+//
+//	old_alpha_tb = new_alpha_tb;
+//
+//	asep_tb = rec_asep_tb;
+//	//for (int i = 0; i < nhc; i++)
+//	//{
+//	//	asep_tb[i] = min(asep_tb[i],PI_HALF/3);
+//	//	if (asep_tb[i] < acc_angle) asep_tb[i] = acc_angle;
+//	//}
+//
+//	if (detail_print) cout << "粗略优化" << max_rough_turn * max_rough_big_turn << "轮完成，进入精细优化阶段..." << endl;
+//
+//	vector<double> acc_asep_tb(nhc, acc_angle);
+//
+//	wait_turn_count = 0;
+//
+//	//return new_alpha_tb;
+//
+//AlphaOpt2:
+//	{
+//		do
+//		{
+//			//cout << turn2count << endl;
+//			if (wait_turn_count >= wait_turn_max)
+//			{
+//				new_energy = old_energy;
+//				new_alpha_tb = old_alpha_tb;
+//				if (detail_print) cout << "等待超过最大轮次，结束精细优化。" << endl;
+//				break;
+//			}
+//			for (int i = 0; i < nhc; i++)
+//			{
+//				new_alpha_tb[i] = fmod(new_alpha_tb[i] + PI_DOUBLE, PI_DOUBLE);
+//			}
+//			if (new_energy < old_energy)
+//			{
+//				old_alpha_tb = new_alpha_tb;
+//				old_energy = new_energy;
+//				wait_turn_count = 0;
+//			}
+//			else
+//			{
+//				new_energy = old_energy;
+//				new_alpha_tb = old_alpha_tb;
+//				wait_turn_count++;
+//			}
+//			vector<int> rand_seq;
+//			vector<bool> rec(nhc, false);
+//			if (has_circle) rand_seq = GenerateRandSeq(nhc);
+//
+//			//int continue_yes_count = 0;
+//			for (int rand_i = 0; rand_i < nhc; rand_i++)
+//			{
+//				int i;
+//				if (has_circle)i = rand_seq[rand_i];
+//				else i = rand_i;
+//
+//				//bool continue_yes = false;
+//				//vector<PointTo> nb_node = esp.short_adj_list[i].GetBonds();
+//				//for (int j = 0; j < nb_node.size(); j++)
+//				//{
+//				//	int child = nb_node[j].GetDesSeq();
+//				//	string bond_sym = nb_node[j].GetBondSymbol();
+//				//	if (child < nhc && rec[child] && IsSpecialBond(bond_sym))
+//				//	{
+//				//		continue_yes = true;
+//				//		new_alpha_tb[i] = old_alpha_tb[i];
+//				//		//continue_yes_count++;
+//				//		break;
+//				//	}
+//				//}
+//				//if (continue_yes) continue;
+//
+//				vector<double>now_alpha_tb = new_alpha_tb;
+//				double left_angle = new_alpha_tb[i] - asep_tb[i];
+//				double right_angle = new_alpha_tb[i] + asep_tb[i];
+//
+//				now_alpha_tb[i] = left_angle;
+//
+//
+//				double left_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
+//
+//				now_alpha_tb[i] = right_angle;
+//
+//				double right_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
+//
+//				double mid_energy = INFINITY;
+//
+//				int turn3count = 0;
+//				while (!JudgeStop<double>({ left_energy }, { right_energy }, { acc_energy }) &&
+//					!JudgeStop<double>({ left_angle }, { right_angle }, { acc_angle }))
+//				{
+//					turn3count++;
+//					//cout <<"T3: " << turn3count << endl;
+//					//cout << fixed << setprecision(4) << left_angle - right_angle << "\t" << acc_angle << endl;
+//					//cout << left_energy - right_energy << "\t" << acc_energy << endl;
+//					double sep_angle = (right_angle - left_angle) * OPT_RATIO;
+//					double mid_left_angle = left_angle + sep_angle;
+//					double mid_right_angle = right_angle - sep_angle;
+//
+//					now_alpha_tb[i] = mid_left_angle;
+//					double mid_left_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
+//
+//					now_alpha_tb[i] = mid_right_angle;
+//					double mid_right_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
+//
+//					if (left_energy < right_energy)
+//					{
+//						right_angle = mid_left_angle;
+//						right_energy = mid_left_energy;
+//					}
+//					else
+//					{
+//						left_angle = mid_right_angle;
+//						left_energy = mid_right_energy;
+//					}
+//				}
+//				new_alpha_tb[i] = (left_angle + right_angle) / 2;
+//			}
+//			//if (continue_yes_count == nhc)
+//			//{
+//			//	if (detail_print) cout << "本轮所有原子均因特殊键连接跳过优化，结束精细优化。" << endl;
+//			//	break;
+//			//}
+//			turn2count++;
+//			bool print_yes = false;
+//			if (detail_print)print_yes = (turn2count % print_turn == 0);
+//			if (turn2count % angle_half_turn == 0)
+//			{
+//				for (int i = 0; i < nhc; i++)
+//				{
+//					asep_tb[i] /= 2;
+//					if (asep_tb[i] < acc_angle) asep_tb[i] = acc_angle;
+//				}
+//
+//			}
+//			if (print_yes)
+//			{
+//				cout << "\n精细优化进行中，第 " << turn2count << " 轮...\n" << endl;
+//			}
+//			new_energy = CalSumEnergyByXYZ(print_yes, xyz_tb, NeedCal(), new_alpha_tb, all_sp_tb, esp);
+//			if (print_yes)
+//			{
+//				cout << "\nEnergySep: " << new_energy - old_energy << endl;
+//				//print alphasep
+//				cout << "Alpha: ";
+//				for (int i = 0; i < nhc; i++)
+//				{
+//					cout << new_alpha_tb[i] << "\t";
+//				}
+//				cout << endl;
+//
+//				cout << "AlphaSepReal ";
+//				for (int i = 0; i < nhc; i++)
+//				{
+//					double nowprintsep = abs(new_alpha_tb[i] - old_alpha_tb[i]);
+//					cout << nowprintsep << "\t";
+//				}
+//				cout << endl;
+//
+//				cout << "AlphaSep ";
+//				for (int i = 0; i < nhc; i++)
+//				{
+//					cout << asep_tb[i] << "\t";
+//				}
+//				cout << endl;
+//
+//
+//			}
+//
+//		} while (!JudgeStop<double>({ new_energy }, { old_energy }, { acc_energy }) ||
+//			!JudgeStop(new_alpha_tb, old_alpha_tb, acc_asep_tb));
+//	}
+//
+//	if (final_energy_a < new_energy) new_alpha_tb = final_alpha_tb_a;
+//
+//
+//	if (detail_print)cout << "精细优化完成，共进行 " << turn2count << " 轮。" << endl;
+//	alpha_energy = new_energy;
+//	//vector<Vec3> b_xyz_tb = CalXYZ(new_alpha_tb, pro_htb, bs_fast_tb, long_adj_list, all_sp_tb);
+//
+//	QueryPerformanceCounter(&stop);
+//
+//	//------------------------------**计时结束**------------------------------
+//
+//	double duration = (stop.QuadPart - start.QuadPart) * 1000.0 / 1000.0 / frequency.QuadPart;
+//	cout << "\n(^-^)Alpha优化用时： " << duration << " s" << endl << endl;
+//
+//	return new_alpha_tb;
+//}
 
 // 计划（伪代码）：
 // 1. 使用粒子群优化（PSO）搜索 alpha 向量的全局最优解。
@@ -510,7 +1057,6 @@ vector<double> AlphaPsoOpt(double& alpha_energy, XYZ_TB& xyz_tb, const SP_SpTabl
 	return gbest_pos;
 }
 
-
 class OptRec {
 private:
 	string smiles;
@@ -537,6 +1083,38 @@ public:
 	}
 };
 
+bool FileExists(const string& filename)
+{
+	ifstream file(filename);
+	return file.good();
+}
+
+//检查表格中记录的smiles格式对应的json文件是否存在于目录中，若不存在则删除该行记录
+void CheckJsonExist( vector<OptRec>& optrec_tb)
+{
+	vector<OptRec> valid_records;
+	string output_csv_folder = OPT_OUTPUT_FOLDER;
+	string json_folder = JSON_OUTPUT_FOLDER;
+
+	WriteTable(output_csv_folder + OPT_COPY_FILENAME, OPT_REC_TB_TITLE, optrec_tb);
+	for (const auto& record : optrec_tb) {
+		string json_filename = json_folder+"/" + record.GetIndex() + ".json";
+		//cout << "检查文件: " << json_filename << endl;
+		if (FileExists(json_filename)) {
+			valid_records.push_back(record);
+		}
+		else {
+			cout << "记录 " << record.GetIndex() << " 对应的JSON文件不存在，已删除该记录。" << endl;
+		}
+	}
+	optrec_tb = valid_records;
+	WriteTable(output_csv_folder + OPT_REC_FILENAME, OPT_REC_TB_TITLE, optrec_tb);
+	
+}
+
+
+
+
 
 
 
@@ -554,6 +1132,9 @@ int main()
 	if (ReadTableByTitle(output_csv_folder + OPT_REC_FILENAME, OPT_REC_TB_TITLE, optrec_tb) == -1) {
 		WriteTable(output_csv_folder + OPT_REC_FILENAME, OPT_REC_TB_TITLE, optrec_tb);
 	}
+	CheckJsonExist(optrec_tb);
+	//WriteTable(output_csv_folder + OPT_REC_FILENAME, OPT_REC_TB_TITLE, optrec_tb);
+
 	map<string, double> optrec_map = ChangeTableToMap<OptRec, double>(optrec_tb);
 
 
@@ -626,7 +1207,7 @@ int main()
 			PrintCmdSepTitle("第" + to_string(turncount) + "轮结构式解析");
 
 			cout << "接收到 " << requestBody.length() << " 字节JSON数据" << endl;
-	
+
 			// 解析JSON并构建分子
 			vector<SimpleMNode> sn_tb;
 			vector<AdjLine> adj_list;
@@ -639,7 +1220,7 @@ int main()
 				continue;
 			}
 
-			cout << requestBody << endl;
+			//cout << requestBody << endl;
 			Mole c;
 
 			string now_smiles;
@@ -670,12 +1251,23 @@ int main()
 				PrintCmdSepTitle("秩排序结果");
 				c.PrintOriRank();
 				c.PrintRank();
-				cout << "\n是否含环: " << (c.HasCircle() ? "是" : "否") << endl;
+				cout << "\n是否含环：" << (c.HasCircle() ? "是" : "否") << endl;
+				cout << "\n是否含特殊键：" << (c.HasSpecialBond() ? "是" : "否") << endl;
 			}
 
 			PrintCmdSepTitle("唯一SMILES生成");
 			//cout << "原SMILES：\n";
 			//cout << c.GetComSmiles() << endl << endl;
+			//cout << "唯一SMILES：\n";
+			//cout << now_smiles << endl;
+
+			if (!c.HasCircle() || !c.HasSpecialBond())
+			{
+				//Mole mid(sft.atomtable, now_smiles);
+				now_smiles = c.GenerateCanSmilesNoCircle(sft.primetable);
+				//cout << "进行转换！" << endl;
+			}
+
 			cout << "唯一SMILES：\n";
 			cout << now_smiles << endl;
 
@@ -689,6 +1281,10 @@ int main()
 			*/
 			const string folderpath = output_folder;
 
+			//string errorResponse_part = "{\"status\":\"error\",\"message\":\"未知请求路径\"}";
+			//SendHTTPResponse(clientSocket, 404, "application/json", errorResponse_part);
+			//closesocket(clientSocket);
+			//cout << "未知请求: " << method << " " << path << "\n" << endl;
 			//continue;
 
 			bool rec_find = optrec_map.find(now_smiles) != optrec_map.end();
@@ -696,8 +1292,11 @@ int main()
 
 			if (rec_find)
 			{
+				PrintCmdSepTitle("预计算数据发送");
 				string sent_json_rec = ReadJsonFile(folderpath + "/" + now_smiles + ".json");
-				string responseJson_rec = "{\n\"status\":\"precal\",\n\"data\":" + sent_json_rec + "\n}";
+				string smiles_json_part = "\"SMILES\":\"" + now_smiles + "\"";
+				string responseJson_rec = "{\n\"status\":\"precal\",\n" + smiles_json_part + ",\n\"data\":" + sent_json_rec + "\n}";
+
 				cout << "正在发送预计算3D结构数据到网页..." << endl;
 				if (SendHTTPResponse(clientSocket, 200, "application/json", responseJson_rec)) {
 					cout << "3D结构数据发送成功！" << endl;
@@ -707,11 +1306,11 @@ int main()
 					cout << "3D结构数据发送失败！" << endl;
 				}
 			}
-			
+
 
 			//---------------------------**MMFF识别**----------------------------------
 			int ac;
-			EnergySolidParam esp = GenEnergySolidParam(ac, eft, d, smiles_detail_print);
+			EnergySolidParam esp = GenEnergySolidParam(ac, eft, d, mmff_detail_print);
 			int nhc = esp.short_adj_list.size();
 			bool has_circle = c.HasCircle();
 
@@ -730,7 +1329,7 @@ int main()
 
 			XYZ_TB new_xyz_tb;
 			double alpha_energy;
-			vector<double> new_alpha_tb = AlphaOpt(has_circle, alpha_energy, new_xyz_tb, all_sp_tb, esp, mmff_detail_print);
+			vector<double> new_alpha_tb = AlphaOpt(has_circle, alpha_energy, new_xyz_tb, all_sp_tb, esp, mmff_detail_print,now_smiles);
 
 			cout << "优化完成！\n";
 
@@ -744,12 +1343,16 @@ int main()
 				final_energy = before_energy;
 				new_xyz_tb = old_xyz_tb;
 			}
-
+			//string errorResponse = "{\"status\":\"error\",\"message\":\"未知请求路径\"}";
+			//SendHTTPResponse(clientSocket, 404, "application/json", errorResponse);
+			//closesocket(clientSocket);
+			//cout << "未知请求: " << method << " " << path << "\n" << endl;
 
 
 			//---------------------------**JSON格式传输**----------------------------------
 
 			string sent_json;
+			//final_energy < rec_energy
 			if (final_energy < rec_energy)
 			{
 				vector<SXYZ_3D> sxyz_tb = GetSXYZTb(new_xyz_tb, esp);
@@ -768,6 +1371,7 @@ int main()
 				WriteJsonFile(sent_json_path, sent_json);
 
 				optrec_map[now_smiles] = final_energy;
+				//cout << sent_json << endl;
 			}
 			else
 			{
@@ -805,7 +1409,8 @@ int main()
 				PrintCmdSepTitle("HTTP响应发送");
 
 				// 构建响应JSON（包含状态和3D数据）
-				string responseJson = "{\n\"status\":\"success\",\n\"data\":" + sent_json + "\n}";
+				string smiles_json_part = "\"SMILES\":\"" + now_smiles + "\"";
+				string responseJson = "{\n\"status\":\"success\",\n" + smiles_json_part + ",\n\"data\":" + sent_json + "\n}";
 
 				cout << "正在发送3D结构数据到网页..." << endl;
 				if (SendHTTPResponse(clientSocket, 200, "application/json", responseJson)) {
