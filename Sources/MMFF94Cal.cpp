@@ -26,7 +26,8 @@ vector<int> GetProHashTable(const vector<int>& mtype_tb, const vector<int>& htb)
 	}
 	return pro_htb;
 }
-vector<double> GetAlphaSepTable(const ADJ_LIST& short_adj_list)
+
+V1_DTB  GetAlphaSepTable(const ADJ_LIST& short_adj_list)
 {
 	int nhc = short_adj_list.size();
 	vector<double> a(nhc, NAN);
@@ -38,6 +39,24 @@ vector<double> GetAlphaSepTable(const ADJ_LIST& short_adj_list)
 	return a;
 
 }
+
+V2_DTB GetBetaSepTable(const ADJ_LIST& short_adj_list, double bsep)
+{
+	int nhc = short_adj_list.size();
+	//double bsep = PI_HALF / 6;
+	V2_DTB a(nhc,V1_DTB(MAX_ADJ_NODE_SIZE,NAN));
+	for (int i = 0; i < nhc; i++)
+	{
+		for (int j = 0; j < MAX_ADJ_NODE_SIZE; j++)
+		{
+			a[i][j] = bsep;
+			//a[i] = min(PI_HALF / (short_adj_list[i].GetBonds().size() - 1), PI_HALF / 3);
+		}
+	}
+	return a;
+}
+
+
 // --- 简单参数先导计算 ---
 
 VDWProVal PreCalRE(VDWVal vdw_i, VDWVal vdw_j)
@@ -265,10 +284,166 @@ BFS2_TB Bfs2(int ac, const ADJ_LIST& short_adj_list)
 }
 
 //--- 初始三维坐标生成 ---
-vector<Vec3> CalXYZ(const vector<double>& alpha_tb, const  HASH_TB& pro_htb, const F_BS& bs_fast_tb, const MNODE_TB& mnode_tb, const ADJ_LIST& short_adj_list, const SP_SpTable& all_sp_tb,bool print_yes)
+//vector<Vec3> CalXYZ2(const ABOpt& ab_opt, const  HASH_TB& pro_htb, const F_BS& bs_fast_tb, const MNODE_TB& mnode_tb, const ADJ_LIST& short_adj_list, const SP_SpTable& all_sp_tb,bool print_yes)
+//{
+//	int ac = pro_htb.size();
+//	int nhc = ab_opt.alpha_tb.size();
+//	vector<Vec3> xyz_tb(ac, Vec3());
+//	vector<bool> rec_xyz(ac, false);
+//	for (int j = 0; j < nhc; j++)
+//	{
+//		int parent = j;
+//		//int m = mole_sp_tb[j];
+//		//if (m != 4) continue;
+//		vector<PointTo> nb_node = short_adj_list[j].GetBonds();
+//		int nsize = nb_node.size();
+//		int m = nsize, startseq = 0;
+//
+//		bool solidbond = false;
+//		int solidparent = -1;
+//		for (int i = 0; i < nsize; i++)
+//		{
+//			int child = nb_node[i].GetDesSeq();
+//			string now_bond_sym = nb_node[i].GetBondSymbol();
+//			if (IsSpecialBond(now_bond_sym)&&child<parent)
+//			{
+//				solidbond = true;
+//				solidparent = child;
+//				break;
+//			}
+//		}
+//
+//		string now_sym = mnode_tb[j].GetSym();
+//		if ((now_sym == "O" || now_sym == "N"||now_sym=="S" )&& m<4)
+//		{
+//			m = 4;
+//		}
+//		rec_xyz[parent] = true;
+//		//vector<SP_SpLine> new_m_arr(all_sp_tb[m]);
+//		vector<SP_ReLine> m_rect_arr(m, SP_ReLine());
+//		if (m >= 1)
+//		{
+//			for (int sp_i = 0; sp_i < m; sp_i++)
+//			{
+//				SP_SpLine spline(all_sp_tb.GetSPLine(m, sp_i));
+//				if (!solidbond)spline.SpinTheta(ab_opt.alpha_tb[j]);
+//				else {
+//					double now_alpha = fmod(ab_opt.alpha_tb[j],PI_DOUBLE);
+//					if (ab_opt.alpha_tb[j] > PI_HALF&& ab_opt.alpha_tb[j]<PI_270) spline.SpinTheta(PI);
+//				}
+//				//spline(all_sp_tb.GetSPLine(m, sp_i));
+//				spline.SpinVarphi(ab_opt.beta_tb[j][sp_i]);
+//				SP_ReLine reline(spline);
+//				m_rect_arr[sp_i] = reline;
+//			}
+//		}
+//		//cout << "MTB\n";
+//		//PrintTableTitle(SP_RETB_TITLE);
+//		//PrintSpecialVector(m_rect_arr);
+//		Matrix2<double> R;
+//		Vec3 oz;
+//		int firstchild = -1;
+//		for (int i = 0; i < nsize; i++)
+//		{
+//			string now_bond_sym = nb_node[i].GetBondSymbol();
+//			int child = nb_node[i].GetDesSeq();
+//			FAST_TABLE_INDEX fti = { pro_htb[parent],pro_htb[child] };
+//
+//			double r0 = bs_fast_tb[fti].r0;
+//			if (isnan(r0)) r0 = 1.0;
+//			//cout << "r0: " << r0 << endl;
+//			
+//			if (i == 0)
+//			{
+//				if (j == 0)
+//				{
+//					xyz_tb[child] = Vec3(0, 0, r0);
+//					rec_xyz[child] = true;
+//				}
+//				//Vec3 aaa(xyz_tb[child] - xyz_tb[parent]);
+//				//aaa.Print();
+//				if (!solidbond)
+//				{
+//					oz = Vec3(xyz_tb[child] - xyz_tb[parent]);
+//					CoordSys3 csys(oz);
+//					R = csys.GetMatrixR();
+//				}
+//				else
+//				{
+//					vector<PointTo> parent_nb_node = short_adj_list[solidparent].GetBonds();
+//					if (parent_nb_node.size() == 3)
+//					{
+//						int recindex = -1;
+//						int superparent = -1;
+//						for (int k = 0; k < parent_nb_node.size(); k++)
+//						{
+//							int now_child = parent_nb_node[k].GetDesSeq();
+//							if (rec_xyz[now_child] && now_child != parent)
+//							{
+//								recindex = k;
+//								superparent = now_child;
+//								//cout << "FindSuperParent: " << solidparent << " -> " << superparent << endl;
+//								break;
+//							}
+//						}
+//						// parent_nb_node[recindex].GetDesSeq();
+//						Vec3 ox_ref = xyz_tb[superparent] - xyz_tb[solidparent];
+//						oz = xyz_tb[solidparent] - xyz_tb[parent];
+//						CoordSys3 csys(oz, ox_ref);
+//						R = csys.GetMatrixR();
+//						//R.Print();
+//					}
+//					else {
+//						oz = Vec3(xyz_tb[child] - xyz_tb[parent]);
+//						CoordSys3 csys(oz);
+//						R = csys.GetMatrixR();
+//					}
+//				}
+//				//PrintCmdSepTitle("R");
+//				//if (print_yes) { 
+//				//	PrintCmdSepTitle("初始建系R矩阵");
+//				//	R.Print(); 
+//				//}
+//
+//			}
+//			else if (rec_xyz[child] == true && i == 1)
+//			{
+//				Vec3 ox_ref(xyz_tb[child] - xyz_tb[parent]);
+//				if (!solidbond)
+//				{
+//					CoordSys3 csys(oz, ox_ref);
+//					R = csys.GetMatrixR();
+//				}
+//				//cout <<"重新建系：" << parent << "\t" << child << endl;
+//	/*			if (print_yes) {
+//					PrintCmdSepTitle("重新建系R矩阵");
+//					R.Print();
+//				}*/
+//				for (int sp_i = 0; sp_i < m; sp_i++)
+//				{
+//					SP_SpLine spline(all_sp_tb.GetSPLine(m, sp_i));
+//					//spline.SpinTheta(alpha_tb[j]);
+//					SP_ReLine reline(spline);
+//					m_rect_arr[sp_i] = reline;
+//				}
+//			}
+//			else if (child > parent && rec_xyz[child] == false)
+//			{
+//				Vec3 adot = (m_rect_arr[i].GetVec() * R);
+//				xyz_tb[child] = r0 * adot + xyz_tb[parent];
+//				rec_xyz[child] = true;
+//				//cout << parent << "\t" << child << endl;
+//			}
+//		}
+//
+//	}
+//	return xyz_tb;
+//
+//}
+vector<Vec3> CalXYZ(const ABOpt& ab_opt, const  HASH_TB& pro_htb, const F_BS& bs_fast_tb, const MNODE_TB& mnode_tb, const ADJ_LIST& short_adj_list, const SP_SpTable& all_sp_tb, bool print_yes)
 {
 	int ac = pro_htb.size();
-	int nhc = alpha_tb.size();
+	int nhc = ab_opt.alpha_tb.size();
 	vector<Vec3> xyz_tb(ac, Vec3());
 	vector<bool> rec_xyz(ac, false);
 	for (int j = 0; j < nhc; j++)
@@ -286,7 +461,7 @@ vector<Vec3> CalXYZ(const vector<double>& alpha_tb, const  HASH_TB& pro_htb, con
 		{
 			int child = nb_node[i].GetDesSeq();
 			string now_bond_sym = nb_node[i].GetBondSymbol();
-			if (IsSpecialBond(now_bond_sym)&&child<parent)
+			if (IsSpecialBond(now_bond_sym) && child < parent)
 			{
 				solidbond = true;
 				solidparent = child;
@@ -295,7 +470,7 @@ vector<Vec3> CalXYZ(const vector<double>& alpha_tb, const  HASH_TB& pro_htb, con
 		}
 
 		string now_sym = mnode_tb[j].GetSym();
-		if ((now_sym == "O" || now_sym == "N"||now_sym=="S" )&& m<4)
+		if ((now_sym == "O" || now_sym == "N" || now_sym == "S") && m < 4)
 		{
 			m = 4;
 		}
@@ -307,11 +482,13 @@ vector<Vec3> CalXYZ(const vector<double>& alpha_tb, const  HASH_TB& pro_htb, con
 			for (int sp_i = 0; sp_i < m; sp_i++)
 			{
 				SP_SpLine spline(all_sp_tb.GetSPLine(m, sp_i));
-				if (!solidbond)spline.SpinTheta(alpha_tb[j]);
+				if (!solidbond)spline.SpinTheta(ab_opt.alpha_tb[j]);
 				else {
-					double now_alpha = fmod(alpha_tb[j],PI_DOUBLE);
-					if (alpha_tb[j] > PI_HALF&& alpha_tb[j]<PI_270) spline.SpinTheta(PI);
+					double now_alpha = fmod(ab_opt.alpha_tb[j], PI_DOUBLE);
+					if (ab_opt.alpha_tb[j] > PI_HALF && ab_opt.alpha_tb[j] < PI_270) spline.SpinTheta(PI);
 				}
+				//spline(all_sp_tb.GetSPLine(m, sp_i));
+				spline.SpinVarphi(ab_opt.beta_tb[j][sp_i]);
 				SP_ReLine reline(spline);
 				m_rect_arr[sp_i] = reline;
 			}
@@ -321,6 +498,7 @@ vector<Vec3> CalXYZ(const vector<double>& alpha_tb, const  HASH_TB& pro_htb, con
 		//PrintSpecialVector(m_rect_arr);
 		Matrix2<double> R;
 		Vec3 oz;
+		int firstchild = -1;
 		for (int i = 0; i < nsize; i++)
 		{
 			string now_bond_sym = nb_node[i].GetBondSymbol();
@@ -330,9 +508,10 @@ vector<Vec3> CalXYZ(const vector<double>& alpha_tb, const  HASH_TB& pro_htb, con
 			double r0 = bs_fast_tb[fti].r0;
 			if (isnan(r0)) r0 = 1.0;
 			//cout << "r0: " << r0 << endl;
-			
+
 			if (i == 0)
 			{
+				firstchild = child;
 				if (j == 0)
 				{
 					xyz_tb[child] = Vec3(0, 0, r0);
@@ -353,10 +532,10 @@ vector<Vec3> CalXYZ(const vector<double>& alpha_tb, const  HASH_TB& pro_htb, con
 					{
 						int recindex = -1;
 						int superparent = -1;
-						for (int k=0;k<parent_nb_node.size();k++)
+						for (int k = 0; k < parent_nb_node.size(); k++)
 						{
 							int now_child = parent_nb_node[k].GetDesSeq();
-							if (rec_xyz[now_child]&&now_child!=parent)
+							if (rec_xyz[now_child] && now_child != parent)
 							{
 								recindex = k;
 								superparent = now_child;
@@ -386,23 +565,69 @@ vector<Vec3> CalXYZ(const vector<double>& alpha_tb, const  HASH_TB& pro_htb, con
 			}
 			else if (rec_xyz[child] == true && i == 1)
 			{
-				Vec3 ox_ref(xyz_tb[child] - xyz_tb[parent]);
-				if (!solidbond)
-				{
-					CoordSys3 csys(oz, ox_ref);
-					R = csys.GetMatrixR();
+				Vec3 v1 = xyz_tb[child] - xyz_tb[parent];
+				Vec3 v2 = xyz_tb[firstchild] - xyz_tb[parent];
+
+				v1.Normalize();
+				v2.Normalize();
+
+				const double EPS = 1e-8;
+				// 角平分线
+				Vec3 bis = v1 + v2;
+				if (bis.GetLen() < EPS) {
+					// 两向量几乎相反，无法取角平分线：退回到任一子向量（或其它策略）
+					bis = v1;
 				}
+				else {
+					bis.Normalize();
+				}
+
+				// 垂直平面方向（叉积）
+				Vec3 ox_ref = Cross(v1, v2);
+				if (ox_ref.GetLen() < EPS) {
+					// 共线或接近共线，选择任一与 v1 垂直的参考向量作为叉积输入
+					Vec3 tmp(1.0, 0.0, 0.0);
+					if (fabs(v1.x) > 0.9) tmp = Vec3(0.0, 1.0, 0.0);
+					ox_ref = Cross(tmp, v1);
+				}
+				ox_ref.Normalize();
+
+				CoordSys3 csys(bis, ox_ref);
+				R = csys.GetMatrixR();
 				//cout <<"重新建系：" << parent << "\t" << child << endl;
 	/*			if (print_yes) {
 					PrintCmdSepTitle("重新建系R矩阵");
 					R.Print();
-				}*/
-				for (int sp_i = 0; sp_i < m; sp_i++)
+				}*/ 
+				if (m == 3)
 				{
-					SP_SpLine spline(all_sp_tb.GetSPLine(m, sp_i));
-					//spline.SpinTheta(alpha_tb[j]);
-					SP_ReLine reline(spline);
-					m_rect_arr[sp_i] = reline;
+					m_rect_arr[2] = SP_ReLine(2, Vec3() - m_rect_arr[0].GetVec());
+				}
+				else if (m == 4)
+				{
+					SP_SpLine spline(all_sp_tb.GetSPLine(4, 1));
+					m_rect_arr[2] = SP_ReLine(2, SP_ReLine(spline).GetVec());
+					spline.SpinTheta(PI);
+					m_rect_arr[3] = SP_ReLine(3, SP_ReLine(spline).GetVec());
+
+
+					//for (int sp_i = 0; sp_i < 3; sp_i++)
+					//{
+					//	SP_SpLine spline(all_sp_tb.GetSPLine(3, sp_i));
+					//	//spline.SpinTheta(alpha_tb[j]);
+					//	SP_ReLine reline(spline);
+					//	m_rect_arr[sp_i + 1] = reline;
+					//}
+				}
+				else
+				{
+					for (int sp_i = 0; sp_i < m; sp_i++)
+					{
+						SP_SpLine spline(all_sp_tb.GetSPLine(m, sp_i));
+						//spline.SpinTheta(alpha_tb[j]);
+						SP_ReLine reline(spline);
+						m_rect_arr[sp_i] = reline;
+					}
 				}
 			}
 			else if (child > parent && rec_xyz[child] == false)
@@ -412,17 +637,175 @@ vector<Vec3> CalXYZ(const vector<double>& alpha_tb, const  HASH_TB& pro_htb, con
 				rec_xyz[child] = true;
 				//cout << parent << "\t" << child << endl;
 			}
-			
+
 		}
 
 	}
+	//cout << endl;
 	return xyz_tb;
 
 }
 
-double CalSumEnergyByXYZ(bool print_yes, XYZ_TB& xyz_tb, const NeedCal& need_cal, const vector<double>& alpha_tb, const SP_SpTable& all_sp_tb,
+
+//vector<Vec3> CalXYZ3(const vector<double>& alpha_tb, const  HASH_TB& pro_htb, const F_BS& bs_fast_tb, const MNODE_TB& mnode_tb, const ADJ_LIST& short_adj_list, const SP_SpTable& all_sp_tb, bool print_yes)
+//{
+//	int ac = pro_htb.size();
+//	int nhc = alpha_tb.size();
+//	vector<Vec3> xyz_tb(ac, Vec3());
+//	vector<bool> rec_xyz(ac, false);
+//	for (int j = 0; j < nhc; j++)
+//	{
+//		int parent = j;
+//		//int m = mole_sp_tb[j];
+//		//if (m != 4) continue;
+//		vector<PointTo> nb_node = short_adj_list[j].GetBonds();
+//		int nsize = nb_node.size();
+//		int m = nsize, startseq = 0;
+//
+//		bool solidbond = false;
+//		int solidparent = -1;
+//		for (int i = 0; i < nsize; i++)
+//		{
+//			int child = nb_node[i].GetDesSeq();
+//			string now_bond_sym = nb_node[i].GetBondSymbol();
+//			if (IsSpecialBond(now_bond_sym) && child < parent)
+//			{
+//				solidbond = true;
+//				solidparent = child;
+//				break;
+//			}
+//		}
+//
+//		string now_sym = mnode_tb[j].GetSym();
+//		if ((now_sym == "O" || now_sym == "N" || now_sym == "S") && m < 4)
+//		{
+//			m = 4;
+//		}
+//		rec_xyz[parent] = true;
+//		//vector<SP_SpLine> new_m_arr(all_sp_tb[m]);
+//		vector<SP_ReLine> m_rect_arr(m, SP_ReLine());
+//		if (m >= 1)
+//		{
+//			for (int sp_i = 0; sp_i < m; sp_i++)
+//			{
+//				SP_SpLine spline(all_sp_tb.GetSPLine(m, sp_i));
+//				if (!solidbond)spline.SpinTheta(alpha_tb[j]);
+//				else {
+//					double now_alpha = fmod(alpha_tb[j], PI_DOUBLE);
+//					if (alpha_tb[j] > PI_HALF && alpha_tb[j] < PI_270) spline.SpinTheta(PI);
+//				}
+//				SP_ReLine reline(spline);
+//				m_rect_arr[sp_i] = reline;
+//			}
+//		}
+//		//cout << "MTB\n";
+//		//PrintTableTitle(SP_RETB_TITLE);
+//		//PrintSpecialVector(m_rect_arr);
+//		Matrix2<double> R;
+//		Vec3 oz;
+//		for (int i = 0; i < nsize; i++)
+//		{
+//			string now_bond_sym = nb_node[i].GetBondSymbol();
+//			int child = nb_node[i].GetDesSeq();
+//			FAST_TABLE_INDEX fti = { pro_htb[parent],pro_htb[child] };
+//
+//			double r0 = bs_fast_tb[fti].r0;
+//			if (isnan(r0)) r0 = 1.0;
+//			//cout << "r0: " << r0 << endl;
+//
+//			if (i == 0)
+//			{
+//				if (j == 0)
+//				{
+//					xyz_tb[child] = Vec3(0, 0, r0);
+//					rec_xyz[child] = true;
+//				}
+//				//Vec3 aaa(xyz_tb[child] - xyz_tb[parent]);
+//				//aaa.Print();
+//				if (!solidbond)
+//				{
+//					oz = Vec3(xyz_tb[child] - xyz_tb[parent]);
+//					CoordSys3 csys(oz);
+//					R = csys.GetMatrixR();
+//				}
+//				else
+//				{
+//					vector<PointTo> parent_nb_node = short_adj_list[solidparent].GetBonds();
+//					if (parent_nb_node.size() == 3)
+//					{
+//						int recindex = -1;
+//						int superparent = -1;
+//						for (int k = 0; k < parent_nb_node.size(); k++)
+//						{
+//							int now_child = parent_nb_node[k].GetDesSeq();
+//							if (rec_xyz[now_child] && now_child != parent)
+//							{
+//								recindex = k;
+//								superparent = now_child;
+//								//cout << "FindSuperParent: " << solidparent << " -> " << superparent << endl;
+//								break;
+//							}
+//						}
+//						// parent_nb_node[recindex].GetDesSeq();
+//						Vec3 ox_ref = xyz_tb[superparent] - xyz_tb[solidparent];
+//						oz = xyz_tb[solidparent] - xyz_tb[parent];
+//						CoordSys3 csys(oz, ox_ref);
+//						R = csys.GetMatrixR();
+//						//R.Print();
+//					}
+//					else {
+//						oz = Vec3(xyz_tb[child] - xyz_tb[parent]);
+//						CoordSys3 csys(oz);
+//						R = csys.GetMatrixR();
+//					}
+//				}
+//				//PrintCmdSepTitle("R");
+//				//if (print_yes) { 
+//				//	PrintCmdSepTitle("初始建系R矩阵");
+//				//	R.Print(); 
+//				//}
+//
+//			}
+//			else if (rec_xyz[child] == true && i == 1)
+//			{
+//				Vec3 ox_ref(xyz_tb[child] - xyz_tb[parent]);
+//				if (!solidbond)
+//				{
+//					CoordSys3 csys(oz, ox_ref);
+//					R = csys.GetMatrixR();
+//				}
+//				//cout <<"重新建系：" << parent << "\t" << child << endl;
+//	/*			if (print_yes) {
+//					PrintCmdSepTitle("重新建系R矩阵");
+//					R.Print();
+//				}*/
+//				for (int sp_i = 0; sp_i < m; sp_i++)
+//				{
+//					SP_SpLine spline(all_sp_tb.GetSPLine(m, sp_i));
+//					//spline.SpinTheta(alpha_tb[j]);
+//					SP_ReLine reline(spline);
+//					m_rect_arr[sp_i] = reline;
+//				}
+//			}
+//			else if (child > parent && rec_xyz[child] == false)
+//			{
+//				Vec3 adot = (m_rect_arr[i].GetVec() * R);
+//				xyz_tb[child] = r0 * adot + xyz_tb[parent];
+//				rec_xyz[child] = true;
+//				//cout << parent << "\t" << child << endl;
+//			}
+//
+//		}
+//
+//	}
+//	return xyz_tb;
+//
+//}
+
+double CalSumEnergyByXYZ(bool print_yes, XYZ_TB& xyz_tb, const NeedCal& need_cal, const ABOpt& ab_opt, const SP_SpTable& all_sp_tb,
 	const EnergySolidParam& esp, int limitpos)
 {
+	//V1_DTB alpha_tb = abopt.alpha_tb;
 	vector<NodeBonds> now_adj_list;
 	if (limitpos != -1)
 	{
@@ -432,7 +815,7 @@ double CalSumEnergyByXYZ(bool print_yes, XYZ_TB& xyz_tb, const NeedCal& need_cal
 	{
 		now_adj_list = esp.short_adj_list;
 	}
-	xyz_tb = CalXYZ(alpha_tb, esp.pro_htb, esp.bs_fast_tb, esp.mnode_tb, esp.short_adj_list, all_sp_tb,print_yes);
+	xyz_tb = CalXYZ(ab_opt, esp.pro_htb, esp.bs_fast_tb, esp.mnode_tb, esp.short_adj_list, all_sp_tb,print_yes);
 
 
 	R_TB dr_tb, r_tb;

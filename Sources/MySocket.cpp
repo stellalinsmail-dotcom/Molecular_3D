@@ -68,12 +68,13 @@ bool StartSocketServer(const char* port) {
 	ioctlsocket(serverSocket, FIONBIO, &mode);
 
 	serverRunning = true;
-	cout << "\n========================================" << endl;
+	cout << "\n=========================================================" << endl;
 	cout << "Socket服务器已启动（HTTP模式）" << endl;
 	cout << "监听端口: " << port << endl;
-	cout << "服务地址: http://localhost:" << port << endl;
-	cout << "等待网页连接..." << endl;
-	cout << "========================================\n" << endl;
+	cout << "网页地址: http://localhost:" << port <<"/Molecular3D.html" << endl;
+	cout << "按下Ctrl同时点击上方网页地址，即可打开网页^-^"<<endl;
+	cout << "=========================================================\n" << endl;
+	cout << "等待网页连接中...\n" << endl;
 	return true;
 }
 
@@ -342,17 +343,58 @@ bool AnalysisJsonFile(const string& json, vector<SimpleMNode>& sntb, vector<AdjL
 	{
 		int seq1 = adj.GetSeqI();
 		int seq2 = adj.GetSeqJ();
+		if (seq1 > seq2) swap(seq1, seq2);
 
-		if (rootfindset[seq1] == -1)
+		if (rootfindset[seq1] == -1 && rootfindset[seq2]==-1)
 		{
 			rootfindset[seq1] = seq1;
+			rootfindset[seq2] = seq1;
 			rootfindcount[seq1] = 1;
+			//cout << "Connecting: " << seq1 << "< - " << seq2 << endl;
 		}
-		rootfindset[seq2] = rootfindset[seq1];
-		rootfindcount[rootfindset[seq1]]++;
-	}
-	//找出最大的连通分量的根节点
+		else if (rootfindset[seq1] != -1 && rootfindset[seq2] != -1)
+		{
+			//两个都有根节点，合并
+			if (rootfindset[seq1] != rootfindset[seq2])
+			{
+				int old_root = rootfindset[seq2];
+				int new_root = rootfindset[seq1];
+				for (int i = 0; i <= max_seq; i++)
+				{
+					if (rootfindset[i] == old_root)
+					{
+						rootfindset[i] = new_root;
+						rootfindcount[new_root]++;
+					}
+				}
+			}
+			continue;
+		}
+		else if (rootfindset[seq1] != -1 && rootfindset[seq2] == -1)
+		{
+			rootfindset[seq2] = rootfindset[seq1];
+			rootfindcount[rootfindset[seq1]]++;
+			//cout << "Connecting: " << seq1 << "< - " << seq2 << endl;
+			continue;
+		}
+		else if (rootfindset[seq1] == -1 && rootfindset[seq2] != -1)
+		{
+			rootfindset[seq1] = rootfindset[seq2];
+			rootfindcount[rootfindset[seq2]]++;
+			//cout << "Connecting: " << seq2 << "< - " << seq1 << endl;
+			continue;
+		}
+		//rootfindset[seq2] = rootfindset[seq1];
+		//rootfindcount[rootfindset[seq1]]++;
 
+
+	}
+	////找出最大的连通分量的根节点
+	//PrintCmdSepTitle("连通分量统计结果");
+	//PrintCommonVector(rootfindset);
+	//PrintCmdSepTitle("根查找结果");
+	//PrintCommonVector(rootfindcount);
+	//cout << endl;
 	for (int i = 0; i <= max_seq; i++)
 	{
 		if (rootfindcount[i] > max_count)
@@ -455,4 +497,23 @@ vector<AdjABS_3D> GetAdjABSTb(const EnergySolidParam& esp)
 		}
 	}
 	return adjline_tb;
+}
+
+void ResultSent(string status, SOCKET clientSocket, string sentjson, string now_smiles, double energy)
+{
+	string smiles_json_part = "\"SMILES\":\"" + now_smiles + "\"";
+	string energy_json_part = "\"energy\":" + to_string(energy);
+	string responseJson_rec = "{\n\"status\":\"" + status + "\",\n"
+		+ smiles_json_part + ",\n"
+		+ energy_json_part + ",\n"
+		+ "\"data\":" + sentjson + "\n}";
+
+	cout << "正在发送3D结构数据到网页..." << endl;
+	if (SendHTTPResponse(clientSocket, 200, "application/json", responseJson_rec)) {
+		cout << "3D结构数据发送成功！" << endl;
+		cout << "数据大小: " << responseJson_rec.length() << " 字节" << endl;
+	}
+	else {
+		cout << "3D结构数据发送失败！" << endl;
+	}
 }

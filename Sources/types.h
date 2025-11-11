@@ -30,7 +30,11 @@ using namespace std;
 
 
 #define DEFAULT_PORT "8765"
-#define DEFAULT_BUFLEN 8192
+#define DEFAULT_BUFLEN 65536
+
+#define MAX_CAL_TIME 500 //单位s,
+#define MAX_REC_TIME 604800 //单位s (7天)
+
 // --- 常量定义 ---
 #define YES true
 #define NO false
@@ -58,13 +62,18 @@ using namespace std;
 #define COMMON_SORT 1
 #define INIT_SORT 2
 
-#define SEP_WIDTH 50
+#define H1_SEP_WIDTH 60
+#define H2_SEP_WIDTH 50
+#define H3_SEP_WIDTH 40
+#define H4_SEP_WIDTH 30
+
+
 #define SEP_SYMBOL '-'
 
 #define ATOM_TB_TITLE "Symbol,Number,Mass,Valence"
 #define MNODE_TB_TITLE "Seq,Element,IsAroma,CCount,CHCount,NHBC,CharSym,CharVal,MType"
 #define ADJ_TB_TITLE "Seq1,Seq2,BondSym"
-#define OPT_REC_TB_TITLE "Smiles,MinEnergy"
+#define OPT_REC_TB_TITLE "Smiles,MinEnergy,OptTime"
 // --- MMFF94 ---
 
 #define BS_TB_TITLE "BT,MTYPE_I,MTYPE_J,KB,R0,SOURCE"
@@ -299,7 +308,8 @@ string DeleteExtraBracket(string s);
 // --- 输出辅助函数 ---
 void PrintTableTitle(const string& text, const string outsep = "\t", const char insep = TITLE_SEP);
 
-void PrintCmdSepTitle(const string title, int sepwidth = SEP_WIDTH, const char fillsym = SEP_SYMBOL);
+
+void PrintCmdSepTitle(const string title, int sepwidth = H1_SEP_WIDTH, const char fillsym = SEP_SYMBOL);
 
 template<class T>
 void PrintCommonVector(const vector<T>& v, const string& sep = "\t",int max_row_count = -1)
@@ -371,7 +381,7 @@ void PrintCommonMap(const map<TIndex, TVal>& m, const string& sep = "\t", int ma
 
 string GetCurrentTimeString();
 
-// ---表格读写函数 ---
+// ---文件读写函数 ---
 bool CreateFolder(const string folderpath);
 
 void DeleteFolder(const string& folderpath);
@@ -509,6 +519,10 @@ void WriteTable(string filename, string stdtitle, const  vector<T>& table, bool 
 	}
 	outFile.close();
 }
+
+bool FileExists(const string& filename);
+
+string ReadFileContent(const string& filepath);
 
 // --- 表格处理函数 ---
 template<typename TLine,typename TVal>

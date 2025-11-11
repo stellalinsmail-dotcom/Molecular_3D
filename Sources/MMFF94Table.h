@@ -500,6 +500,8 @@ private:
 public:
 	SP_ReLine() :seq(-1), xyz() {}
 	SP_ReLine(SP_SpLine line) :seq(line.GetSeq()), xyz(line.GetRVec()) {}
+	SP_ReLine(const SP_ReLine& r) : seq(r.seq), xyz(r.xyz) {}
+	SP_ReLine(int seq, Vec3 v) : seq(seq), xyz(v) {}
 	int GetSeq() const { return seq; }
 	Vec3 GetVec()const { return xyz; }
 	void Print(string sep = "\t", bool title_state = TITLE_OFF)const

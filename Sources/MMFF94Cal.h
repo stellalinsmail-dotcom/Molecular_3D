@@ -13,13 +13,25 @@ public:
 	bool eoop;
 	bool et;
 	bool evdw;
-	NeedCal(bool is_eb = true, bool is_ea = true, bool is_eba = true, bool is_eoop = false, bool is_et = true, bool is_evdw = true) :
+	NeedCal(bool is_eb = true, bool is_ea = true, bool is_eba = true, bool is_eoop = true, bool is_et = true, bool is_evdw = true) :
 		eb(is_eb), ea(is_ea), eba(is_eba), et(is_et), eoop(is_eoop), evdw(is_evdw) {
 	}
 	NeedCal(const NeedCal& nc) :eb(nc.eb), ea(nc.ea), eba(nc.eba), et(nc.et), eoop(nc.eoop), evdw(nc.evdw) {
 	}
 };
-
+class ABOpt
+{
+public:
+	V1_DTB alpha_tb;
+	V2_DTB beta_tb;
+	ABOpt(const V1_DTB& atb, const V2_DTB& btb) :alpha_tb(atb), beta_tb(btb) {}
+	ABOpt(const ABOpt& abopt) :alpha_tb(abopt.alpha_tb), beta_tb(abopt.beta_tb) {}
+	ABOpt(int nhc)
+	{
+		alpha_tb = V1_DTB(nhc, 0);
+		beta_tb = V2_DTB(nhc, V1_DTB(MAX_ADJ_NODE_SIZE, 0));
+	}
+};
 struct EnergySolidParam
 {
 	F_BS bs_fast_tb;
@@ -126,8 +138,8 @@ vector<int> GetHashTable(const MTYPE_SET& mtype_set);
 vector<int> GetProHashTable(const vector<int>& mtype_tb, const vector<int>& htb);
 
 
-vector<double> GetAlphaSepTable(const ADJ_LIST& short_adj_list);
-
+V1_DTB GetAlphaSepTable(const ADJ_LIST& short_adj_list);
+V2_DTB GetBetaSepTable(const ADJ_LIST& short_adj_list,double bsep);
 // --- 简单参数先导计算 ---
 
 inline double xyz2r(const Vec3& v1, const Vec3& v2)
@@ -469,9 +481,9 @@ inline double CalSumEnergy(bool print_yes, const  NeedCal& need_cal,
 }
 
 //--- 初始三维坐标生成 ---
-vector<Vec3> CalXYZ(const vector<double>& alpha_tb, const  HASH_TB& pro_htb, const F_BS& bs_fast_tb, const MNODE_TB& mnode_tb, const ADJ_LIST& short_adj_list, const SP_SpTable& all_sp_tb,bool print_yes=false);
+vector<Vec3> CalXYZ(const ABOpt& ab_opt, const  HASH_TB& pro_htb, const F_BS& bs_fast_tb, const MNODE_TB& mnode_tb, const ADJ_LIST& short_adj_list, const SP_SpTable& all_sp_tb,bool print_yes=false);
 
-double CalSumEnergyByXYZ(bool print_yes, XYZ_TB& xyz_tb, const NeedCal& need_cal, const vector<double>& alpha_tb, const SP_SpTable& all_sp_tb,
+double CalSumEnergyByXYZ(bool print_yes, XYZ_TB& xyz_tb, const NeedCal& need_cal, const ABOpt& ab_opt, const SP_SpTable& all_sp_tb,
 	const EnergySolidParam& esp, int limitpos = -1);
 
 vector<string> GetMSymTb(int ac, const vector<MNode>& nodetb, const  ADJ_LIST& short_adj_list);

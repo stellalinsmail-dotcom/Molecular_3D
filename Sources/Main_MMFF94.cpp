@@ -1,1121 +1,13 @@
-#include "types.h"
+Ôªø#include "types.h"
 #include "Atom.h"
 #include "Molecule.h"
 #include "Matrix.h"
 #include "MMFF94Table.h"
 #include "MMFF94Cal.h"
 #include "MySocket.h"
+#include "AlphaBetaOpt.h"
 
 using namespace std;
-
-
-//--- ”≈ªØœ‡πÿ∫Ø ˝ ---
-template<typename T>
-bool JudgeStop(const vector<T>& new_tb, const vector<T>& old_tb, const vector<T>& sep_tb)
-{
-	int ssize = sep_tb.size();
-	for (int i = 0; i < ssize; i++)
-	{
-		double a = abs(old_tb[i] - new_tb[i]);
-		if (a > sep_tb[i])
-		{
-			return false;
-		}
-	}
-	return true;
-}
-
-vector<int> GenerateRandSeq(int size)
-{
-	// π”√cstdlib∫Õctime…˙≥…ÀÊª˙ ˝
-	vector<int> seq(size);
-	for (int i = 0; i < size; i++)
-	{
-		seq[i] = i;
-	}
-	unsigned seed = static_cast<unsigned>(time(0));
-	shuffle(seq.begin(), seq.end(), default_random_engine(seed));
-	return seq;
-}
-
-//¥÷¬‘”≈ªØ∫Ø ˝
-vector<double> AlphaOptRough(bool has_circle, double& alpha_energy, XYZ_TB& xyz_tb, const SP_SpTable& all_sp_tb, EnergySolidParam& esp)
-{
-	vector<double> alpha_tb;
-
-	return alpha_tb;
-}
-vector<double> AlphaOpt(bool has_circle, double& alpha_energy, XYZ_TB& xyz_tb, const SP_SpTable& all_sp_tb, EnergySolidParam& esp, bool detail_print = false,string now_smiles="")
-{
-
-
-	
-	LARGE_INTEGER frequency;
-	QueryPerformanceFrequency(&frequency);
-	LARGE_INTEGER start, stop;
-	QueryPerformanceCounter(&start);
-	//------------------------------**º∆ ±ø™ º**------------------------------
-
-	vector<OptimizationRecord> opt_records;
-	LARGE_INTEGER last_record_time = start;
-	const double record_interval_ms = 0.1;  // º«¬ºº‰∏Ù£®∫¡√Î£©
-	long long total_iteration_count = 0;          // ◊‹µ¸¥˙¥Œ ˝
-	double current_min_energy = INFINITY;   // µ±«∞◊ÓµÕ
-
-
-	int nhc = esp.short_adj_list.size();
-
-
-
-	int turn1count = 0;
-	int rough_turncount = 0;
-	int turn2count = 0;
-	double asep = PI_HALF;
-	vector<double> old_alpha_tb(nhc, 0);
-	vector<double> new_alpha_tb(nhc, PI);
-	new_alpha_tb[0] = 0;
-
-
-	int cyc = 0;
-	for (int i = 0; i < nhc; i++)
-	{
-		//bool continue_yes = false;
-		vector<PointTo> nb_node = esp.short_adj_list[i].GetBonds();
-		for (int j = 0; j < nb_node.size(); j++)
-		{
-			int child = nb_node[j].GetDesSeq();
-			string bond_sym = nb_node[j].GetBondSymbol();
-			if (child < i && IsSpecialBond(bond_sym))
-			{
-				//continue_yes = true;
-				cyc++;
-				break;
-			}
-		}
-		//if (continue_yes) continue;
-	}
-	if (cyc == nhc - 1) return old_alpha_tb;
-
-
-	vector<double> rec_asep_tb = GetAlphaSepTable(esp.short_adj_list);
-	vector<double> asep_tb = rec_asep_tb;
-
-	//PrintCmdSepTitle("sp_tb");
-	//PrintCommonVector(asep_tb);
-	NeedCal alpha_need_cal;
-
-	if (!has_circle)
-	{
-		alpha_need_cal = NeedCal(false, false, false, false, true, true);
-	}
-
-	double start_energy = CalSumEnergyByXYZ(NO, xyz_tb, NeedCal(), new_alpha_tb, all_sp_tb, esp);
-
-	const double acc_energy = 1e-2;
-	const double acc_angle = 1e-3;
-
-	const int angle_half_turn = min(nhc * 5, 20);
-	const int print_turn = 20;
-
-	double old_energy_a = INFINITY;
-	double new_energy_a = start_energy;
-
-	const int wait_turn_max = min(nhc * 2, 30);
-	int wait_turn_count = 0;
-	bool break_yes_a = false;
-
-	const int max_rough_turn = 10;
-	const int max_rough_big_turn = nhc * 100;
-
-	double rough_min_energy = INFINITY;
-	vector<double> rough_min_alpha_tb = old_alpha_tb;
-	bool rough_big_break_yes = false;
-AlphaOpt1:
-	{
-		// --- alpha µ⁄“ª¥Œ”≈ªØ ¥÷¬‘ ---
-		while (!JudgeStop(new_alpha_tb, old_alpha_tb, asep_tb))
-		{
-			if (wait_turn_count >= wait_turn_max)
-			{
-				if (detail_print) cout << "µ»¥˝≥¨π˝◊Ó¥Û¬÷¥Œ£¨Ω· ¯¥÷¬‘”≈ªØ°£" << endl;
-				new_energy_a = old_energy_a;
-				new_alpha_tb = old_alpha_tb;
-
-				break_yes_a = true;
-				break;
-			}
-			if (new_energy_a <= old_energy_a)
-			{
-				//for (int i = 0; i < nhc; i++)
-				//{
-				//	new_alpha_tb[i] = fmod((new_alpha_tb[i] + old_alpha_tb[i]) / 2,PI_DOUBLE);
-				//}
-				old_alpha_tb = new_alpha_tb;
-				old_energy_a = new_energy_a;
-				wait_turn_count = 0;
-			}
-			else
-			{
-				new_energy_a = old_energy_a;
-				new_alpha_tb = old_alpha_tb;
-				wait_turn_count++;
-			}
-
-			total_iteration_count++;
-			if (new_energy_a < current_min_energy) {
-				current_min_energy = new_energy_a;
-			}
-
-			LARGE_INTEGER current_time;
-			QueryPerformanceCounter(&current_time);
-			double elapsed_ms = (current_time.QuadPart - last_record_time.QuadPart) * 1000.0 / frequency.QuadPart;
-
-			if (elapsed_ms >= record_interval_ms) {
-				double total_time_ms = (current_time.QuadPart - start.QuadPart) * 1000.0 / frequency.QuadPart;
-				opt_records.push_back(OptimizationRecord(total_time_ms, total_iteration_count, current_min_energy));
-				last_record_time = current_time;
-			}
-
-			//…˙≥…“ª∏ˆÀÊª˙ ˝¡–£¨¥Ú¬“”≈ªØÀ≥–Ú
-			vector<int> rand_seq;
-			vector<bool>rec(nhc, false);
-			if (has_circle) rand_seq = GenerateRandSeq(nhc);
-			int continue_yes_count = 0;
-			for (int rand_i = 0; rand_i < nhc; rand_i++)
-			{
-				int i;
-				if (has_circle)i = rand_seq[rand_i];
-				else i = rand_i;
-				rec[i] = true;
-
-				//bool continue_yes = false;
-				//vector<PointTo> nb_node = esp.short_adj_list[i].GetBonds();
-				//for (int j = 0; j < nb_node.size(); j++)
-				//{
-				//	int child = nb_node[j].GetDesSeq();
-				//	string bond_sym = nb_node[j].GetBondSymbol();
-				//	if (child < nhc && rec[child] && IsSpecialBond(bond_sym))
-				//	{
-				//		new_alpha_tb[i] = old_alpha_tb[i];
-				//		continue_yes = true;
-				//		continue_yes_count++;
-				//		break;
-				//	}
-				//}
-				//if (continue_yes) continue;
-
-				double now_asep = asep_tb[i];
-				double min_energy = INFINITY;
-				double min_angle = 0, now_angle = new_alpha_tb[i];
-				double angle_addup = 0;
-				do {
-					new_alpha_tb[i] = now_angle;
-					int limitpos = (has_circle) ? -1 : i;
-					double now_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, new_alpha_tb, all_sp_tb, esp, limitpos);
-					if (now_energy < min_energy)
-					{
-						min_energy = now_energy;
-						min_angle = now_angle;
-					}
-
-					angle_addup += now_asep;
-					now_angle = fmod(now_angle + angle_addup, PI_DOUBLE);
-
-				} while (angle_addup < PI_DOUBLE);
-				new_alpha_tb[i] = min_angle;
-			}
-			if (continue_yes_count == nhc - 1)
-			{
-				cout << "”…”⁄»´Œ™Ãÿ ‚º¸£¨∑÷◊”Œﬁ–Ë”≈ªØ°£" << endl;
-				return old_alpha_tb;
-			}
-			new_energy_a = CalSumEnergyByXYZ(NO, xyz_tb, NeedCal(), new_alpha_tb, all_sp_tb, esp);
-			if (new_energy_a < rough_min_energy)
-			{
-				rough_min_energy = new_energy_a;
-				rough_min_alpha_tb = new_alpha_tb;
-			}
-		}
-		for (int i = 0; i < nhc; i++)
-		{
-			asep_tb[i] /= 2;
-			if (asep_tb[i] < acc_angle) asep_tb[i] = acc_angle;
-		}
-		if (turn1count < max_rough_turn && !break_yes_a)
-		{
-			turn1count++;
-			//cout << "¥÷¬‘”≈ªØΩ¯––÷–£¨µ⁄ " << turn1count << " ¬÷..." << endl;
-			goto AlphaOpt1;
-		}
-		rough_turncount++;
-	}
-	if (has_circle)
-	{
-		if (rough_turncount < max_rough_big_turn)
-		{
-			if (new_energy_a < rough_min_energy)
-			{
-				rough_min_energy = new_energy_a;
-				rough_min_alpha_tb = new_alpha_tb;
-			}
-			rough_turncount++;
-			asep_tb = rec_asep_tb;
-			turn1count = 0;
-			//cout << "¥÷¬‘”≈ªØΩ¯––÷–£¨µ⁄ " << turn1count << " ¬÷..." << endl;
-			goto AlphaOpt1;
-		}
-	}
-	else
-	{
-		rough_min_energy = new_energy_a;
-		rough_min_alpha_tb = new_alpha_tb;
-	}
-	// --- alpha µ⁄∂˛¥Œ”≈ªØ æ´œ∏ ---
-
-
-	new_alpha_tb = rough_min_alpha_tb;
-
-
-
-	double old_energy = INFINITY;
-
-	double new_energy = CalSumEnergyByXYZ(detail_print, xyz_tb, NeedCal(), new_alpha_tb, all_sp_tb, esp);
-
-	//cout << "\nE: " << new_energy << endl;
-
-	vector<double> final_alpha_tb_a = rough_min_alpha_tb;
-	double final_energy_a = rough_min_energy;
-
-
-	old_alpha_tb = new_alpha_tb;
-
-	asep_tb = rec_asep_tb;
-	//for (int i = 0; i < nhc; i++)
-	//{
-	//	asep_tb[i] = min(asep_tb[i],PI_HALF/3);
-	//	if (asep_tb[i] < acc_angle) asep_tb[i] = acc_angle;
-	//}
-
-	if (detail_print) cout << "¥÷¬‘”≈ªØ" << max_rough_turn * max_rough_big_turn << "¬÷ÕÍ≥…£¨Ω¯»Îæ´œ∏”≈ªØΩ◊∂Œ..." << endl;
-
-	vector<double> acc_asep_tb(nhc, acc_angle);
-
-	wait_turn_count = 0;
-
-	//return new_alpha_tb;
-
-AlphaOpt2:
-	{
-		do
-		{
-			//cout << turn2count << endl;
-			if (wait_turn_count >= wait_turn_max)
-			{
-				new_energy = old_energy;
-				new_alpha_tb = old_alpha_tb;
-				if (detail_print) cout << "µ»¥˝≥¨π˝◊Ó¥Û¬÷¥Œ£¨Ω· ¯æ´œ∏”≈ªØ°£" << endl;
-				break;
-			}
-			for (int i = 0; i < nhc; i++)
-			{
-				new_alpha_tb[i] = fmod(new_alpha_tb[i] + PI_DOUBLE, PI_DOUBLE);
-			}
-			if (new_energy < old_energy)
-			{
-				old_alpha_tb = new_alpha_tb;
-				old_energy = new_energy;
-				wait_turn_count = 0;
-			}
-			else
-			{
-				new_energy = old_energy;
-				new_alpha_tb = old_alpha_tb;
-				wait_turn_count++;
-			}
-
-			total_iteration_count++;
-			if (new_energy < current_min_energy) {
-				current_min_energy = new_energy;
-			}
-
-			LARGE_INTEGER current_time;
-			QueryPerformanceCounter(&current_time);
-			double elapsed_ms = (current_time.QuadPart - last_record_time.QuadPart) * 1000.0 / frequency.QuadPart;
-
-			if (elapsed_ms >= record_interval_ms) {
-				double total_time_ms = (current_time.QuadPart - start.QuadPart) * 1000.0 / frequency.QuadPart;
-				opt_records.push_back(OptimizationRecord(total_time_ms, total_iteration_count, current_min_energy));
-				last_record_time = current_time;
-			}
-
-
-			vector<int> rand_seq;
-			vector<bool> rec(nhc, false);
-			if (has_circle) rand_seq = GenerateRandSeq(nhc);
-
-			//int continue_yes_count = 0;
-			for (int rand_i = 0; rand_i < nhc; rand_i++)
-			{
-				int i;
-				if (has_circle)i = rand_seq[rand_i];
-				else i = rand_i;
-
-				//bool continue_yes = false;
-				//vector<PointTo> nb_node = esp.short_adj_list[i].GetBonds();
-				//for (int j = 0; j < nb_node.size(); j++)
-				//{
-				//	int child = nb_node[j].GetDesSeq();
-				//	string bond_sym = nb_node[j].GetBondSymbol();
-				//	if (child < nhc && rec[child] && IsSpecialBond(bond_sym))
-				//	{
-				//		continue_yes = true;
-				//		new_alpha_tb[i] = old_alpha_tb[i];
-				//		//continue_yes_count++;
-				//		break;
-				//	}
-				//}
-				//if (continue_yes) continue;
-
-				vector<double>now_alpha_tb = new_alpha_tb;
-				double left_angle = new_alpha_tb[i] - asep_tb[i];
-				double right_angle = new_alpha_tb[i] + asep_tb[i];
-
-				now_alpha_tb[i] = left_angle;
-
-
-				double left_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
-
-				now_alpha_tb[i] = right_angle;
-
-				double right_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
-
-				double mid_energy = INFINITY;
-
-				int turn3count = 0;
-				while (!JudgeStop<double>({ left_energy }, { right_energy }, { acc_energy }) &&
-					!JudgeStop<double>({ left_angle }, { right_angle }, { acc_angle }))
-				{
-					turn3count++;
-					//cout <<"T3: " << turn3count << endl;
-					//cout << fixed << setprecision(4) << left_angle - right_angle << "\t" << acc_angle << endl;
-					//cout << left_energy - right_energy << "\t" << acc_energy << endl;
-					double sep_angle = (right_angle - left_angle) * OPT_RATIO;
-					double mid_left_angle = left_angle + sep_angle;
-					double mid_right_angle = right_angle - sep_angle;
-
-					now_alpha_tb[i] = mid_left_angle;
-					double mid_left_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
-
-					now_alpha_tb[i] = mid_right_angle;
-					double mid_right_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
-
-					if (left_energy < right_energy)
-					{
-						right_angle = mid_left_angle;
-						right_energy = mid_left_energy;
-					}
-					else
-					{
-						left_angle = mid_right_angle;
-						left_energy = mid_right_energy;
-					}
-				}
-				new_alpha_tb[i] = (left_angle + right_angle) / 2;
-			}
-			//if (continue_yes_count == nhc)
-			//{
-			//	if (detail_print) cout << "±æ¬÷À˘”–‘≠◊”æ˘“ÚÃÿ ‚º¸¡¨Ω”Ã¯π˝”≈ªØ£¨Ω· ¯æ´œ∏”≈ªØ°£" << endl;
-			//	break;
-			//}
-			turn2count++;
-			bool print_yes = false;
-			if (detail_print)print_yes = (turn2count % print_turn == 0);
-			if (turn2count % angle_half_turn == 0)
-			{
-				for (int i = 0; i < nhc; i++)
-				{
-					asep_tb[i] /= 2;
-					if (asep_tb[i] < acc_angle) asep_tb[i] = acc_angle;
-				}
-
-			}
-			if (print_yes)
-			{
-				cout << "\næ´œ∏”≈ªØΩ¯––÷–£¨µ⁄ " << turn2count << " ¬÷...\n" << endl;
-			}
-			new_energy = CalSumEnergyByXYZ(print_yes, xyz_tb, NeedCal(), new_alpha_tb, all_sp_tb, esp);
-			if (print_yes)
-			{
-				cout << "\nEnergySep: " << new_energy - old_energy << endl;
-				//print alphasep
-				cout << "Alpha: ";
-				for (int i = 0; i < nhc; i++)
-				{
-					cout << new_alpha_tb[i] << "\t";
-				}
-				cout << endl;
-
-				cout << "AlphaSepReal ";
-				for (int i = 0; i < nhc; i++)
-				{
-					double nowprintsep = abs(new_alpha_tb[i] - old_alpha_tb[i]);
-					cout << nowprintsep << "\t";
-				}
-				cout << endl;
-
-				cout << "AlphaSep ";
-				for (int i = 0; i < nhc; i++)
-				{
-					cout << asep_tb[i] << "\t";
-				}
-				cout << endl;
-
-
-			}
-
-		} while (!JudgeStop<double>({ new_energy }, { old_energy }, { acc_energy }) ||
-			!JudgeStop(new_alpha_tb, old_alpha_tb, acc_asep_tb));
-	}
-
-	if (final_energy_a < new_energy) new_alpha_tb = final_alpha_tb_a;
-
-
-	if (detail_print)cout << "æ´œ∏”≈ªØÕÍ≥…£¨π≤Ω¯–– " << turn2count << " ¬÷°£" << endl;
-	alpha_energy = new_energy;
-	//vector<Vec3> b_xyz_tb = CalXYZ(new_alpha_tb, pro_htb, bs_fast_tb, long_adj_list, all_sp_tb);
-
-	QueryPerformanceCounter(&stop);
-
-	//------------------------------**º∆ ±Ω· ¯**------------------------------
-
-	double duration = (stop.QuadPart - start.QuadPart) * 1000.0 / 1000.0 / frequency.QuadPart;
-	cout << "\n(^-^)Alpha”≈ªØ”√ ±£∫ " << duration << " s" << endl << endl;
-
-
-	if (!opt_records.empty()) {
-		// ÃÌº”◊Ó÷’º«¬ºµ„
-		double final_time_ms = (stop.QuadPart - start.QuadPart) * 1000.0 / frequency.QuadPart;
-		opt_records.push_back(OptimizationRecord(final_time_ms, total_iteration_count, current_min_energy));
-
-		// …˙≥…Œƒº˛√˚£® π”√µ±«∞ ±º‰¥¡£©
-		string record_filename = OPT_TIME_FOLDER + now_smiles+"_"
-			+ GetCurrentTimeString() + ".csv";
-
-		// ±£¥ÊµΩCSVŒƒº˛
-		WriteTable(record_filename, "Time_ms,Iteration,MinEnergy", opt_records);
-		cout << "”≈ªØº«¬º“—±£¥Ê÷¡: " << record_filename << endl;
-	}
-
-	return new_alpha_tb;
-
-
-
-	return new_alpha_tb;
-}
-
-//vector<vector<double>> BetaOpt(bool has_circle, double& alpha_energy, XYZ_TB& xyz_tb, const SP_SpTable& all_sp_tb, EnergySolidParam& esp, bool detail_print = false)
-//{
-//
-//
-//
-//	LARGE_INTEGER frequency;
-//	QueryPerformanceFrequency(&frequency);
-//	LARGE_INTEGER start, stop;
-//	QueryPerformanceCounter(&start);
-//	//------------------------------**º∆ ±ø™ º**------------------------------
-//
-//	int nhc = esp.short_adj_list.size();
-//
-//
-//
-//	int turn1count = 0;
-//	int rough_turncount = 0;
-//	int turn2count = 0;
-//	double asep = PI_HALF;
-//	double minval = -PI / 3;
-//	vector<vector<double>> old_alpha_tb(nhc, vector<double>(MAX_ADJ_NODE_SIZE,minval));
-//	vector<vector<double>> new_alpha_tb(nhc, vector<double>(MAX_ADJ_NODE_SIZE, -minval));
-//
-//
-//	int cyc = 0;
-//	for (int i = 0; i < nhc; i++)
-//	{
-//		//bool continue_yes = false;
-//		vector<PointTo> nb_node = esp.short_adj_list[i].GetBonds();
-//		for (int j = 0; j < nb_node.size(); j++)
-//		{
-//			int child = nb_node[j].GetDesSeq();
-//			string bond_sym = nb_node[j].GetBondSymbol();
-//			if (child < i && IsSpecialBond(bond_sym))
-//			{
-//				//continue_yes = true;
-//				cyc++;
-//				break;
-//			}
-//		}
-//		//if (continue_yes) continue;
-//	}
-//	if (cyc == nhc - 1) return old_alpha_tb;
-//
-//
-//	vector<double> rec_asep_tb = GetAlphaSepTable(esp.short_adj_list);
-//	vector<double> asep_tb = rec_asep_tb;
-//
-//	//PrintCmdSepTitle("sp_tb");
-//	//PrintCommonVector(asep_tb);
-//	NeedCal alpha_need_cal;
-//
-//	if (!has_circle)
-//	{
-//		alpha_need_cal = NeedCal(false, false, false, false, true, true);
-//	}
-//
-//	double start_energy = CalSumEnergyByXYZ(NO, xyz_tb, NeedCal(), new_alpha_tb, all_sp_tb, esp);
-//
-//	const double acc_energy = 1e-2;
-//	const double acc_angle = 1e-3;
-//
-//	const int angle_half_turn = min(nhc * 5, 20);
-//	const int print_turn = 20;
-//
-//	double old_energy_a = INFINITY;
-//	double new_energy_a = start_energy;
-//
-//	const int wait_turn_max = min(nhc * 2, 30);
-//	int wait_turn_count = 0;
-//	bool break_yes_a = false;
-//
-//	const int max_rough_turn = 10;
-//	const int max_rough_big_turn = nhc * 100;
-//
-//	double rough_min_energy = INFINITY;
-//	vector<double> rough_min_alpha_tb = old_alpha_tb;
-//	bool rough_big_break_yes = false;
-//AlphaOpt1:
-//	{
-//		// --- alpha µ⁄“ª¥Œ”≈ªØ ¥÷¬‘ ---
-//		while (!JudgeStop(new_alpha_tb, old_alpha_tb, asep_tb))
-//		{
-//			if (wait_turn_count >= wait_turn_max)
-//			{
-//				if (detail_print) cout << "µ»¥˝≥¨π˝◊Ó¥Û¬÷¥Œ£¨Ω· ¯¥÷¬‘”≈ªØ°£" << endl;
-//				new_energy_a = old_energy_a;
-//				new_alpha_tb = old_alpha_tb;
-//
-//				break_yes_a = true;
-//				break;
-//			}
-//			if (new_energy_a <= old_energy_a)
-//			{
-//				//for (int i = 0; i < nhc; i++)
-//				//{
-//				//	new_alpha_tb[i] = fmod((new_alpha_tb[i] + old_alpha_tb[i]) / 2,PI_DOUBLE);
-//				//}
-//				old_alpha_tb = new_alpha_tb;
-//				old_energy_a = new_energy_a;
-//				wait_turn_count = 0;
-//			}
-//			else
-//			{
-//				new_energy_a = old_energy_a;
-//				new_alpha_tb = old_alpha_tb;
-//				wait_turn_count++;
-//			}
-//			//…˙≥…“ª∏ˆÀÊª˙ ˝¡–£¨¥Ú¬“”≈ªØÀ≥–Ú
-//			vector<int> rand_seq;
-//			vector<bool>rec(nhc, false);
-//			if (has_circle) rand_seq = GenerateRandSeq(nhc);
-//			int continue_yes_count = 0;
-//			for (int rand_i = 0; rand_i < nhc; rand_i++)
-//			{
-//				int i;
-//				if (has_circle)i = rand_seq[rand_i];
-//				else i = rand_i;
-//				rec[i] = true;
-//
-//				//bool continue_yes = false;
-//				//vector<PointTo> nb_node = esp.short_adj_list[i].GetBonds();
-//				//for (int j = 0; j < nb_node.size(); j++)
-//				//{
-//				//	int child = nb_node[j].GetDesSeq();
-//				//	string bond_sym = nb_node[j].GetBondSymbol();
-//				//	if (child < nhc && rec[child] && IsSpecialBond(bond_sym))
-//				//	{
-//				//		new_alpha_tb[i] = old_alpha_tb[i];
-//				//		continue_yes = true;
-//				//		continue_yes_count++;
-//				//		break;
-//				//	}
-//				//}
-//				//if (continue_yes) continue;
-//
-//				double now_asep = asep_tb[i];
-//				double min_energy = INFINITY;
-//				double min_angle = 0, now_angle = new_alpha_tb[i];
-//				double angle_addup = 0;
-//				do {
-//					new_alpha_tb[i] = now_angle;
-//					int limitpos = (has_circle) ? -1 : i;
-//					double now_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, new_alpha_tb, all_sp_tb, esp, limitpos);
-//					if (now_energy < min_energy)
-//					{
-//						min_energy = now_energy;
-//						min_angle = now_angle;
-//					}
-//
-//					angle_addup += now_asep;
-//					now_angle = fmod(now_angle + angle_addup, PI_DOUBLE);
-//
-//				} while (angle_addup < PI_DOUBLE);
-//				new_alpha_tb[i] = min_angle;
-//			}
-//			if (continue_yes_count == nhc - 1)
-//			{
-//				cout << "”…”⁄»´Œ™Ãÿ ‚º¸£¨∑÷◊”Œﬁ–Ë”≈ªØ°£" << endl;
-//				return old_alpha_tb;
-//			}
-//			new_energy_a = CalSumEnergyByXYZ(NO, xyz_tb, NeedCal(), new_alpha_tb, all_sp_tb, esp);
-//			if (new_energy_a < rough_min_energy)
-//			{
-//				rough_min_energy = new_energy_a;
-//				rough_min_alpha_tb = new_alpha_tb;
-//			}
-//		}
-//		for (int i = 0; i < nhc; i++)
-//		{
-//			asep_tb[i] /= 2;
-//			if (asep_tb[i] < acc_angle) asep_tb[i] = acc_angle;
-//		}
-//		if (turn1count < max_rough_turn && !break_yes_a)
-//		{
-//			turn1count++;
-//			//cout << "¥÷¬‘”≈ªØΩ¯––÷–£¨µ⁄ " << turn1count << " ¬÷..." << endl;
-//			goto AlphaOpt1;
-//		}
-//		rough_turncount++;
-//	}
-//	if (has_circle)
-//	{
-//		if (rough_turncount < max_rough_big_turn)
-//		{
-//			if (new_energy_a < rough_min_energy)
-//			{
-//				rough_min_energy = new_energy_a;
-//				rough_min_alpha_tb = new_alpha_tb;
-//			}
-//			rough_turncount++;
-//			asep_tb = rec_asep_tb;
-//			turn1count = 0;
-//			//cout << "¥÷¬‘”≈ªØΩ¯––÷–£¨µ⁄ " << turn1count << " ¬÷..." << endl;
-//			goto AlphaOpt1;
-//		}
-//	}
-//	else
-//	{
-//		rough_min_energy = new_energy_a;
-//		rough_min_alpha_tb = new_alpha_tb;
-//	}
-//	// --- alpha µ⁄∂˛¥Œ”≈ªØ æ´œ∏ ---
-//
-//
-//	new_alpha_tb = rough_min_alpha_tb;
-//
-//
-//
-//	double old_energy = INFINITY;
-//
-//	double new_energy = CalSumEnergyByXYZ(detail_print, xyz_tb, NeedCal(), new_alpha_tb, all_sp_tb, esp);
-//
-//	//cout << "\nE: " << new_energy << endl;
-//
-//	vector<double> final_alpha_tb_a = rough_min_alpha_tb;
-//	double final_energy_a = rough_min_energy;
-//
-//
-//	old_alpha_tb = new_alpha_tb;
-//
-//	asep_tb = rec_asep_tb;
-//	//for (int i = 0; i < nhc; i++)
-//	//{
-//	//	asep_tb[i] = min(asep_tb[i],PI_HALF/3);
-//	//	if (asep_tb[i] < acc_angle) asep_tb[i] = acc_angle;
-//	//}
-//
-//	if (detail_print) cout << "¥÷¬‘”≈ªØ" << max_rough_turn * max_rough_big_turn << "¬÷ÕÍ≥…£¨Ω¯»Îæ´œ∏”≈ªØΩ◊∂Œ..." << endl;
-//
-//	vector<double> acc_asep_tb(nhc, acc_angle);
-//
-//	wait_turn_count = 0;
-//
-//	//return new_alpha_tb;
-//
-//AlphaOpt2:
-//	{
-//		do
-//		{
-//			//cout << turn2count << endl;
-//			if (wait_turn_count >= wait_turn_max)
-//			{
-//				new_energy = old_energy;
-//				new_alpha_tb = old_alpha_tb;
-//				if (detail_print) cout << "µ»¥˝≥¨π˝◊Ó¥Û¬÷¥Œ£¨Ω· ¯æ´œ∏”≈ªØ°£" << endl;
-//				break;
-//			}
-//			for (int i = 0; i < nhc; i++)
-//			{
-//				new_alpha_tb[i] = fmod(new_alpha_tb[i] + PI_DOUBLE, PI_DOUBLE);
-//			}
-//			if (new_energy < old_energy)
-//			{
-//				old_alpha_tb = new_alpha_tb;
-//				old_energy = new_energy;
-//				wait_turn_count = 0;
-//			}
-//			else
-//			{
-//				new_energy = old_energy;
-//				new_alpha_tb = old_alpha_tb;
-//				wait_turn_count++;
-//			}
-//			vector<int> rand_seq;
-//			vector<bool> rec(nhc, false);
-//			if (has_circle) rand_seq = GenerateRandSeq(nhc);
-//
-//			//int continue_yes_count = 0;
-//			for (int rand_i = 0; rand_i < nhc; rand_i++)
-//			{
-//				int i;
-//				if (has_circle)i = rand_seq[rand_i];
-//				else i = rand_i;
-//
-//				//bool continue_yes = false;
-//				//vector<PointTo> nb_node = esp.short_adj_list[i].GetBonds();
-//				//for (int j = 0; j < nb_node.size(); j++)
-//				//{
-//				//	int child = nb_node[j].GetDesSeq();
-//				//	string bond_sym = nb_node[j].GetBondSymbol();
-//				//	if (child < nhc && rec[child] && IsSpecialBond(bond_sym))
-//				//	{
-//				//		continue_yes = true;
-//				//		new_alpha_tb[i] = old_alpha_tb[i];
-//				//		//continue_yes_count++;
-//				//		break;
-//				//	}
-//				//}
-//				//if (continue_yes) continue;
-//
-//				vector<double>now_alpha_tb = new_alpha_tb;
-//				double left_angle = new_alpha_tb[i] - asep_tb[i];
-//				double right_angle = new_alpha_tb[i] + asep_tb[i];
-//
-//				now_alpha_tb[i] = left_angle;
-//
-//
-//				double left_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
-//
-//				now_alpha_tb[i] = right_angle;
-//
-//				double right_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
-//
-//				double mid_energy = INFINITY;
-//
-//				int turn3count = 0;
-//				while (!JudgeStop<double>({ left_energy }, { right_energy }, { acc_energy }) &&
-//					!JudgeStop<double>({ left_angle }, { right_angle }, { acc_angle }))
-//				{
-//					turn3count++;
-//					//cout <<"T3: " << turn3count << endl;
-//					//cout << fixed << setprecision(4) << left_angle - right_angle << "\t" << acc_angle << endl;
-//					//cout << left_energy - right_energy << "\t" << acc_energy << endl;
-//					double sep_angle = (right_angle - left_angle) * OPT_RATIO;
-//					double mid_left_angle = left_angle + sep_angle;
-//					double mid_right_angle = right_angle - sep_angle;
-//
-//					now_alpha_tb[i] = mid_left_angle;
-//					double mid_left_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
-//
-//					now_alpha_tb[i] = mid_right_angle;
-//					double mid_right_energy = CalSumEnergyByXYZ(NO, xyz_tb, alpha_need_cal, now_alpha_tb, all_sp_tb, esp);
-//
-//					if (left_energy < right_energy)
-//					{
-//						right_angle = mid_left_angle;
-//						right_energy = mid_left_energy;
-//					}
-//					else
-//					{
-//						left_angle = mid_right_angle;
-//						left_energy = mid_right_energy;
-//					}
-//				}
-//				new_alpha_tb[i] = (left_angle + right_angle) / 2;
-//			}
-//			//if (continue_yes_count == nhc)
-//			//{
-//			//	if (detail_print) cout << "±æ¬÷À˘”–‘≠◊”æ˘“ÚÃÿ ‚º¸¡¨Ω”Ã¯π˝”≈ªØ£¨Ω· ¯æ´œ∏”≈ªØ°£" << endl;
-//			//	break;
-//			//}
-//			turn2count++;
-//			bool print_yes = false;
-//			if (detail_print)print_yes = (turn2count % print_turn == 0);
-//			if (turn2count % angle_half_turn == 0)
-//			{
-//				for (int i = 0; i < nhc; i++)
-//				{
-//					asep_tb[i] /= 2;
-//					if (asep_tb[i] < acc_angle) asep_tb[i] = acc_angle;
-//				}
-//
-//			}
-//			if (print_yes)
-//			{
-//				cout << "\næ´œ∏”≈ªØΩ¯––÷–£¨µ⁄ " << turn2count << " ¬÷...\n" << endl;
-//			}
-//			new_energy = CalSumEnergyByXYZ(print_yes, xyz_tb, NeedCal(), new_alpha_tb, all_sp_tb, esp);
-//			if (print_yes)
-//			{
-//				cout << "\nEnergySep: " << new_energy - old_energy << endl;
-//				//print alphasep
-//				cout << "Alpha: ";
-//				for (int i = 0; i < nhc; i++)
-//				{
-//					cout << new_alpha_tb[i] << "\t";
-//				}
-//				cout << endl;
-//
-//				cout << "AlphaSepReal ";
-//				for (int i = 0; i < nhc; i++)
-//				{
-//					double nowprintsep = abs(new_alpha_tb[i] - old_alpha_tb[i]);
-//					cout << nowprintsep << "\t";
-//				}
-//				cout << endl;
-//
-//				cout << "AlphaSep ";
-//				for (int i = 0; i < nhc; i++)
-//				{
-//					cout << asep_tb[i] << "\t";
-//				}
-//				cout << endl;
-//
-//
-//			}
-//
-//		} while (!JudgeStop<double>({ new_energy }, { old_energy }, { acc_energy }) ||
-//			!JudgeStop(new_alpha_tb, old_alpha_tb, acc_asep_tb));
-//	}
-//
-//	if (final_energy_a < new_energy) new_alpha_tb = final_alpha_tb_a;
-//
-//
-//	if (detail_print)cout << "æ´œ∏”≈ªØÕÍ≥…£¨π≤Ω¯–– " << turn2count << " ¬÷°£" << endl;
-//	alpha_energy = new_energy;
-//	//vector<Vec3> b_xyz_tb = CalXYZ(new_alpha_tb, pro_htb, bs_fast_tb, long_adj_list, all_sp_tb);
-//
-//	QueryPerformanceCounter(&stop);
-//
-//	//------------------------------**º∆ ±Ω· ¯**------------------------------
-//
-//	double duration = (stop.QuadPart - start.QuadPart) * 1000.0 / 1000.0 / frequency.QuadPart;
-//	cout << "\n(^-^)Alpha”≈ªØ”√ ±£∫ " << duration << " s" << endl << endl;
-//
-//	return new_alpha_tb;
-//}
-
-// º∆ªÆ£®Œ±¥˙¬Î£©£∫
-// 1.  π”√¡£◊”»∫”≈ªØ£®PSO£©À—À˜ alpha œÚ¡øµƒ»´æ÷◊Ó”≈Ω‚°£
-// 2. ≥ı ºªØ£∫∏˘æ›‘≠◊” ˝ nhc …Ë∂®¡£◊” ˝ swarm_size£ªŒ™√ø∏ˆ¡£◊”ÀÊª˙…˙≥…Œª÷√£®Ω«∂»∑∂Œß [0, PI)£©∫Õ–°∑˘ÀŸ∂»£ª≥ı ºªØ∏ˆÃÂ◊Ó”≈ pbest ∫Õ»´æ÷◊Ó”≈ gbest°£
-// 3. µ¸¥˙£∫‘⁄√ø“ª¥˙÷–£¨∞¥πﬂ–‘»®÷ÿ w£®œﬂ–‘µ›ºı£©£¨—ßœ∞“Ú◊” c1, c2 ∏¸–¬ÀŸ∂»£∫
-//    v = w*v + c1*r1*(pbest - pos) + c2*r2*(gbest - pos)
-//    øÿ÷∆ÀŸ∂»∑˘∂»≤¢∏¸–¬Œª÷√∫ÛπÊ“ªªØµΩ [0, PI)°£
-// 4. √ø∏¸–¬“ª¥ŒŒª÷√æÕº∆À„ƒ‹¡ø£®µ˜”√ CalSumEnergyByXYZ£¨print_yes = NO£©£¨»Áπ˚±» pbest ∫√‘Ú∏¸–¬ pbest£ª≤¢∏¸–¬ gbest°£
-// 5. ÷’÷πÃıº˛£∫¥ÔµΩ◊Ó¥Ûµ¸¥˙¥Œ ˝ªÚ»´æ÷ ’¡≤£®ƒ‹¡ø±‰ªØ–°”⁄„–÷µ»Ù∏…¥˙£©°£
-// 6. Ω· ¯∫Û”√ gbest …˙≥…◊Ó÷’»˝Œ¨◊¯±Í£®CalSumEnergyByXYZ(print_yes = YES)£©≤¢∑µªÿ gbest£¨Õ¨ ±Õ®π˝“˝”√…Ë÷√ alpha_energy ∫Õ xyz_tb°£
-// 7. ≤Œ ˝—°‘Ò£∫w ÷Ω•¥” 0.9 œﬂ–‘ΩµµΩ 0.4£¨c1=c2=1.5£¨ÀŸ∂»œﬁ∑˘Œ™ PI£¨◊Ó¥Ûµ¸¥˙”ÎƒÕ–ƒ¬÷ ˝∏˘æ› nhc …Ë÷√°£
-
-vector<double> AlphaPsoOpt(double& alpha_energy, XYZ_TB& xyz_tb, const SP_SpTable& all_sp_tb, EnergySolidParam& esp)
-{
-
-	LARGE_INTEGER b_frequency;
-	QueryPerformanceFrequency(&b_frequency);
-	LARGE_INTEGER b_start, b_stop;
-	QueryPerformanceCounter(&b_start);
-	//------------------------------**º∆ ±ø™ º**------------------------------
-	int nhc = esp.short_adj_list.size();
-	if (nhc <= 0) {
-		alpha_energy = INFINITY;
-		xyz_tb.clear();
-		return vector<double>();
-	}
-
-	// PSO ≤Œ ˝
-	int swarm_size = max(12, min(60, nhc * 4)); // ¡£◊” ˝
-	int max_iter = 400;                          // ◊Ó¥Ûµ¸¥˙¥Œ ˝
-	double w_max = 0.9, w_min = 0.4;            // πﬂ–‘»®÷ÿœﬂ–‘À•ºı
-	double c1 = 1.5, c2 = 1.5;                  // —ßœ∞“Ú◊”
-	double vel_max = PI_DOUBLE;                 // ÀŸ∂»œﬁ∑˘
-	double energy_tol = 1e-6;                   // ƒ‹¡ø ’¡≤„–÷µ
-	int patience_limit = 40;                    // Œﬁ∏ƒΩ¯ƒÕ–ƒ¥˙ ˝
-
-	std::mt19937_64 rng(static_cast<unsigned long>(time(nullptr)));
-	std::uniform_real_distribution<double> uni_angle(0.0, PI_DOUBLE);
-	std::uniform_real_distribution<double> uni_vel(-PI_DOUBLE / 8.0, PI_DOUBLE / 8.0);
-	std::uniform_real_distribution<double> uni_01(0.0, 1.0);
-
-	// ¡£◊”»∫ ˝æ›Ω·ππ
-	vector<vector<double>> pos(swarm_size, vector<double>(nhc));
-	vector<vector<double>> vel(swarm_size, vector<double>(nhc));
-	vector<vector<double>> pbest_pos(swarm_size, vector<double>(nhc));
-	vector<double> pbest_energy(swarm_size, INFINITY);
-
-	vector<double> gbest_pos(nhc);
-	double gbest_energy = INFINITY;
-
-	NeedCal need_cal; // ƒ¨»œº∆À„À˘”–ƒ‹¡øœÓ
-
-	// ≥ı ºªØ¡£◊”
-	for (int s = 0; s < swarm_size; ++s) {
-		for (int i = 0; i < nhc; ++i) {
-			pos[s][i] = uni_angle(rng);
-			vel[s][i] = uni_vel(rng);
-		}
-		// ∆¿π¿≥ı ºƒ‹¡ø£®≤ª¥Ú”°£©
-		XYZ_TB tmp_xyz;
-		double e = CalSumEnergyByXYZ(NO, tmp_xyz, need_cal, pos[s], all_sp_tb, esp);
-		pbest_pos[s] = pos[s];
-		pbest_energy[s] = e;
-		if (e < gbest_energy) {
-			gbest_energy = e;
-			gbest_pos = pos[s];
-		}
-	}
-
-	int iter = 0;
-	int no_improve_count = 0;
-	double last_best_energy = gbest_energy;
-
-	while (iter < max_iter && no_improve_count < patience_limit) {
-		double w = w_max - (w_max - w_min) * (double(iter) / double(max_iter)); // œﬂ–‘œ¬Ωµ
-
-		for (int s = 0; s < swarm_size; ++s) {
-			// ∏¸–¬ÀŸ∂»”ÎŒª÷√
-			for (int i = 0; i < nhc; ++i) {
-				double r1 = uni_01(rng);
-				double r2 = uni_01(rng);
-				double cognitive = c1 * r1 * (pbest_pos[s][i] - pos[s][i]);
-				double social = c2 * r2 * (gbest_pos[i] - pos[s][i]);
-				vel[s][i] = w * vel[s][i] + cognitive + social;
-				// œﬁ∑˘
-				if (vel[s][i] > vel_max) vel[s][i] = vel_max;
-				if (vel[s][i] < -vel_max) vel[s][i] = -vel_max;
-				// ∏¸–¬Œª÷√≤¢”≥…‰µΩ [0, PI)
-				pos[s][i] += vel[s][i];
-				// πÊ∑∂ªØµΩ [0, PI)
-				pos[s][i] = fmod(pos[s][i], PI_DOUBLE);
-				if (pos[s][i] < 0) pos[s][i] += PI_DOUBLE;
-			}
-
-			// ∆¿π¿ƒ‹¡ø£®≤ª¥Ú”°£©
-			XYZ_TB tmp_xyz;
-			double e = CalSumEnergyByXYZ(NO, tmp_xyz, need_cal, pos[s], all_sp_tb, esp);
-
-			// ∏¸–¬∏ˆÃÂ◊Ó”≈
-			if (e < pbest_energy[s]) {
-				pbest_energy[s] = e;
-				pbest_pos[s] = pos[s];
-			}
-			// ∏¸–¬»´æ÷◊Ó”≈
-			if (e < gbest_energy) {
-				gbest_energy = e;
-				gbest_pos = pos[s];
-			}
-		}
-
-		// ‘ÁÕ£ºÏ≤‚
-		if (abs(last_best_energy - gbest_energy) < energy_tol) {
-			no_improve_count++;
-		}
-		else {
-			no_improve_count = 0;
-			last_best_energy = gbest_energy;
-		}
-		iter++;
-	}
-
-	// º∆À„≤¢∑µªÿ◊Ó÷’◊¯±Í£®¥Ú”°◊Ó÷’Ω·π˚£©
-	XYZ_TB final_xyz;
-	double final_e = CalSumEnergyByXYZ(NO, final_xyz, need_cal, gbest_pos, all_sp_tb, esp);
-	alpha_energy = final_e;
-	xyz_tb = final_xyz;
-
-	//------------------------------**º∆ ±Ω· ¯**------------------------------
-	QueryPerformanceCounter(&b_stop);
-	double b_duration = (b_stop.QuadPart - b_start.QuadPart) * 1000.0 / 1000.0 / b_frequency.QuadPart;
-	std::cout << "\n(^-^)PSO”≈ªØ”√ ±: " << b_duration << " s" << std::endl;
-
-
-	return gbest_pos;
-}
-
-class OptRec {
-private:
-	string smiles;
-	double min_energy;
-public:
-	OptRec(string s, double e) :smiles(s), min_energy(e) {}
-	OptRec(const vector<string>& info, const vector<int>& titlenum)
-	{
-		smiles = info[titlenum[0]];
-		min_energy = atof(info[titlenum[1]].c_str());
-	}
-	OptRec(const OptRec& r) :smiles(r.smiles), min_energy(r.min_energy) {}
-	string GetIndex()const { return smiles; }
-	double GetVal()const { return min_energy; }
-	void Print(string sep = "\t")const
-	{
-		cout << smiles << sep << min_energy << endl;
-	}
-
-	friend ostream& operator<<(ostream& os, const OptRec& orc)
-	{
-		os << orc.smiles << "," << orc.min_energy;
-		return os;
-	}
-};
-
-bool FileExists(const string& filename)
-{
-	ifstream file(filename);
-	return file.good();
-}
-
-//ºÏ≤È±Ì∏Ò÷–º«¬ºµƒsmiles∏Ò Ω∂‘”¶µƒjsonŒƒº˛ «∑Ò¥Ê‘⁄”⁄ƒø¬º÷–£¨»Ù≤ª¥Ê‘⁄‘Ú…æ≥˝∏√––º«¬º
-void CheckJsonExist( vector<OptRec>& optrec_tb)
-{
-	vector<OptRec> valid_records;
-	string output_csv_folder = OPT_OUTPUT_FOLDER;
-	string json_folder = JSON_OUTPUT_FOLDER;
-
-	WriteTable(output_csv_folder + OPT_COPY_FILENAME, OPT_REC_TB_TITLE, optrec_tb);
-	for (const auto& record : optrec_tb) {
-		string json_filename = json_folder+"/" + record.GetIndex() + ".json";
-		//cout << "ºÏ≤ÈŒƒº˛: " << json_filename << endl;
-		if (FileExists(json_filename)) {
-			valid_records.push_back(record);
-		}
-		else {
-			cout << "º«¬º " << record.GetIndex() << " ∂‘”¶µƒJSONŒƒº˛≤ª¥Ê‘⁄£¨“—…æ≥˝∏√º«¬º°£" << endl;
-		}
-	}
-	optrec_tb = valid_records;
-	WriteTable(output_csv_folder + OPT_REC_FILENAME, OPT_REC_TB_TITLE, optrec_tb);
-	
-}
-
-
-
-
-
 
 
 int main()
@@ -1125,96 +17,143 @@ int main()
 	SP_SpTable all_sp_tb;
 	const string output_folder = JSON_OUTPUT_FOLDER;
 	const string output_csv_folder = OPT_OUTPUT_FOLDER;
+	const bool html_print = false;
 	const bool smiles_detail_print = false;
-	const bool mmff_detail_print = true;
+	const bool mmff_detail_print = false;
+	const bool opt_print =false;
 
-	vector<OptRec> optrec_tb;
+	vector<OptRecLine> optrec_tb;
 	if (ReadTableByTitle(output_csv_folder + OPT_REC_FILENAME, OPT_REC_TB_TITLE, optrec_tb) == -1) {
 		WriteTable(output_csv_folder + OPT_REC_FILENAME, OPT_REC_TB_TITLE, optrec_tb);
 	}
 	CheckJsonExist(optrec_tb);
 	//WriteTable(output_csv_folder + OPT_REC_FILENAME, OPT_REC_TB_TITLE, optrec_tb);
 
-	map<string, double> optrec_map = ChangeTableToMap<OptRec, double>(optrec_tb);
+	map<string, OptRecVal> optrec_map = ChangeTableToMap<OptRecLine, OptRecVal>(optrec_tb);
 
 
-	cout << "\n ˝æ›≥ı ºªØ“—ÕÍ≥…(o©b®å©b)o°Ó\n";
+	cout << "\nÊï∞ÊçÆÂàùÂßãÂåñÂ∑≤ÂÆåÊàê(o„Çú‚ñΩ„Çú)o‚òÜ\n";
 
-	// ∆Ù∂ØSocket∑˛ŒÒ∆˜
+	// ÂêØÂä®SocketÊúçÂä°Âô®
 	if (!InitializeWinsock()) {
-		cout << "Winsock≥ı ºªØ ß∞‹£°" << endl;
+		cout << "WinsockÂàùÂßãÂåñÂ§±Ë¥•ÔºÅ" << endl;
 		return -1;
 	}
 	if (!StartSocketServer(DEFAULT_PORT)) {
-		cout << "Socket∑˛ŒÒ∆˜∆Ù∂Ø ß∞‹£°" << endl;
+		cout << "SocketÊúçÂä°Âô®ÂêØÂä®Â§±Ë¥•ÔºÅ" << endl;
 		return -1;
 	}
 
 	int turncount = 0;
 	while (serverRunning)
 	{
-		// ºÏ≤È «∑Ò”–øÕªß∂À¡¨Ω”
+		// Ê£ÄÊü•ÊòØÂê¶ÊúâÂÆ¢Êà∑Á´ØËøûÊé•
 		SOCKET clientSocket = accept(serverSocket, NULL, NULL);
 		if (clientSocket == INVALID_SOCKET) {
 			int error = WSAGetLastError();
 			if (error != WSAEWOULDBLOCK) {
-				cout << "Ω” ‹¡¨Ω” ß∞‹£¨¥ÌŒÛ¬Î: " << error << endl;
+				cout << "Êé•ÂèóËøûÊé•Â§±Ë¥•ÔºåÈîôËØØÁ†Å: " << error << endl;
 			}
-			// √ª”–¡¨Ω” ±–›√ﬂ£¨ΩµµÕCPU’º”√
+			// Ê≤°ÊúâËøûÊé•Êó∂‰ºëÁú†ÔºåÈôç‰ΩéCPUÂç†Áî®
 			Sleep(100);
 			continue;
 		}
 
 		//cout << "\n========================================" << endl;
-		//cout << "øÕªß∂À“—¡¨Ω”£°" << endl;
+		//cout << "ÂÆ¢Êà∑Á´ØÂ∑≤ËøûÊé•ÔºÅ" << endl;
 		//cout << "========================================\n" << endl;
 
-		// Ω” ’HTTP«Î«Û
+		// Êé•Êî∂HTTPËØ∑Ê±Ç
 		string httpRequest = ReceiveHTTPRequest(clientSocket);
 
 		if (httpRequest.empty()) {
-			cout << "Œ¥Ω” ’µΩ”––ß«Î«Û" << endl;
+			cout << "Êú™Êé•Êî∂Âà∞ÊúâÊïàËØ∑Ê±Ç" << endl;
 			closesocket(clientSocket);
 			continue;
 		}
 
-		// Ω‚ŒˆHTTP«Î«Û
+		// Ëß£ÊûêHTTPËØ∑Ê±Ç
 		string method, path;
 		string requestBody = ParseHttpRequest(httpRequest, method, path);
 
-		cout << " ’µΩ«Î«Û: " << method << " " << path << endl;
+		cout << "Êî∂Âà∞ËØ∑Ê±Ç: " << method << " " << path << endl;
 
-		// ¥¶¿ÌOPTIONS«Î«Û£®CORS‘§ºÏ£©
+		// Â§ÑÁêÜOPTIONSËØ∑Ê±ÇÔºàCORSÈ¢ÑÊ£ÄÔºâ
 		if (method == "OPTIONS") {
 			SendHTTPResponse(clientSocket, 200, "text/plain", "OK");
 			closesocket(clientSocket);
-			cout << "¥¶¿ÌOPTIONS‘§ºÏ«Î«ÛÕÍ≥…\n" << endl;
+			cout << "Â§ÑÁêÜOPTIONSÈ¢ÑÊ£ÄËØ∑Ê±ÇÂÆåÊàê\n" << endl;
 			continue;
 		}
 
-		// ¥¶¿ÌGET /status «Î«Û£®¡¨Ω”◊¥Ã¨ºÏ≤È£©
+		// Â§ÑÁêÜGET /status ËØ∑Ê±ÇÔºàËøûÊé•Áä∂ÊÄÅÊ£ÄÊü•Ôºâ
 		if (method == "GET" && path == "/status") {
-			string statusResponse = "{\"status\":\"running\",\"message\":\"∑˛ŒÒ∆˜‘À––÷–\"}";
+			string statusResponse = "{\"status\":\"running\",\"message\":\"ÊúçÂä°Âô®ËøêË°å‰∏≠\"}";
 			SendHTTPResponse(clientSocket, 200, "application/json", statusResponse);
 			closesocket(clientSocket);
-			//cout << "◊¥Ã¨ºÏ≤È«Î«Û¥¶¿ÌÕÍ≥…\n" << endl;
+			//cout << "Áä∂ÊÄÅÊ£ÄÊü•ËØ∑Ê±ÇÂ§ÑÁêÜÂÆåÊàê\n" << endl;
 			continue;
 		}
+		// ====================== Â§ÑÁêÜÈùôÊÄÅÊñá‰ª∂ËØ∑Ê±Ç ======================
 
-		// ¥¶¿ÌPOST /convert «Î«Û£®∑÷◊”◊™ªª£©
+		// Â§ÑÁêÜGET / Êàñ /Molecular3D.html ËØ∑Ê±Ç
+		if (method == "GET" && (path == "/" || path == "/Molecular3D.html")) {
+			string htmlPath = "File\\Web\\Molecular3D.html";
+			string htmlContent = ReadFileContent(htmlPath);
+
+			if (!htmlContent.empty()) {
+				SendHTTPResponse(clientSocket, 200, "text/html; charset=utf-8", htmlContent);
+				closesocket(clientSocket);
+				cout << "Â∑≤ÂèëÈÄÅ Molecular3D.html (" << htmlContent.length() << " Â≠óËäÇ)\n" << endl;
+				continue;
+			}
+			else {
+				string errorResponse = "{\"status\":\"error\",\"message\":\"HTMLÊñá‰ª∂Êú™ÊâæÂà∞\"}";
+				SendHTTPResponse(clientSocket, 404, "application/json", errorResponse);
+				closesocket(clientSocket);
+				cout << "ÈîôËØØ: Molecular3D.html Êñá‰ª∂Êú™ÊâæÂà∞\n" << endl;
+				continue;
+			}
+		}
+
+		// Â§ÑÁêÜGET /documentation.md ËØ∑Ê±Ç
+		if (method == "GET" && path == "/documentation.md") {
+			string mdPath = "File\\Web\\documentation.md";
+			string mdContent = ReadFileContent(mdPath);
+
+			if (!mdContent.empty()) {
+				SendHTTPResponse(clientSocket, 200, "text/markdown; charset=utf-8", mdContent);
+				closesocket(clientSocket);
+				cout << "Â∑≤ÂèëÈÄÅ documentation.md (" << mdContent.length() << " Â≠óËäÇ)\n" << endl;
+				continue;
+			}
+			else {
+				string errorResponse = "{\"status\":\"error\",\"message\":\"ÊñáÊ°£Êñá‰ª∂Êú™ÊâæÂà∞\"}";
+				SendHTTPResponse(clientSocket, 404, "application/json", errorResponse);
+				closesocket(clientSocket);
+				cout << "ÈîôËØØ: documentation.md Êñá‰ª∂Êú™ÊâæÂà∞\n" << endl;
+				continue;
+			}
+		}
+
+
+
+		// Â§ÑÁêÜPOST /convert ËØ∑Ê±ÇÔºàÂàÜÂ≠êËΩ¨Êç¢Ôºâ
 		if (method == "POST" && path == "/convert") {
 			turncount++;
-			PrintCmdSepTitle("µ⁄" + to_string(turncount) + "¬÷Ω·ππ ΩΩ‚Œˆ");
+			PrintCmdSepTitle("Á¨¨" + to_string(turncount) + "ËΩÆÁªìÊûÑÂºèËß£Êûê");
 
-			cout << "Ω” ’µΩ " << requestBody.length() << " ◊÷Ω⁄JSON ˝æ›" << endl;
+			cout << "Êé•Êî∂Âà∞ " << requestBody.length() << " Â≠óËäÇJSONÊï∞ÊçÆ" << endl;
 
-			// Ω‚ŒˆJSON≤¢ππΩ®∑÷◊”
+			// Ëß£ÊûêJSONÂπ∂ÊûÑÂª∫ÂàÜÂ≠ê
 			vector<SimpleMNode> sn_tb;
 			vector<AdjLine> adj_list;
+
+
 			if (!AnalysisJsonFile(requestBody, sn_tb, adj_list))
 			{
-				cout << "\nJSON ˝æ›Ω‚Œˆ ß∞‹£¨«ÎºÏ≤È∏Ò Ω£°" << endl;
-				string errorResponse = "{\"status\":\"error\",\"message\":\"JSONΩ‚Œˆ ß∞‹\"}";
+				cout << "\nJSONÊï∞ÊçÆËß£ÊûêÂ§±Ë¥•ÔºåËØ∑Ê£ÄÊü•Ê†ºÂºèÔºÅ" << endl;
+				string errorResponse = "{\"status\":\"error\",\"message\":\"JSONËß£ÊûêÂ§±Ë¥•\"}";
 				SendHTTPResponse(clientSocket, 400, "application/json", errorResponse);
 				closesocket(clientSocket);
 				continue;
@@ -1234,133 +173,192 @@ int main()
 				now_smiles = c.GenerateCanSmiles(sft.primetable);
 			}
 
-			if (smiles_detail_print)
+			if (html_print)
 			{
-				PrintCmdSepTitle("ºÚªØ∑÷◊”Ω⁄µ„±Ì");
+
+				PrintCmdSepTitle("ÁΩëÈ°µ‰ø°ÊÅØ");
+				cout << requestBody << endl;
+				PrintCmdSepTitle("ÁÆÄÂåñÂàÜÂ≠êËäÇÁÇπË°®", H2_SEP_WIDTH);
 				PrintSpecialVector(sn_tb);
-				PrintCmdSepTitle("ºÚªØ∑÷◊”¡⁄Ω”±Ì");
+				PrintCmdSepTitle("ÁÆÄÂåñÂàÜÂ≠êÈÇªÊé•Ë°®", H3_SEP_WIDTH);
 				PrintSpecialVector(adj_list);
 
-				PrintCmdSepTitle("∑÷◊”Ω⁄µ„Ã·»°");
-				c.PrintNodeTable();
-
-				PrintCmdSepTitle("∑÷◊”Ω⁄µ„¡⁄Ω”±Ì");
-				c.PrintBondTable();
-
-
-				PrintCmdSepTitle("÷»≈≈–ÚΩ·π˚");
-				c.PrintOriRank();
-				c.PrintRank();
-				cout << "\n «∑Ò∫¨ª∑£∫" << (c.HasCircle() ? " «" : "∑Ò") << endl;
-				cout << "\n «∑Ò∫¨Ãÿ ‚º¸£∫" << (c.HasSpecialBond() ? " «" : "∑Ò") << endl;
+			}
+			if (smiles_detail_print)
+			{
+				MoleInfoPrint(c);
 			}
 
-			PrintCmdSepTitle("Œ®“ªSMILES…˙≥…");
-			//cout << "‘≠SMILES£∫\n";
+
+			//cout << "ÂéüSMILESÔºö\n";
 			//cout << c.GetComSmiles() << endl << endl;
-			//cout << "Œ®“ªSMILES£∫\n";
+			//cout << "ÂîØ‰∏ÄSMILESÔºö\n";
 			//cout << now_smiles << endl;
 
 			if (!c.HasCircle() || !c.HasSpecialBond())
 			{
 				//Mole mid(sft.atomtable, now_smiles);
 				now_smiles = c.GenerateCanSmilesNoCircle(sft.primetable);
-				//cout << "Ω¯––◊™ªª£°" << endl;
+				//cout << "ËøõË°åËΩ¨Êç¢ÔºÅ" << endl;
 			}
-
-			cout << "Œ®“ªSMILES£∫\n";
+			PrintCmdSepTitle("ÂîØ‰∏ÄSMILESÁîüÊàê");
+			cout << "ÂîØ‰∏ÄSMILESÔºö\n";
 			cout << now_smiles << endl;
 
 			Mole d(sft.atomtable, now_smiles);
 
 			/*
-			PrintCmdSepTitle("∑÷◊”Ω⁄µ„Ã·»°");
+			PrintCmdSepTitle("ÂàÜÂ≠êËäÇÁÇπÊèêÂèñ");
 			d.PrintNodeTable();
-			PrintCmdSepTitle("∑÷◊”Ω⁄µ„¡⁄Ω”±Ì");
+			PrintCmdSepTitle("ÂàÜÂ≠êËäÇÁÇπÈÇªÊé•Ë°®");
 			d.PrintBondTable();
 			*/
 			const string folderpath = output_folder;
 
-			//string errorResponse_part = "{\"status\":\"error\",\"message\":\"Œ¥÷™«Î«Û¬∑æ∂\"}";
+			//string errorResponse_part = "{\"status\":\"error\",\"message\":\"Êú™Áü•ËØ∑Ê±ÇË∑ØÂæÑ\"}";
 			//SendHTTPResponse(clientSocket, 404, "application/json", errorResponse_part);
 			//closesocket(clientSocket);
-			//cout << "Œ¥÷™«Î«Û: " << method << " " << path << "\n" << endl;
+			//cout << "Êú™Áü•ËØ∑Ê±Ç: " << method << " " << path << "\n" << endl;
 			//continue;
 
 			bool rec_find = optrec_map.find(now_smiles) != optrec_map.end();
-			double rec_energy = rec_find ? optrec_map[now_smiles] : INFINITY;
-
-			if (rec_find)
+			double rec_energy = rec_find ? optrec_map[now_smiles].min_energy : INFINITY;
+			double rec_opttime = rec_find ? optrec_map[now_smiles].opt_time : INFINITY;
+			bool has_sent = false;
+			if (rec_find && rec_opttime >= MAX_CAL_TIME)
 			{
-				PrintCmdSepTitle("‘§º∆À„ ˝æ›∑¢ÀÕ");
+				PrintCmdSepTitle("È¢ÑËÆ°ÁÆóÊï∞ÊçÆÂèëÈÄÅ");
 				string sent_json_rec = ReadJsonFile(folderpath + "/" + now_smiles + ".json");
-				string smiles_json_part = "\"SMILES\":\"" + now_smiles + "\"";
-				string responseJson_rec = "{\n\"status\":\"precal\",\n" + smiles_json_part + ",\n\"data\":" + sent_json_rec + "\n}";
-
-				cout << "’˝‘⁄∑¢ÀÕ‘§º∆À„3DΩ·ππ ˝æ›µΩÕ¯“≥..." << endl;
-				if (SendHTTPResponse(clientSocket, 200, "application/json", responseJson_rec)) {
-					cout << "3DΩ·ππ ˝æ›∑¢ÀÕ≥…π¶£°" << endl;
-					cout << " ˝æ›¥Û–°: " << responseJson_rec.length() << " ◊÷Ω⁄" << endl;
-				}
-				else {
-					cout << "3DΩ·ππ ˝æ›∑¢ÀÕ ß∞‹£°" << endl;
-				}
+				ResultSent("precal", clientSocket, sent_json_rec, now_smiles, rec_energy);
+				has_sent = true;
 			}
 
 
-			//---------------------------**MMFF ∂±**----------------------------------
+			//---------------------------**MMFFËØÜÂà´**----------------------------------
 			int ac;
 			EnergySolidParam esp = GenEnergySolidParam(ac, eft, d, mmff_detail_print);
 			int nhc = esp.short_adj_list.size();
 			bool has_circle = c.HasCircle();
 
-			//---------------------------**Alpha”≈ªØ**----------------------------------
+
+			XYZ_TB final_xyz_tb;
+			double final_energy;
+			//---------------------------**Alpha‰ºòÂåñ**----------------------------------
+			ABOpt old_ab_opt(nhc);
+			ABOpt new_ab_opt(nhc);
+
 			vector<double> old_alpha_tb(nhc, 0);
-			vector<Vec3> old_xyz_tb;
+			XYZ_TB old_alpha_xyz_tb;
 
-			bool alpha_successful = false;
+			bool update_optrec_yes = false;
 
-			PrintCmdSepTitle("Alpha”≈ªØ«∞");
-			double before_energy = CalSumEnergyByXYZ(YES, old_xyz_tb, NeedCal(), old_alpha_tb, all_sp_tb, esp);
+			PrintCmdSepTitle("Alpha‰ºòÂåñÂâç");
+			double alpha_before_energy = CalSumEnergyByXYZ(YES, old_alpha_xyz_tb, NeedCal(), old_ab_opt, all_sp_tb, esp);
 			//WriteTable(GetXYZTbPath(now_smiles, 1), XYZ_TB_TITLE, xyz_tb);
 
-			PrintCmdSepTitle("Alpha”≈ªØΩ¯∂»-º« ±");
-			cout << "”≈ªØ÷–°≠°≠\n";
+			PrintCmdSepTitle("Alpha‰ºòÂåñËøõÂ∫¶-ËÆ∞Êó∂");
+			cout << "Alpha‰ºòÂåñ‰∏≠‚Ä¶‚Ä¶\n";
 
-			XYZ_TB new_xyz_tb;
-			double alpha_energy;
-			vector<double> new_alpha_tb = AlphaOpt(has_circle, alpha_energy, new_xyz_tb, all_sp_tb, esp, mmff_detail_print,now_smiles);
+			XYZ_TB new_alpha_xyz_tb;
+			OptRecVal alpha_opt_val;
+			//vector<double> new_alpha_tb = AlphaOpt(has_circle, alpha_energy, new_xyz_tb, all_sp_tb, esp, opt_print, now_smiles);
+			new_ab_opt.alpha_tb = AlphaOpt(has_circle, new_ab_opt.beta_tb, alpha_opt_val, new_alpha_xyz_tb, all_sp_tb, esp, opt_print);
 
-			cout << "”≈ªØÕÍ≥…£°\n";
+			cout << "‰ºòÂåñÂÆåÊàêÔºÅ\n";
 
-			PrintCmdSepTitle("Alpha”≈ªØ∫Û");
+			PrintCmdSepTitle("Alpha‰ºòÂåñÂêé");
 			//WriteTable(GetXYZTbPath(now_smiles, 2), XYZ_TB_TITLE, alpha_xyz_tb);
 
-			double final_energy = CalSumEnergyByXYZ(YES, new_xyz_tb, NeedCal(), new_alpha_tb, all_sp_tb, esp);
+			double alpha_energy = CalSumEnergyByXYZ(YES, new_alpha_xyz_tb, NeedCal(), new_ab_opt, all_sp_tb, esp);
 
-			if (before_energy < final_energy)
+			if (alpha_before_energy < alpha_energy)
 			{
-				final_energy = before_energy;
-				new_xyz_tb = old_xyz_tb;
+				final_energy = alpha_before_energy;
+				final_xyz_tb = old_alpha_xyz_tb;
 			}
-			//string errorResponse = "{\"status\":\"error\",\"message\":\"Œ¥÷™«Î«Û¬∑æ∂\"}";
+			else
+			{
+				final_energy = alpha_energy;
+				final_xyz_tb = new_alpha_xyz_tb;
+			}
+			//string errorResponse = "{\"status\":\"error\",\"message\":\"Êú™Áü•ËØ∑Ê±ÇË∑ØÂæÑ\"}";
 			//SendHTTPResponse(clientSocket, 404, "application/json", errorResponse);
 			//closesocket(clientSocket);
-			//cout << "Œ¥÷™«Î«Û: " << method << " " << path << "\n" << endl;
+			//cout << "Êú™Áü•ËØ∑Ê±Ç: " << method << " " << path << "\n" << endl;
 
+			//---------------------------**Beta‰ºòÂåñ**----------------------------------
 
-			//---------------------------**JSON∏Ò Ω¥´ ‰**----------------------------------
+			XYZ_TB new_beta_xyz_tb;
+			OptRecVal beta_opt_val;
+
+			PrintCmdSepTitle("Beta‰ºòÂåñËøõÂ∫¶-ËÆ∞Êó∂");
+			cout << "‰ºòÂåñ‰∏≠‚Ä¶‚Ä¶\n";
+			new_ab_opt.beta_tb = BetaOpt(has_circle, new_ab_opt.alpha_tb, beta_opt_val, new_beta_xyz_tb, all_sp_tb, esp, opt_print);
+			//
+			////new_beta_xyz_tb = CalXYZ(new_ab_opt, esp.pro_htb, esp.bs_fast_tb, esp.mnode_tb, esp.short_adj_list, all_sp_tb);
+			cout << "‰ºòÂåñÂÆåÊàêÔºÅ\n";
+			PrintCmdSepTitle("Beta‰ºòÂåñÂêé");
+			////WriteTable(GetXYZTbPath(now_smiles, 2), XYZ_TB_TITLE, alpha_xyz_tb);
+
+			double beta_energy = CalSumEnergyByXYZ(YES, new_beta_xyz_tb, NeedCal(), new_ab_opt, all_sp_tb, esp);
+
+			if (beta_energy < final_energy)
+			{
+				final_energy = beta_energy;
+				final_xyz_tb = new_beta_xyz_tb;
+			}
+			OptRecVal final_opt_val = { final_energy, alpha_opt_val.opt_time + beta_opt_val.opt_time };
+
+			//cout << "ÂΩìÂâçÊúÄÂ∞èËÉΩÈáèÔºö" << final_energy << " kcal/mol\n";
+			//---------------------------**Alpha‰ºòÂåñ**----------------------------------
+
+			//PrintCmdSepTitle("Alpha‰ºòÂåñËøõÂ∫¶-ËÆ∞Êó∂");
+			//cout << "Alpha‰ºòÂåñ‰∏≠‚Ä¶‚Ä¶\n";
+
+			////XYZ_TB new_alpha_xyz_tb;
+			////OptRecVal alpha_opt_val;
+			////vector<double> new_alpha_tb = AlphaOpt(has_circle, alpha_energy, new_xyz_tb, all_sp_tb, esp, opt_print, now_smiles);
+			//new_ab_opt.alpha_tb = AlphaOpt(has_circle, new_ab_opt.beta_tb, alpha_opt_val, new_alpha_xyz_tb, all_sp_tb, esp, opt_print);
+
+			//cout << "‰ºòÂåñÂÆåÊàêÔºÅ\n";
+
+			//PrintCmdSepTitle("Alpha‰ºòÂåñÂêé");
+			////WriteTable(GetXYZTbPath(now_smiles, 2), XYZ_TB_TITLE, alpha_xyz_tb);
+
+			// alpha_energy = CalSumEnergyByXYZ(YES, new_alpha_xyz_tb, NeedCal(), new_ab_opt, all_sp_tb, esp);
+
+			//if (alpha_before_energy < alpha_energy)
+			//{
+			//	final_energy = alpha_before_energy;
+			//	final_xyz_tb = old_alpha_xyz_tb;
+			//}
+			//else
+			//{
+			//	final_energy = alpha_energy;
+			//	final_xyz_tb = new_alpha_xyz_tb;
+			//}
+
+			//---------------------------**JSONÊ†ºÂºè‰º†Ëæì**----------------------------------
 
 			string sent_json;
 			//final_energy < rec_energy
 			if (final_energy < rec_energy)
 			{
-				vector<SXYZ_3D> sxyz_tb = GetSXYZTb(new_xyz_tb, esp);
+				rec_energy = final_energy;
+				if (rec_opttime < MAX_REC_TIME)
+				{
+					optrec_map[now_smiles] = { rec_energy,max(rec_opttime,final_opt_val.opt_time) };
+				}
+				else
+				{
+					optrec_map[now_smiles] = final_opt_val;
+				}
+				vector<SXYZ_3D> sxyz_tb = GetSXYZTb(final_xyz_tb, esp);
 				vector<AdjABS_3D> adjline_tb = GetAdjABSTb(esp);
-				cout << "\n”≈ªØ≥…π¶£°◊Ó÷’ƒ‹¡ø: " << final_energy << " kcal/mol\n";
+				cout << "\n‰ºòÂåñÊàêÂäüÔºÅÊúÄÁªàËÉΩÈáè: " << final_energy << " kcal/mol\n";
 
-				alpha_successful = true;
-				PrintCmdSepTitle("JSON ˝æ›…˙≥…");
+				update_optrec_yes = true;
+				//PrintCmdSepTitle("JSONÊï∞ÊçÆÁîüÊàê");
 
 				string sxyz_json_part = VectorToJsonPart("SXYZ", sxyz_tb);
 				string adjab_json_part = VectorToJsonPart("ADJ_AB", adjline_tb);
@@ -1370,30 +368,41 @@ int main()
 
 				WriteJsonFile(sent_json_path, sent_json);
 
-				optrec_map[now_smiles] = final_energy;
+
 				//cout << sent_json << endl;
 			}
 			else
 			{
-				cout << "\n”≈ªØŒ¥¥Ô‘§∆⁄£¨≤…”√”≈ªØ«∞Ω·ππ°£◊Ó÷’ƒ‹¡ø: " << rec_energy << " kcal/mol\n";
+				cout << "\n‰ºòÂåñÊú™ËææÈ¢ÑÊúüÔºåÈááÁî®‰ºòÂåñÂâçÁªìÊûÑ„ÄÇÊúÄÁªàËÉΩÈáè: " << rec_energy << " kcal/mol\n";
 				sent_json = ReadJsonFile(folderpath + "/" + now_smiles + ".json");
+				if (rec_opttime >= MAX_REC_TIME)
+				{
+					rec_opttime = final_opt_val.opt_time;
+					optrec_map[now_smiles] = { rec_energy,rec_opttime };
+					update_optrec_yes = true;
+				}
+				else if (final_opt_val.opt_time > rec_opttime)
+				{
+					optrec_map[now_smiles] = { rec_energy,final_opt_val.opt_time };
+					update_optrec_yes = true;
+				}
 			}
 
-			//----------------------------**Œƒº˛µº≥ˆ**-----------------------------------
+			//----------------------------**Êñá‰ª∂ÂØºÂá∫**-----------------------------------
 
-			//cout << "Œƒº˛ 3d.json “—¥¢¥Ê£°\n";
+			//cout << "Êñá‰ª∂ 3d.json Â∑≤ÂÇ®Â≠òÔºÅ\n";
 
 
-			//PrintCmdSepTitle("Œƒº˛º–" + now_smiles + "¥¥Ω®");
+			//PrintCmdSepTitle("Êñá‰ª∂Â§π" + now_smiles + "ÂàõÂª∫");
 			//if (!CreateFolder(folderpath)) {
-			//	cout << "Warning: Œƒº˛º–¥¥Ω® ß∞‹£°ø…ƒ‹“—¥Ê‘⁄°£\n";
+			//	cout << "Warning: Êñá‰ª∂Â§πÂàõÂª∫Â§±Ë¥•ÔºÅÂèØËÉΩÂ∑≤Â≠òÂú®„ÄÇ\n";
 			//}
 			//else
 			//{
-			//	cout << "Œƒº˛º–¥¥Ω®≥…π¶£°\n";
+			//	cout << "Êñá‰ª∂Â§πÂàõÂª∫ÊàêÂäüÔºÅ\n";
 			//}
 
-			//PrintCmdSepTitle("CSVŒƒº˛µº≥ˆ");
+			//PrintCmdSepTitle("CSVÊñá‰ª∂ÂØºÂá∫");
 
 			//string sxyz_tb_path = folderpath + "/SXYZ.csv";
 			//WriteTable(sxyz_tb_path, SXYZ_TB_TITLE, sxyz_tb);
@@ -1401,52 +410,40 @@ int main()
 			//string adjab_filename = folderpath + "/ADJ_AB.csv";
 			//WriteTable(adjab_filename, ADJ_AB_TB_TITLE, adjline_tb);
 
-			//cout << "Œƒº˛ SXYZ.csv ∫Õ ADJ_AB.csv “—¥¢¥Ê£°\n";
+			//cout << "Êñá‰ª∂ SXYZ.csv Âíå ADJ_AB.csv Â∑≤ÂÇ®Â≠òÔºÅ\n";
 
-			//---------------------------**HTTPœÏ”¶∑¢ÀÕ**----------------------------------
-			if (!rec_find)
+			//---------------------------**HTTPÂìçÂ∫îÂèëÈÄÅ**----------------------------------
+			if (!has_sent)
 			{
-				PrintCmdSepTitle("HTTPœÏ”¶∑¢ÀÕ");
+				PrintCmdSepTitle("Ê≠£Â∏∏ËÆ°ÁÆóÁªìÊûúÂèëÈÄÅ");
 
-				// ππΩ®œÏ”¶JSON£®∞¸∫¨◊¥Ã¨∫Õ3D ˝æ›£©
-				string smiles_json_part = "\"SMILES\":\"" + now_smiles + "\"";
-				string responseJson = "{\n\"status\":\"success\",\n" + smiles_json_part + ",\n\"data\":" + sent_json + "\n}";
-
-				cout << "’˝‘⁄∑¢ÀÕ3DΩ·ππ ˝æ›µΩÕ¯“≥..." << endl;
-				if (SendHTTPResponse(clientSocket, 200, "application/json", responseJson)) {
-					cout << "3DΩ·ππ ˝æ›∑¢ÀÕ≥…π¶£°" << endl;
-					cout << " ˝æ›¥Û–°: " << responseJson.length() << " ◊÷Ω⁄" << endl;
-				}
-				else {
-					cout << "3DΩ·ππ ˝æ›∑¢ÀÕ ß∞‹£°" << endl;
-				}
+				// ÊûÑÂª∫ÂìçÂ∫îJSONÔºàÂåÖÂê´Áä∂ÊÄÅÂíå3DÊï∞ÊçÆÔºâ
+				ResultSent("success", clientSocket, sent_json, now_smiles, rec_energy);
 
 				cout << "\nCanSmiles: " << now_smiles << endl;
-
-				// πÿ±’øÕªß∂À¡¨Ω”
-				closesocket(clientSocket);
-				cout << "\nøÕªß∂À¡¨Ω”“—πÿ±’£¨µ»¥˝œ¬“ª∏ˆ¡¨Ω”...\n" << endl;
 			}
-
-			//¥¢¥ÊOptRecº«¬º
-			if (alpha_successful)
+			// ÂÖ≥Èó≠ÂÆ¢Êà∑Á´ØËøûÊé•
+			closesocket(clientSocket);
+			cout << "\nÂÆ¢Êà∑Á´ØËøûÊé•Â∑≤ÂÖ≥Èó≠ÔºåÁ≠âÂæÖ‰∏ã‰∏Ä‰∏™ËøûÊé•...\n" << endl;
+			//ÂÇ®Â≠òOptRecËÆ∞ÂΩï
+			if (update_optrec_yes)
 			{
-				PrintCmdSepTitle("”≈ªØº«¬º∏¸–¬");
-				vector<OptRec> optrec_tb = ChangeMapToTable<OptRec, double>(optrec_map);
+				PrintCmdSepTitle("‰ºòÂåñËÆ∞ÂΩïÊõ¥Êñ∞");
+				vector<OptRecLine> optrec_tb = ChangeMapToTable<OptRecLine, OptRecVal>(optrec_map);
 				WriteTable(output_csv_folder + OPT_REC_FILENAME, OPT_REC_TB_TITLE, optrec_tb);
 			}
 
 		}
 		else {
-			// Œ¥÷™«Î«Û
-			string errorResponse = "{\"status\":\"error\",\"message\":\"Œ¥÷™«Î«Û¬∑æ∂\"}";
+			// Êú™Áü•ËØ∑Ê±Ç
+			string errorResponse = "{\"status\":\"error\",\"message\":\"Êú™Áü•ËØ∑Ê±ÇË∑ØÂæÑ\"}";
 			SendHTTPResponse(clientSocket, 404, "application/json", errorResponse);
 			closesocket(clientSocket);
-			cout << "Œ¥÷™«Î«Û: " << method << " " << path << "\n" << endl;
+			cout << "Êú™Áü•ËØ∑Ê±Ç: " << method << " " << path << "\n" << endl;
 		}
 	}
 
-	// «Â¿Ì
+	// Ê∏ÖÁêÜ
 	StopSocketServer();
 	return 0;
 }

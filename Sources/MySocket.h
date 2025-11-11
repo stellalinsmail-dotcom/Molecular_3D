@@ -178,6 +178,9 @@ vector<SXYZ_3D> GetSXYZTb(const XYZ_TB& xyz_tb, const  EnergySolidParam& esp);
 
 vector<AdjABS_3D> GetAdjABSTb(const EnergySolidParam& esp);
 
+void ResultSent(string status, SOCKET clientSocket, string sentjson, string now_smiles, double energy);
+
+
 
 #endif
 

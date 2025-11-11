@@ -96,7 +96,7 @@ void NodeBonds::AddBond(PointTo bond)
 {
 	d.push_back(bond);
 }
-int NodeBonds::CountBound()
+int NodeBonds::CountBond()const
 {
 	return d.size();
 }
@@ -1078,6 +1078,24 @@ SmilesFundTable ReadSmilesSolidParam(bool print_yes, int max_row_count)
 	}
 	SmilesFundTable sft = { atomtable, primetable };
 	return sft;
+}
+
+void MoleInfoPrint(Mole c)
+{
+	PrintCmdSepTitle("分子节点提取");
+	c.PrintNodeTable();
+
+	PrintCmdSepTitle("分子节点邻接表");
+	c.PrintBondTable();
+
+
+	PrintCmdSepTitle("秩排序结果");
+	cout << "初始秩：\n";
+	c.PrintOriRank();
+	cout << "\n最终秩：\n";
+	c.PrintRank();
+	cout << "\n是否含环：" << (c.HasCircle() ? "是" : "否") << endl;
+	cout << "\n是否含特殊键：" << (c.HasSpecialBond() ? "是" : "否") << endl;
 }
 
 

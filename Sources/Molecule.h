@@ -164,7 +164,7 @@ public:
 			}
 		}
 	}
-	int CountBound();
+	int CountBond()const;
 	void Print(string sep = "\t")const;
 	vector<PointTo> GetBonds()const;
 	friend ostream& operator<<(ostream& out, const NodeBonds& n);
@@ -208,7 +208,7 @@ public:
 	int ComplexSortByRank(const vector<PrimeNumber>& ptb);
 	void MoleSortWithPN(const vector<PrimeNumber>& ptb, bool printyes = false);
 	string GenerateCanSmiles(const vector<PrimeNumber>&);
-	string Mole::GenerateCanSmilesNoCircle(const vector<PrimeNumber>& primetable);
+	string GenerateCanSmilesNoCircle(const vector<PrimeNumber>& primetable);
 
 	string GetComSmiles()const { return com_smiles; }
 	string GetCanSmiles();
@@ -239,5 +239,8 @@ struct SmilesFundTable
 };
 
 SmilesFundTable ReadSmilesSolidParam(bool print_yes = false, int max_row_count = -1);
+void MoleInfoPrint(Mole c);
+
+
 
 #endif // MOLECULE_H

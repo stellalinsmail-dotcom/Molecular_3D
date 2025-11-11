@@ -2,8 +2,8 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>Molecular3D-MMFFOpt</title>
-
+    <title>MMFFMole3D</title>
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
     <!-- 全局和布局样式 -->
     <style>
         html, body {
@@ -41,7 +41,7 @@
 
         #d3-container {
             flex: 1; /* 占据剩余空间 */
-            min-width: 200px; /* 最小宽度 */
+            min-width: 250px; /* 最小宽度 */
         }
 
         #resizer {
@@ -68,7 +68,7 @@
             align-items: center;
             gap: 10px;
             z-index: 201;
-            /* 新增：背景装饰 */
+            /*背景装饰 */
             padding: 15px 10px;
             background: rgb(60, 66, 79);
             border-radius: 12px;
@@ -153,7 +153,7 @@
     <style>
         #draw-container {
             --bg-dark: #20232A;
-            --toolbar-bg: rgba(40, 44, 52, 0.85); /* 修正#2: 增加透明度 */
+            --toolbar-bg: rgba(40, 44, 52, 0.85); /* 增加透明度 */
             --canvas-bg: #FFFFFF;
             --border-color: #3C424F;
             --text-color-light: #F8F8F8;
@@ -164,7 +164,7 @@
             --mode-color: #C678DD;
             --delete-color: #E06C75;
             --export-color: #FFD700;
-            /* 修正#2: 动态颜色变量 */
+            /* 动态颜色变量 */
             --draw-atom-C: #282C34;
             --draw-atom-H: #A9A9A9;
             --draw-atom-O: #7CBDE6;
@@ -174,9 +174,9 @@
         }
 
             #draw-container #toolbar {
-                width: 120px;
+                width: 130px;
                 background: var(--toolbar-bg);
-                backdrop-filter: blur(5px); /* 修正#2: 毛玻璃效果 */
+                backdrop-filter: blur(5px); /* 毛玻璃效果 */
                 padding: 10px 10px;
                 box-sizing: border-box;
                 display: flex;
@@ -296,6 +296,26 @@
                 border-color: var(--mode-color);
             }
 
+            #draw-container #undoBtn {
+                background: #4CAF50;
+                border-color: #4CAF50;
+                color: #282C34;
+                font-weight: bold;
+                margin-top: 10px;
+            }
+
+                #draw-container #undoBtn:hover {
+                    background: #45a049;
+                    border-color: #45a049;
+                }
+
+                #draw-container #undoBtn:disabled {
+                    background: #cccccc;
+                    border-color: #cccccc;
+                    cursor: not-allowed;
+                    opacity: 0.6;
+                }
+
             #draw-container #exportPngBtn {
                 background: var(--export-color);
                 border-color: var(--export-color);
@@ -312,6 +332,7 @@
             #draw-container #deleteBtn {
                 background: var(--delete-color);
                 border-color: var(--delete-color);
+                color: #282C34;
                 font-weight: bold;
                 margin-top: 5px;
             }
@@ -325,22 +346,22 @@
             #draw-container #canvas-wrapper {
                 flex: 1;
                 background: var(--canvas-bg);
-                overflow: auto; /* ⭐ 改为auto，当内容溢出时显示滚动条 */
-                position: relative; /* ⭐ 添加相对定位 */
+                overflow: auto; /* 当内容溢出时显示滚动条 */
+                position: relative; /* 添加相对定位 */
             }
 
             #draw-container svg {
-                display: block; /* ⭐ 改为block，避免底部留白 */
+                display: block; /* 改为block，避免底部留白 */
                 cursor: crosshair;
                 background-color: var(--canvas-bg);
-                /* ⭐ 移除width和height的100%，让JavaScript动态控制 */
+                /* 移除width和height的100%，让JavaScript动态控制 */
             }
 
                 #draw-container svg .selectable-atom {
                     stroke: transparent;
                     fill: transparent;
                     stroke-width: 2;
-                    cursor: crosshair !important; /* 改为crosshair */
+                    cursor: crosshair !important; 
                 }
 
                     #draw-container svg .selectable-atom.selected {
@@ -352,7 +373,7 @@
                 #draw-container svg .selectable-bond {
                     stroke: transparent;
                     stroke-width: 20;
-                    cursor: crosshair !important; /* 改为crosshair */
+                    cursor: crosshair !important;
                 }
 
                     #draw-container svg .selectable-bond.selected {
@@ -405,7 +426,7 @@
             --color-params-dark: #86A890;
             --color-export-dark: #7096B0;
             --color-text-light: #333333;
-            /*  新增：导出按钮渐变颜色（浅色主题 - 灰色系） */
+            /*  导出按钮渐变颜色（浅色主题 - 灰色系） */
             --export-png-dark: #9487B0; /* 偏灰的紫色 */
             --export-stl-dark: #8788B0; /* 偏灰的蓝紫色 */
             --export-glb-dark: #7B8FA3; /* 偏灰的蓝色 */
@@ -413,15 +434,17 @@
             --export-png-light: #C3A4FA; /* 紫色 */
             --export-stl-light: #B7BDFF; /* 蓝紫色 */
             --export-glb-light: #B2CEFA; /* 蓝色 */
-
-
+            /* 帮助文档按钮颜色（暗色背景 -> 浅黄色；浅色背景 -> 略灰黄色） */
+            --doc-dark: #CFB571; /* 在暗色背景下使用的浅黄色 */
+            --doc-light: #FFD966; /* 在浅色背景下使用的略带灰的黄色 */
+            --current-doc-button: var(--doc-dark);
             --current-text-color: var(--color-text-light);
             --current-load-color: var(--color-load-dark);
             --current-light-color: var(--color-light-dark);
             --current-params-color: var(--color-params-dark);
             --current-export-color: var(--color-export-dark);
             --current-toggle-active: var(--color-params-dark);
-            /*新增：当前导出按钮颜色（默认使用深色主题） */
+            /*当前导出按钮颜色（默认使用深色主题） */
             --current-export-png: var(--export-png-dark);
             --current-export-stl: var(--export-stl-dark);
             --current-export-glb: var(--export-glb-dark);
@@ -452,6 +475,11 @@
                 font-size: 14px;
                 line-height: 1.2;
                 transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+                /* 限制高度并允许滚动，避免在小屏幕时溢出 */
+                max-height: calc(100vh - 20px);
+                overflow-y: auto;
+                padding-right: 6px; /* 为滚动条留出空间 */
+                box-sizing: border-box;
             }
 
             #d3-container .control-panel {
@@ -492,7 +520,7 @@
                     display: block;
                 }
 
-            /* 修正#3: 隐藏原生input，用label美化 */
+            /* 隐藏原生input，用label美化 */
             #d3-container input[type="file"] {
                 display: none;
             }
@@ -545,21 +573,33 @@
                     transform: translateY(2px);
                     box-shadow: 0 1px 0 0 rgba(0, 0, 0, 0.2);
                 }
-
-            #d3-container #export-controls-panel .export-button:nth-child(2) {
-                /* PNG按钮 */
-                background-color: var(--current-export-png);
+            /* 导出按钮并排显示，节省空间 */
+            #d3-container #export-controls-panel .export-row {
+                display: flex;
+                gap: 6px;
+                margin-top: 8px;
             }
 
-            #d3-container #export-controls-panel .export-button.export-stl-button {
-                /* STL按钮 */
-                background-color: var(--current-export-stl);
-            }
+                #d3-container #export-controls-panel .export-row button {
+                    flex: 1 1 0;
+                    width: auto;
+                    padding: 8px 6px;
+                    border-radius: 8px;
+                    box-sizing: border-box;
+                }
 
-            #d3-container #export-controls-panel .export-button.export-glb-button {
-                /* GLB按钮 */
-                background-color: var(--current-export-glb);
-            }
+                /* 各导出按钮使用对应的当前主题颜色变量 */
+                #d3-container #export-controls-panel .export-row .export-png-button {
+                    background-color: var(--current-export-png);
+                }
+
+                #d3-container #export-controls-panel .export-row .export-stl-button {
+                    background-color: var(--current-export-stl);
+                }
+
+                #d3-container #export-controls-panel .export-row .export-glb-button {
+                    background-color: var(--current-export-glb);
+                }
 
             #d3-container #render-buttons {
                 display: flex;
@@ -724,6 +764,255 @@
                     width: 0;
                     height: 0;
                 }
+            /* 文档按钮和弹窗样式 */
+            #d3-container .doc-button {
+                background-color: var(--current-params-color);
+                width: 100%;
+            }
+
+            #d3-container #doc-modal {
+                display: none;
+                position: fixed;
+                z-index: 1000;
+                left: 0;
+                top: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.7);
+                backdrop-filter: blur(5px);
+            }
+
+            /* 修改弹窗主体背景 */
+            #d3-container #doc-modal-content {
+                position: relative;
+                background: #FFFFFF;
+                margin: 5vh auto; /* 上下各留5vh空间 */
+                padding: 60px 50px 40px 50px;
+                width: 70%;
+                max-width: 900px;
+                height: 90vh; /*  固定高度为90vh，确保不超出视口 */
+                max-height: 90vh; /* 保留作为后备 */
+                overflow-y: auto;
+                border-radius: 8px;
+                box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                line-height: 1.7;
+                color: #333;
+                box-sizing: border-box; /*确保padding计算在内 */
+            }
+
+            /* 关闭按钮固定在右上角 */
+            #d3-container #doc-close {
+                position: fixed; /* 改为fixed，相对于弹窗容器固定 */
+                top: calc(5vh + 15px); /* 与弹窗顶部对齐 */
+                right: calc((100vw - min(70vw, 900px)) / 2 + 20px); /* 动态计算右侧位置 */
+                font-size: 28px; /*  稍微缩小 */
+                font-weight: normal; /*  改为正常粗细 */
+                color: #999; /* 改为浅灰色 */
+                cursor: pointer;
+                transition: color 0.2s;
+                z-index: 1001; /* 确保在最上层 */
+                background: rgba(255, 255, 255, 0.9); /* 添加半透明白色背景 */
+                width: 32px;
+                height: 32px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                line-height: 1;
+            }
+
+                #d3-container #doc-close:hover {
+                    color: #333; /* 悬停时变深 */
+                    background: rgba(255, 255, 255, 1);
+                }
+
+            /* Typora风格的Markdown内容样式 */
+            #d3-container #doc-content h1 {
+                color: #333; /*  深灰色标题 */
+                border-bottom: 2px solid #e7e7e7; /* 更浅的边框 */
+                padding-bottom: 0.3em;
+                margin-top: 1.5em;
+                margin-bottom: 1em;
+                font-weight: 600; /*  稍微减轻 */
+            }
+
+            #d3-container #doc-content h2 {
+                color: #333;
+                border-bottom: 1px solid #e7e7e7;
+                padding-bottom: 0.3em;
+                margin-top: 1.5em;
+                margin-bottom: 0.8em;
+                font-weight: 600;
+            }
+
+            #d3-container #doc-content h3 {
+                color: #333;
+                margin-top: 1.2em;
+                margin-bottom: 0.6em;
+                font-weight: 600;
+            }
+
+            #d3-container #doc-content code {
+                background-color: #f5f5f5; /*  浅灰色背景 */
+                padding: 2px 4px;
+                border-radius: 3px;
+                font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+                color: #c7254e; /* 红色代码文字 */
+                font-size: 0.9em;
+            }
+
+            #d3-container #doc-content pre {
+                background-color: #f8f8f8; /*浅灰色背景 */
+                color: #333; /*  深色文字 */
+                padding: 16px;
+                border-radius: 4px;
+                overflow-x: auto;
+                border: 1px solid #e7e7e7; /* 添加边框 */
+                line-height: 1.6;
+            }
+
+                #d3-container #doc-content pre code {
+                    background: none;
+                    color: inherit;
+                    padding: 0;
+                }
+
+            #d3-container #doc-content blockquote {
+                border-left: 4px solid #dfe2e5; /* 浅灰色边框 */
+                padding-left: 15px;
+                color: #6a737d; /* 灰色文字 */
+                font-style: normal; /* 移除斜体 */
+                background-color: transparent; /* 移除背景色 */
+                margin: 15px 0;
+            }
+
+            #d3-container #doc-content table {
+                width: 100%;
+                border-collapse: collapse;
+                margin: 15px 0;
+                font-size: 0.95em;
+            }
+
+                #d3-container #doc-content table th,
+                #d3-container #doc-content table td {
+                    border: 1px solid #dfe2e5; /* 浅灰色边框 */
+                    padding: 8px 12px;
+                    text-align: left;
+                }
+
+                #d3-container #doc-content table th {
+                    background-color: #f6f8fa; /* 浅灰色背景 */
+                    color: #333; /* 深色文字 */
+                    font-weight: 600;
+                }
+
+                #d3-container #doc-content table tr:nth-child(even) {
+                    background-color: #f6f8fa; /* 斑马纹 */
+                }
+
+            #d3-container #doc-content ul,
+            #d3-container #doc-content ol {
+                margin: 10px 0;
+                padding-left: 30px;
+            }
+
+            #d3-container #doc-content li {
+                margin: 4px 0;
+            }
+
+            #d3-container #doc-content a {
+                color: #0366d6; /*  蓝色链接 */
+                text-decoration: none;
+            }
+
+                #d3-container #doc-content a:hover {
+                    text-decoration: underline;
+                }
+
+            #d3-container #doc-content p {
+                margin: 0.8em 0;
+                line-height: 1.7;
+            }
+
+            #d3-container #doc-content hr {
+                border: none;
+                border-top: 1px solid #e7e7e7;
+                margin: 2em 0;
+            }
+
+            /* 滚动条美化（Typora风格）
+            #d3-container #doc-modal-content::-webkit-scrollbar {
+                width: 8px;
+            }
+
+            #d3-container #doc-modal-content::-webkit-scrollbar-track {
+                background: #f1f1f1;
+                border-radius: 4px;
+            }
+
+            #d3-container #doc-modal-content::-webkit-scrollbar-thumb {
+                background: #c1c1c1;
+                border-radius: 4px;
+            }
+
+                #d3-container #doc-modal-content::-webkit-scrollbar-thumb:hover {
+                    background: #a8a8a8;
+                }
+        */
+            /* 脚注样式 */
+            #d3-container #doc-content .footnotes {
+                margin-top: 2em;
+                padding-top: 1em;
+                border-top: 1px solid #e7e7e7;
+                font-size: 0.9em;
+                color: #6a737d;
+            }
+
+                #d3-container #doc-content .footnotes ol {
+                    padding-left: 20px;
+                }
+
+                #d3-container #doc-content .footnotes li {
+                    margin-bottom: 0.5em;
+                }
+                /* 隐藏自动生成的 "Footnotes" 标题 */
+                #d3-container #doc-content .footnotes h2 {
+                    display: none;
+                }
+
+                /* 隐藏脚注区域上方的分割线 */
+                #d3-container #doc-content .footnotes hr {
+                    display: none !important;
+                }
+                /*隐藏脚注区域下方的分割线 */
+                #d3-container #doc-content .footnotes ~ hr {
+                    display: none !important;
+                }
+            /* 隐藏紧挨着 .footnotes 前面的 hr */
+            /*#d3-container #doc-content hr + .footnotes {
+                border-top: none;*/ /* 移除 .footnotes 自己的 border-top */
+            /*}
+
+            #d3-container #doc-content hr:has(+ .footnotes) {
+                display: none !important;*/ /* 隐藏 .footnotes 前面的 hr */
+            /*}*/
+
+            #d3-container #doc-content sup {
+                line-height: 0;
+            }
+
+            #d3-container #doc-content a.footnote-ref {
+                text-decoration: none;
+                color: #0366d6;
+            }
+
+            #d3-container #doc-content a.footnote-backref {
+                text-decoration: none;
+                color: #0366d6;
+                margin-left: 0.2em;
+            }
+            /* 帮助文档结束 */
 
             #d3-container .slider {
                 position: absolute;
@@ -868,10 +1157,11 @@
                     <button id="drawBtn" class="mode-btn active">✏️ 构造</button>
                     <button id="moveBtn" class="mode-btn">🤚 移动</button>
                     <button id="lassoBtn" class="mode-btn">🔲 套索</button>
-                    <button id="exportPngBtn">📷 导出 PNG</button>
 
+                    <button id="exportPngBtn">📷 导出 PNG</button>
+                    <button id="undoBtn" class="mode-btn">🔙 撤回</button>
                     <button id="deleteBtn">🗑️ 删除</button>
-                    <!-- 修正#1: 新增背景选择栏 -->
+             
                     <div class="section-title" style="margin-top: 10px;">背景 (Background)</div>
                     <div id="draw-bg-controls">
                         <div id="draw-bg-picker-container" style="background-color: #FFFFFF;">
@@ -893,21 +1183,21 @@
         <!-- 拖动条 -->
         <div id="resizer">
             <div id="conversion-controls">
-                <button id="convert-btn">3D构象生成</button>
+                <button id="convert-btn">3D构象优化</button>
                 <div id="server-status">未连接</div>
             </div>
         </div>
 
-        <!-- 右侧：3D_V3.html 内容 (HTML调整为单一文件输入) -->
+        <!-- 右侧：3D_V3.html 内容-->
         <div id="d3-container">
             <div id="axis-renderer-container"></div>
-            <!-- 修改highlight-info部分（约第1124行） -->
             <div id="highlight-info">
                 <div>原子符号：<span id="highlight-symbol">无</span></div>
                 <div>原子编号：<span id="highlight-index">--</span></div>
                 <div>原子颜色：<span id="highlight-color">#--</span></div>
                 <div>原子坐标：<span id="highlight-coords">----</span></div>
-                <div>分子CanSmiles：<span id="highlight-smiles">--</span></div>
+                <div>分子MMFF94势能：<span id="highlight-energy">--</span> kcal/mol</div>
+                <div>分子CanonicalSmiles：<span id="highlight-smiles">--</span></div>
             </div>
             <div id="toggle-button-wrapper">
                 <span id="controls-label">功能区:</span>
@@ -975,9 +1265,24 @@
                 </div>
                 <div id="export-controls-panel" class="control-panel">
                     <h3>分子导出</h3>
-                    <button class="export-button" onclick="d3App.exportView('png')">导出 PNG 图片</button>
-                    <button class="export-button export-stl-button" onclick="d3App.exportView('stl')">导出 STL 模型</button>
-                    <button class="export-button export-glb-button" onclick="d3App.exportView('glb')">导出 GLB 模型</button>
+                    <div class="export-row">
+                        <button class="export-button export-png-button" onclick="d3App.exportView('png')">PNG</button>
+                        <button class="export-button export-stl-button" onclick="d3App.exportView('stl')">STL</button>
+                        <button class="export-button export-glb-button" onclick="d3App.exportView('glb')">GLB</button>
+                    </div>
+                </div>
+                <div id="help-doc-panel" class="control-panel">
+                    <h3>帮助文档</h3>
+                    <button class="doc-button" onclick="d3App.openDocumentation()">📖 查看帮助文档</button>
+                </div>
+            </div>
+            <!-- 文档弹窗 -->
+            <div id="doc-modal">
+                <div id="doc-modal-content">
+                    <span id="doc-close">&times;</span>
+                    <div id="doc-content">
+                        <p>正在加载文档...</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -987,9 +1292,12 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.0/papaparse.min.js"></script>
-    <!-- 新增：GLTFExporter用于导出GLB格式 -->
+    <!-- GLTFExporter用于导出GLB格式 -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js"></script>
-    <!-- 拖动条脚本 -->
+    
+    <!-- MarkDown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked-footnote@1.2.2/dist/index.umd.js"></script>
     <script>
         // Socket通信管理
         const socketManager = {
@@ -1126,39 +1434,40 @@
             if (result && result.status === 'success' && result.data) {
                 console.log('接收到3D数据:', result.data);
                 console.log('接收到SMILES:', result.SMILES);
+                console.log('接收到能量:', result.energy);  
 
-                // 将数据传递给3D部分（注意：传递整个result对象，包含SMILES）
                 if (window.d3App && window.d3App.loadJsonData) {
-                    // 🔑 修改：传递包含SMILES的完整数据
                     const fullData = {
                         SMILES: result.SMILES || '--',
+                        energy: result.energy || 0,        
                         SXYZ: result.data.SXYZ,
                         ADJ_AB: result.data.ADJ_AB
                     };
                     window.d3App.loadJsonData(fullData);
-                    alert('计算转换成功！\n\n3D结构已加载到右侧视图。');
-                } else {
-                    console.error('3D模块未就绪');
-                    alert('3D模块加载失败，请刷新页面重试。');
+                    alert('计算转换成功！\n3D结构已加载到右侧视图。');
                 }
             }
+
+    
             if (result && result.status === 'precal' && result.data) {
                 console.log('接收到3D数据:', result.data);
                 console.log('接收到SMILES:', result.SMILES);
+                console.log('接收到能量:', result.energy);  
 
-                // 将数据传递给3D部分
                 if (window.d3App && window.d3App.loadJsonData) {
-                    // 🔑 修改：传递包含SMILES的完整数据
                     const fullData = {
                         SMILES: result.SMILES || '--',
+                        energy: result.energy || 0,        
                         SXYZ: result.data.SXYZ,
                         ADJ_AB: result.data.ADJ_AB
                     };
                     window.d3App.loadJsonData(fullData);
-                    alert('转换成功！\n\n服务器将继续计算请求，预计将断联一段时间。\n\n3D结构已加载到右侧视图。');
-                } else {
-                    console.error('3D模块未就绪');
-                    alert('3D模块加载失败，请刷新页面重试。');
+                    alert('转换成功！3D结构已加载到右侧视图。\n\n' +
+                        '温馨提示：\n' +
+                        '预计计算时间可能超过10min，本次读取预计算数据。\n' +
+                        '服务器将继续完成您的计算，因此将显示断开连接。\n' +
+                        '当显示重新连接时，可以再次点击转换，您将获得当前最优结果。'
+                    );
                 }
             }
         });
@@ -1208,7 +1517,7 @@
         });
     </script>
 
-    <!-- Draw.html 脚本 (已修改：增加 JSON 导出并修复 PNG 导出) -->
+    <!-- Draw部分脚本 -->
     <script>
         (function () {
             function getLuminance(hexColor) {
@@ -1265,7 +1574,7 @@
             let isDraggingSelection = false;
 
 
-            // ⭐ 新增：追踪当前高亮的元素
+            // 追踪当前高亮的元素
             let currentHoveredAtomId = null;
             let currentHoveredBondId = null;
 
@@ -1287,13 +1596,16 @@
             const SELECT_COLOR = 'rgba(255, 255, 153, 0.4)';
             const CLICK_THRESHOLD = 5;
 
-            // 新增：键和原子的交互范围常量
-            const ATOM_HOVER_RADIUS = 10;  // 原子高亮范围（缩小了2px）
-            const BOND_HOTSPOT_WIDTH = 20; // 键的可点击范围（从10增加到16）
-            const BOND_HOVER_WIDTH = BOND_HOTSPOT_WIDTH;   // 键的hover高亮宽度（从8增加到12）
+            //键和原子的交互范围常量
+            const ATOM_HOVER_RADIUS = 10;  // 原子高亮范围
+            const BOND_HOTSPOT_WIDTH = 20; // 键的可点击范围
+            const BOND_HOVER_WIDTH = BOND_HOTSPOT_WIDTH;   // 键的hover高亮宽度（
 
             let hoverDebounceTimer = null;
 
+            // 历史记录管理
+            let history = [];
+            const MAX_HISTORY = 10;
 
             // 暴露获取JSON数据的接口
             window.drawApp = {
@@ -1308,11 +1620,56 @@
                 }
             };
 
+
+            // 保存当前状态到历史记录
+            function saveState() {
+                const state = {
+                    atoms: JSON.parse(JSON.stringify(atoms)),
+                    bonds: JSON.parse(JSON.stringify(bonds)),
+                    nextAtomId: nextAtomId,
+                    nextBondId: nextBondId
+                };
+
+                history.push(state);
+
+                // 限制历史记录数量
+                if (history.length > MAX_HISTORY) {
+                    history.shift();
+                }
+
+                updateUndoButton();
+            }
+
+            // 撤回操作
+            function undo() {
+                if (history.length === 0) return;
+
+                const previousState = history.pop();
+
+                // 恢复状态
+                atoms = JSON.parse(JSON.stringify(previousState.atoms));
+                bonds = JSON.parse(JSON.stringify(previousState.bonds));
+                nextAtomId = previousState.nextAtomId;
+                nextBondId = previousState.nextBondId;
+
+                clearSelection();
+                draw();
+                updateUndoButton();
+            }
+
+            // 更新撤回按钮状态
+            function updateUndoButton() {
+                const undoBtn = document.getElementById('undoBtn');
+                if (undoBtn) {
+                    undoBtn.disabled = history.length === 0;
+                }
+            }
+
             // 修改draw函数中双键绘制部分
             function draw() {
                 svg.innerHTML = '';
 
-                // ⭐ 创建高亮层容器，放在最底层
+                // 创建高亮层容器，放在最底层
                 const hoverLayer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
                 hoverLayer.setAttribute('id', 'hover-layer');
                 svg.appendChild(hoverLayer);
@@ -1457,7 +1814,7 @@
                 if (isSelecting && selectionRect) svg.appendChild(selectionRect);
                 updateCanvasSize();
             }
-            // ⭐ 新增：获取当前视野边界
+            // 获取当前视野边界
             function getViewBoundary() {
                 const wrapper = document.getElementById('canvas-wrapper');
                 return {
@@ -1470,7 +1827,7 @@
                 };
             }
 
-            // ⭐ 新增：检查原子是否在padding区域，并返回需要的调整
+            // 检查原子是否在padding区域，并返回需要的调整
             function checkAtomPlacementAndAdjust(x, y) {
                 const padding = 50;
                 const view = getViewBoundary();
@@ -1546,7 +1903,7 @@
                 };
             }
 
-            // ⭐ 修改：updateCanvasSize - 只负责画布大小调整，不再处理视野
+            // updateCanvasSize - 只负责画布大小调整，不再处理视野
             function updateCanvasSize() {
                 const wrapper = document.getElementById('canvas-wrapper');
                 const rect = wrapper.getBoundingClientRect();
@@ -1610,8 +1967,9 @@
                 svg.setAttribute('height', minCanvasHeight);
             }
 
-            // ⭐ 修改：addAtom - 添加原子前检查并调整
+            // addAtom - 添加原子前检查并调整
             function addAtom(elem, x, y) {
+                //saveState(); // 添加这一行
                 const adjustment = checkAtomPlacementAndAdjust(x, y);
 
                 // 1. 如果需要扩展画布，先扩展
@@ -1650,6 +2008,7 @@
             }
             // 修改bond数据结构，添加displayStyle属性
             function addBond(id1, id2) {
+                //saveState(); // 添加这一行
                 const existing = bonds.find(b => (b.a1 === id1 && b.a2 === id2) || (b.a1 === id2 && b.a2 === id1));
                 if (existing) {
                     if (currentBond === 'single') {
@@ -1741,7 +2100,7 @@
                 selectedAtoms.clear();
                 selectedBonds.clear();
 
-                // ⭐ 清理hover追踪状态和hover层内容
+                // 清理hover追踪状态和hover层内容
                 currentHoveredAtomId = null;
                 currentHoveredBondId = null;
                 const hoverLayer = svg.querySelector('#hover-layer');
@@ -1790,7 +2149,8 @@
 
                 if (atomsToDelete.size === 0 && bondsToDelete.size === 0) return;
 
-                // ⭐ 修改：只在选中了原子时，才删除连接到这些原子的键
+                saveState(); // 添加这一行
+                // 只在选中了原子时，才删除连接到这些原子的键
                 if (atomsToDelete.size > 0) {
                     bonds.forEach(b => {
                         if (atomsToDelete.has(b.a1) || atomsToDelete.has(b.a2)) {
@@ -1806,21 +2166,24 @@
 
                 clearSelection();
             }
-            // 修改mousedown事件处理，添加双键样式切换逻辑
+            // 添加双键样式切换逻辑
             svg.addEventListener('mousedown', e => {
                 const pos = getMousePos(e);
                 dragStartPos = pos;
                 const targetElem = e.target;
                 const atomId = targetElem.getAttribute('data-atom-id');
                 const bondId = targetElem.getAttribute('data-bond-id');
-
+      
                 if (mode === 'lasso') {
+
                     if (selectedAtoms.size > 0 && isInsideSelectionBox(pos.x, pos.y)) {
+                        saveState(); // 拖动开始时保存状态
                         isDraggingSelection = true;
                         if (selectionRect && selectionRect.parentNode) {
                             selectionRect.parentNode.removeChild(selectionRect);
                         }
                     } else {
+                        
                         isSelecting = true;
                         startX = pos.x;
                         startY = pos.y;
@@ -1838,6 +2201,7 @@
                     }
                 } else if (mode === 'move') {
                     if (atomId) {
+                        saveState(); // 拖动开始时保存状态
                         const id = parseInt(atomId);
                         if (!selectedAtoms.has(id)) {
                             clearSelection();
@@ -1849,11 +2213,12 @@
                         dragStartOffset.x = pos.x - atom.x;
                         dragStartOffset.y = pos.y - atom.y;
                     } else if (bondId) {
-                        // ⭐ 新增：点击键时，只选中键，不选中原子
+                        //点击键时，只选中键，不选中原子
+                        saveState(); // 拖动开始时保存状态
                         const bond = bonds.find(b => b.id === parseInt(bondId));
                         if (bond) {
                             clearSelection();
-                            // ⭐ 只选中键，不添加原子到选择集
+                            // 只选中键，不添加原子到选择集
                             toggleSelectBond(parseInt(bondId));
 
                             // 准备拖动这个键（实际上是拖动它的两个原子）
@@ -1876,10 +2241,13 @@
                         clearSelection();
                     }
                 } else { // mode === 'draw'
+
                     if (atomId) {
+                        //saveState(); // 拖动开始时保存状态
                         isDraggingAtom = true;
                         dragTargetId = parseInt(atomId);
                     } else if (bondId) {
+                        saveState(); // 拖动开始时保存状态
                         const bond = bonds.find(b => b.id === parseInt(bondId));
                         if (bond) {
                             if (currentBond === 'single') {
@@ -1923,6 +2291,7 @@
                             draw();
                         }
                     } else if (e.target.tagName === 'svg') {
+                        saveState(); // 拖动开始时保存状态
                         addAtom(currentTool, pos.x, pos.y);
                         clearSelection();
                     }
@@ -1935,7 +2304,7 @@
                     const dx = pos.x - dragStartPos.x;
                     const dy = pos.y - dragStartPos.y;
 
-                    // ⭐ 修改：如果只选中了键，移动键的端点原子
+                    // 修改：如果只选中了键，移动键的端点原子
                     if (selectedBonds.size > 0 && selectedAtoms.size === 0) {
                         // 只有键被选中，移动键的端点
                         selectedBonds.forEach(bondId => {
@@ -2000,7 +2369,7 @@
                 if (!isDraggingSelection && !(mode === 'lasso' && isSelecting)) {
                     const targetElem = e.target;
 
-                    // ⭐ 关键修复：忽略hover效果元素本身
+                    //关键修复：忽略hover效果元素本身
                     if (targetElem.classList.contains('hover-effect')) {
                         return;
                     }
@@ -2012,7 +2381,7 @@
                     const newHoveredAtomId = atomId ? parseInt(atomId) : null;
                     const newHoveredBondId = bondId ? parseInt(bondId) : null;
 
-                    // ⭐ 检查高亮状态是否真正改变
+                    // 检查高亮状态是否真正改变
                     const atomChanged = newHoveredAtomId !== currentHoveredAtomId;
                     const bondChanged = newHoveredBondId !== currentHoveredBondId;
 
@@ -2023,12 +2392,12 @@
                             clearTimeout(hoverDebounceTimer);
                         }
 
-                        // ⭐ 添加10ms延迟防抖
+                        // 添加10ms延迟防抖
                         hoverDebounceTimer = setTimeout(() => {
                             currentHoveredAtomId = newHoveredAtomId;
                             currentHoveredBondId = newHoveredBondId;
 
-                            // ⭐ 获取高亮层容器
+                            //  获取高亮层容器
                             const hoverLayer = svg.querySelector('#hover-layer');
                             if (hoverLayer) {
                                 // 清空高亮层的内容
@@ -2050,7 +2419,7 @@
                                     hoverCircle.setAttribute('fill', 'none');
                                     hoverCircle.setAttribute('class', 'hover-effect');
                                     hoverCircle.setAttribute('pointer-events', 'none');
-                                    // ⭐ 添加到底层容器而不是顶层
+                                    // 添加到底层容器而不是顶层
                                     hoverLayer.appendChild(hoverCircle);
                                 }
                             }
@@ -2070,21 +2439,25 @@
                                         hoverLine.setAttribute('stroke-width', BOND_HOVER_WIDTH);
                                         hoverLine.setAttribute('class', 'hover-effect');
                                         hoverLine.setAttribute('pointer-events', 'none');
-                                        // ⭐ 添加到底层容器而不是顶层
+                                        // 添加到底层容器而不是顶层
                                         hoverLayer.appendChild(hoverLine);
                                     }
                                 }
                             }
-                        }, 30);
+                        }, 10);
                     }
                 }
             });
             svg.addEventListener('mouseup', e => {
+
                 const pos = getMousePos(e);
                 dragEndPos = pos;
                 const dragDistance = Math.sqrt(Math.pow(dragEndPos.x - dragStartPos.x, 2) + Math.pow(dragEndPos.y - dragStartPos.y, 2));
 
                 if (isDraggingSelection) {
+                    //if (dragDistance > CLICK_THRESHOLD) {
+                    //    saveState(); // 拖动结束后保存状态
+                    //}
                     isDraggingSelection = false;
                     draw();
                     return;
@@ -2130,6 +2503,9 @@
                     }
                     draw();
                 } else if (mode === 'move') {
+                    //if (isDraggingAtom && dragDistance > CLICK_THRESHOLD) {
+                    //    saveState(); // 拖动结束后保存状态
+                    //}
                     isDraggingAtom = false;
                     dragTargetId = null;
                     draw();
@@ -2140,7 +2516,10 @@
                             targetAtom.elem = currentTool;
                         }
                     } else {
+                        saveState(); // 拖动开始时保存状态
+                        
                         const targetAtom = atoms.find(a => a.id !== dragTargetId && Math.sqrt(Math.pow(pos.x - a.x, 2) + Math.pow(pos.y - a.y, 2)) < ATOM_RADIUS);
+
                         if (targetAtom) {
                             addBond(dragTargetId, targetAtom.id);
                         } else {
@@ -2165,7 +2544,7 @@
                 isDraggingSelection = false;
                 dragTargetId = null;
 
-                // ⭐ 清理hover追踪状态和hover层内容
+                // 清理hover追踪状态和hover层内容
                 currentHoveredAtomId = null;
                 currentHoveredBondId = null;
 
@@ -2187,7 +2566,7 @@
                 }
             });
 
-            // 导出 PNG：修复实现，排除热点与 hover-effect，保留颜色
+            // 导出 PNG：排除热点与 hover-effect，保留颜色
             document.getElementById('exportPngBtn').addEventListener('click', () => {
                 const svgElement = document.getElementById('draw-svg');
                 clearSelection();
@@ -2262,6 +2641,24 @@
                     URL.revokeObjectURL(url);
                 };
                 img.src = url;
+            });
+
+            // 撤回按钮事件
+            document.getElementById('undoBtn').addEventListener('click', () => {
+                undo();
+            });
+
+            // Ctrl+Z 快捷键
+            document.addEventListener('keydown', e => {
+                if (e.ctrlKey && e.key === 'z') {
+                    e.preventDefault();
+                    undo();
+                }
+
+                if (e.key === 'Delete' || e.key === 'Backspace') {
+                    e.preventDefault();
+                    deleteSelectedElements();
+                }
             });
 
             function downloadJSON(data) {
@@ -2340,6 +2737,8 @@
             document.querySelector('.atom-btn[data-tool="C"]').classList.add('active');
             document.querySelector('.bond-btn[data-bond="single"]').classList.add('active');
 
+            // 初始化撤回按钮
+            updateUndoButton();
             draw();
         })();
     </script>
@@ -2381,10 +2780,13 @@
                 });
                 root.setProperty('--current-toggle-active', `var(--color-params-${theme})`);
 
-                // 🔑 新增：根据主题切换导出按钮颜色
+                // 根据主题切换导出按钮颜色
                 root.setProperty('--current-export-png', `var(--export-png-${theme})`);
                 root.setProperty('--current-export-stl', `var(--export-stl-${theme})`);
                 root.setProperty('--current-export-glb', `var(--export-glb-${theme})`);
+
+                // 根据主题切换“帮助文档”按钮颜色
+                root.setProperty('--current-doc-button', `var(--doc-${theme})`);
 
                 setupUIStyles();
                 const textColor = getComputedStyle(d3Container).getPropertyValue('--current-text-color');
@@ -2534,6 +2936,7 @@
 
                 alert('STL模型导出成功！');
             }
+
             function exportGLB() {
                 if (!moleculeGroup || atomMeshes.length === 0) {
                     alert('没有可导出的3D模型！');
@@ -2569,7 +2972,7 @@
                         throw new Error('GLTFExporter未加载');
                     }
 
-                    // 🎨 新增：颜色增强函数
+                    // 颜色增强函数
                     function enhanceColor(color) {
                         // 将Three.js颜色转换为RGB
                         const r = (color >> 16) & 0xff;
@@ -2594,7 +2997,6 @@
                             }
                         }
 
-                        // 🔑 关键调整：
                         // 1. 增加饱和度 30%（让颜色更鲜艳）
                         s = Math.min(1, s * 1.3);
 
@@ -2639,7 +3041,7 @@
                             object.material = object.material.clone();
                             object.material.color.setHex(enhancedColor);
 
-                            // 🎨 增加金属度和减少粗糙度，让颜色更有光泽
+                            // 增加金属度和减少粗糙度，让颜色更有光泽
                             if (object.material.metalness !== undefined) {
                                 object.material.metalness = 0.2; // 轻微金属感
                             }
@@ -2847,6 +3249,87 @@
                 }
             }
 
+            async function openDocumentation() {
+                const modal = d3Container.querySelector('#doc-modal');
+                const content = d3Container.querySelector('#doc-content');
+                const closeBtn = d3Container.querySelector('#doc-close');
+
+                modal.style.display = 'block';
+
+                try {
+                    const CACHE_KEY = 'molecular3d_documentation';
+                    const CACHE_VERSION_KEY = 'molecular3d_doc_version';
+                    const CURRENT_VERSION = '1.2'; // 更新版本号
+
+                    const cachedDoc = localStorage.getItem(CACHE_KEY);
+                    const cachedVersion = localStorage.getItem(CACHE_VERSION_KEY);
+
+                    if (cachedDoc && cachedVersion === CURRENT_VERSION) {
+                        console.log('✅ 从缓存加载文档');
+                        // 禁用标题
+                        if (typeof window.markedFootnote !== 'undefined') {
+                            marked.use(window.markedFootnote({ description: '' }));
+                        }
+                        content.innerHTML = marked.parse(cachedDoc);
+                    } else {
+                        console.log('📡 从服务器加载文档');
+                        content.innerHTML = '<p style="text-align: center; color: #999;">正在加载文档...</p>';
+
+                        const response = await fetch('documentation.md');
+                        if (!response.ok) throw new Error('无法加载文档文件');
+
+                        const markdown = await response.text();
+
+                        // 禁用标题
+                        if (typeof window.markedFootnote !== 'undefined') {
+                            marked.use(window.markedFootnote({ description: '' }));
+                        }
+                        content.innerHTML = marked.parse(markdown);
+
+                        try {
+                            localStorage.setItem(CACHE_KEY, markdown);
+                            localStorage.setItem(CACHE_VERSION_KEY, CURRENT_VERSION);
+                            console.log('💾 文档已缓存到本地');
+                        } catch (storageError) {
+                            console.warn('⚠️ 缓存保存失败:', storageError);
+                        }
+                    }
+                } catch (error) {
+                    console.error('加载文档失败:', error);
+                    const fallbackCache = localStorage.getItem('molecular3d_documentation');
+
+                    if (fallbackCache) {
+                        console.log('⚠️ 服务器加载失败，使用缓存版本');
+                        // 禁用标题
+                        if (typeof window.markedFootnote !== 'undefined') {
+                            marked.use(window.markedFootnote({ description: '' }));
+                        }
+                        content.innerHTML = `
+                <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ffc107;">
+                    <strong>⚠️ 注意</strong>：当前显示的是缓存版本，可能不是最新内容。
+                </div>
+            ` + marked.parse(fallbackCache);
+                    } else {
+                        content.innerHTML = `
+                <h2>❌ 文档加载失败</h2>
+                <p>${error.message}</p>
+                <p>可能的原因：</p>
+                <ul>
+                    <li>服务器未启动（Main_MMFF94.exe）</li>
+                    <li><code>documentation.md</code> 文件不存在</li>
+                    <li>网络连接问题</li>
+                </ul>
+                <p><strong>提示</strong>：请启动C++服务器后刷新页面重试。</p>
+            `;
+                    }
+                }
+
+                closeBtn.onclick = () => { modal.style.display = 'none'; };
+                window.onclick = (event) => {
+                    if (event.target === modal) modal.style.display = 'none';
+                };
+            }
+
             function init() {
                 scene = new THREE.Scene();
                 scene.background = new THREE.Color(currentBackgroundColor);
@@ -2866,7 +3349,7 @@
 
                 initAxisHelper();
 
-                // 🔑 修改：在初始化的最开始就设置UI样式
+                // 在初始化的最开始就设置UI样式
                 // 因为默认背景是白色(0xFFFFFF)，亮度>0.3，应该使用dark主题（灰蓝紫色）
                 updateControlTextAndThemeColor(currentBackgroundColor);
                 setupUIStyles();
@@ -2918,8 +3401,9 @@
                 controls.update();
                 updateAxisHelper();
                 animate();
-                alert('界面初始化完成！\n相关操作方法见Github。');
+                alert('界面初始化完成！\n相关操作方法见右下方帮助文档。');
             }
+
             function animate() {
                 requestAnimationFrame(animate);
                 if (controls.enabled) controls.update();
@@ -2934,13 +3418,13 @@
                     light: root.getPropertyValue('--current-light-color').trim(),
                     export: root.getPropertyValue('--current-export-color').trim(),
                     params: root.getPropertyValue('--current-params-color').trim(),
-                    // 🔑 获取导出按钮的颜色
+                    // 获取导出按钮的颜色
                     exportPng: root.getPropertyValue('--current-export-png').trim(),
                     exportStl: root.getPropertyValue('--current-export-stl').trim(),
                     exportGlb: root.getPropertyValue('--current-export-glb').trim(),
                 };
 
-                // 🔑 新增：判断当前主题（根据背景色）
+                // 判断当前主题（根据背景色）
                 const isLightBackground = getLuminance(currentBackgroundColor) > 0.3;
                 const exportButtonTextColor = isLightBackground ? '#FFFFFF' : '#333333'; // light模式用黑色，dark模式用白色
 
@@ -2957,8 +3441,7 @@
                 });
                 d3Container.querySelector('#params-controls-panel h3').style.color = colors.params;
                 d3Container.querySelector('#export-controls-panel h3').style.color = colors.export;
-
-                // 🔑 修改：导出按钮文字颜色根据主题决定
+                // 导出按钮文字颜色根据主题决定
                 d3Container.querySelectorAll('#export-controls-panel .export-button').forEach(btn => {
                     if (btn.classList.contains('export-stl-button')) {
                         btn.style.backgroundColor = colors.exportStl;
@@ -2972,6 +3455,17 @@
                         btn.style.color = exportButtonTextColor; // 使用主题决定的颜色
                     }
                 });
+                // 设置帮助文档面板按钮颜色
+                const docColor = getComputedStyle(d3Container).getPropertyValue('--current-doc-button').trim() || '#FFD966';
+                d3Container.querySelectorAll('#help-doc-panel .doc-button').forEach(btn => {
+                    btn.style.backgroundColor = docColor;
+                    // 文字颜色与导出按钮一致（随主题切换）
+                    btn.style.color = exportButtonTextColor;
+                });
+
+                // 将“帮助文档”标题颜色设为与文档按钮背景色相同，随主题切换
+                const helpTitle = d3Container.querySelector('#help-doc-panel h3');
+                if (helpTitle) helpTitle.style.color = docColor;
             }
 
             function setLightPreset(preset) {
@@ -3164,14 +3658,22 @@
 
             // 添加从JSON直接加载数据的函数
             function loadJsonData(jsonData, renderType = 'ball_stick') {
-                console.log('加载JSON数据:', jsonData, '渲染类型:', renderType);
+                //console.log('加载JSON数据:', jsonData, '渲染类型:', renderType);
 
                 try {
                     const smiles = jsonData.SMILES || '--';
+                    const energy = jsonData.energy || 0;
                     const smilesElement = document.getElementById('highlight-smiles');
                     if (smilesElement) {
                         smilesElement.textContent = smiles;
                     }
+
+                    // 更新能量显示
+                    const energyElement = document.getElementById('highlight-energy');
+                    if (energyElement) {
+                        energyElement.textContent = energy.toFixed(4);  // 保留2位小数
+                    }
+
                     // 将SXYZ格式转换为CSV格式
                     // jsonData.SXYZ格式: [["C", 0.0, 0.0, 0.0], ...]
                     // 需要转换为: [{Symbol: "C", X: 0.0, Y: 0.0, Z: 0.0}, ...]
@@ -3190,8 +3692,8 @@
                         BondType: item[2] || "-"  // 如果没有指定键型，默认为单键
                     }));
 
-                    console.log('转换后的SXYZ数据:', convertedSXYZ);
-                    console.log('转换后的ADJ数据:', convertedADJ);
+                    //console.log('转换后的SXYZ数据:', convertedSXYZ);
+                    //console.log('转换后的ADJ数据:', convertedADJ);
 
                     // 保存数据
                     sxyzData = convertedSXYZ;
@@ -3268,7 +3770,8 @@
                 setLightPreset: setLightPreset,
                 exportView: exportView,
                 onWindowResize: onWindowResize,
-                controls: controls
+                controls: controls,
+                openDocumentation: openDocumentation  
             };
         })();
     </script>

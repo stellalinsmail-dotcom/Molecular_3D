@@ -321,20 +321,45 @@ void PrintCmdSepTitle(const string title, int sepwidth, const char fillsym)
 	cout << sum;
 }
 
-
+bool FileExists(const string& filename)
+{
+	ifstream file(filename);
+	return file.good();
+}
 void PrintEnergy(double sum_E, double sum_eb, double sum_ea, double sum_eba, double sum_eoop, double sum_et, double sum_evdw)
 {
-	//PrintCmdSepTitle("Sum E");
-	//cout << fixed << setprecision(8);
-	//cout << "sum_EB: " << sum_eb << endl;
-	//cout << "sum_EA: " << sum_ea << endl;
-	//cout << "sum_EBA: " << sum_eba << endl;
-	//cout << "sum_EOOP: " << sum_eoop << endl;
-	//cout << "sum_ET: " << sum_et << endl;
-	//cout << "sum_EVDW: " << sum_evdw << endl;
-
-	//cout << "*sum_E: " << sum_E << endl;
 	cout << fixed << setprecision(4);
-	cout << "E\tEB" << "\tEA" << "\tEBA" << "\tEOOP" << "\tET" << "\tEVDW" << endl;
-	cout << sum_E << "\t" << sum_eb << "\t" << sum_ea << "\t" << sum_eba << "\t" << sum_eoop << "\t" << sum_et << "\t" << sum_evdw << endl;
+	//PrintCmdSepTitle("Sum E");
+	cout << fixed << setprecision(8);
+	cout << "sum_EB: " << sum_eb << endl;
+	cout << "sum_EA: " << sum_ea << endl;
+	cout << "sum_EBA: " << sum_eba << endl;
+	cout << "sum_EOOP: " << sum_eoop << endl;
+	cout << "sum_ET: " << sum_et << endl;
+	cout << "sum_EVDW: " << sum_evdw << endl;
+
+	cout << "*sum_E: " << sum_E << endl;
+
+	//cout << "E\tEB" << "\tEA" << "\tEBA" << "\tEOOP" << "\tET" << "\tEVDW" << endl;
+	//cout << sum_E << "\t" << sum_eb << "\t" << sum_ea << "\t" << sum_eba << "\t" << sum_eoop << "\t" << sum_et << "\t" << sum_evdw << endl;
 }
+
+
+// 读取文件内容的辅助函数
+string ReadFileContent(const string& filepath) {
+	ifstream file(filepath, ios::binary);
+	if (!file.is_open()) {
+		cout << "无法打开文件: " << filepath << endl;
+		return "";
+	}
+
+	// 读取整个文件内容
+	stringstream buffer;
+	buffer << file.rdbuf();
+	file.close();
+
+	return buffer.str();
+}
+
+
+
