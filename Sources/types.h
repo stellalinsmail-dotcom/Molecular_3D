@@ -252,7 +252,13 @@ void Split(vector<T>& v, string s, const char ch)
 {
 	int start = 0, end = 0;
 	v.clear();
-	for (int i = 0; i < s.length(); i++)
+	int i = 0;
+	if (s.length() == 0) return;
+	if (s[0] == ch)
+	{
+		start = 1;
+	}
+	for (i = start; i < s.length(); i++)
 	{
 		end = i;
 		if (s[i] != ch && i != s.length() - 1) { continue; }

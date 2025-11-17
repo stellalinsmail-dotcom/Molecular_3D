@@ -195,9 +195,12 @@ int main()
 			//cout << "唯一SMILES：\n";
 			//cout << now_smiles << endl;
 
-			if (!c.HasCircle() || !c.HasSpecialBond())
+			//cout <<"环及特殊键" << !c.HasCircle() << " " << !c.HasSpecialBond() << endl;
+			if (!c.HasCircle()||!c.HasSpecialBond() )
 			{
+				
 				//Mole mid(sft.atomtable, now_smiles);
+				//cout << "转化前：" << now_smiles << endl;	
 				now_smiles = c.GenerateCanSmilesNoCircle(sft.primetable);
 				//cout << "进行转换！" << endl;
 			}
@@ -206,6 +209,18 @@ int main()
 			cout << now_smiles << endl;
 
 			Mole d(sft.atomtable, now_smiles);
+
+			string test_smiles; 
+			if (!d.HasCircle() || !c.HasSpecialBond())
+			{
+				test_smiles = d.GenerateCanSmilesNoCircle(sft.primetable);
+			}
+			else
+			{
+				test_smiles = d.GenerateCanSmiles(sft.primetable);
+			}
+			cout << "\n第二遍唯一SMILES：\n" << test_smiles << endl;
+
 
 			/*
 			PrintCmdSepTitle("分子节点提取");
@@ -225,11 +240,12 @@ int main()
 			double rec_energy = rec_find ? optrec_map[now_smiles].min_energy : INFINITY;
 			double rec_opttime = rec_find ? optrec_map[now_smiles].opt_time : INFINITY;
 			bool has_sent = false;
+
 			if (rec_find && rec_opttime >= MAX_CAL_TIME)
 			{
 				PrintCmdSepTitle("预计算数据发送");
 				string sent_json_rec = ReadJsonFile(folderpath + "/" + now_smiles + ".json");
-				ResultSent("precal", clientSocket, sent_json_rec, now_smiles, rec_energy);
+				ResultSent("precal", clientSocket, sent_json_rec, now_smiles, rec_energy, rec_opttime);
 				has_sent = true;
 			}
 
@@ -253,7 +269,7 @@ int main()
 			bool update_optrec_yes = false;
 
 			PrintCmdSepTitle("Alpha优化前");
-			double alpha_before_energy = CalSumEnergyByXYZ(YES, old_alpha_xyz_tb, NeedCal(), old_ab_opt, all_sp_tb, esp);
+			double alpha_before_energy = CalSumEnergyByXYZ_Beta(YES, old_alpha_xyz_tb, NeedCal(), old_ab_opt, all_sp_tb, esp);
 			//WriteTable(GetXYZTbPath(now_smiles, 1), XYZ_TB_TITLE, xyz_tb);
 
 			PrintCmdSepTitle("Alpha优化进度-记时");
@@ -269,7 +285,7 @@ int main()
 			PrintCmdSepTitle("Alpha优化后");
 			//WriteTable(GetXYZTbPath(now_smiles, 2), XYZ_TB_TITLE, alpha_xyz_tb);
 
-			double alpha_energy = CalSumEnergyByXYZ(YES, new_alpha_xyz_tb, NeedCal(), new_ab_opt, all_sp_tb, esp);
+			double alpha_energy = CalSumEnergyByXYZ(YES, new_alpha_xyz_tb, NeedCal(), new_ab_opt.alpha_tb, all_sp_tb, esp);
 
 			if (alpha_before_energy < alpha_energy)
 			{
@@ -293,14 +309,14 @@ int main()
 
 			PrintCmdSepTitle("Beta优化进度-记时");
 			cout << "优化中……\n";
-			new_ab_opt.beta_tb = BetaOpt(has_circle, new_ab_opt.alpha_tb, beta_opt_val, new_beta_xyz_tb, all_sp_tb, esp, opt_print);
+			new_ab_opt.beta_tb = BetaOpt(has_circle, new_ab_opt.alpha_tb, beta_opt_val, new_beta_xyz_tb, all_sp_tb, esp, false);
 			//
 			////new_beta_xyz_tb = CalXYZ(new_ab_opt, esp.pro_htb, esp.bs_fast_tb, esp.mnode_tb, esp.short_adj_list, all_sp_tb);
 			cout << "优化完成！\n";
 			PrintCmdSepTitle("Beta优化后");
 			////WriteTable(GetXYZTbPath(now_smiles, 2), XYZ_TB_TITLE, alpha_xyz_tb);
 
-			double beta_energy = CalSumEnergyByXYZ(YES, new_beta_xyz_tb, NeedCal(), new_ab_opt, all_sp_tb, esp);
+			double beta_energy = CalSumEnergyByXYZ_Beta(YES, new_beta_xyz_tb, NeedCal(), new_ab_opt, all_sp_tb, esp);
 
 			if (beta_energy < final_energy)
 			{
@@ -309,6 +325,7 @@ int main()
 			}
 			OptRecVal final_opt_val = { final_energy, alpha_opt_val.opt_time + beta_opt_val.opt_time };
 
+			cout << "\n(*^▽^*)优化总用时：" << final_opt_val.opt_time << " s\n";
 			//cout << "当前最小能量：" << final_energy << " kcal/mol\n";
 			//---------------------------**Alpha优化**----------------------------------
 
@@ -413,12 +430,15 @@ int main()
 			//cout << "文件 SXYZ.csv 和 ADJ_AB.csv 已储存！\n";
 
 			//---------------------------**HTTP响应发送**----------------------------------
+
+			//double sent_opttime = (final_energy < rec_energy) ? final_opt_val.opt_time : rec_opttime;
+
 			if (!has_sent)
 			{
 				PrintCmdSepTitle("正常计算结果发送");
 
 				// 构建响应JSON（包含状态和3D数据）
-				ResultSent("success", clientSocket, sent_json, now_smiles, rec_energy);
+				ResultSent("success", clientSocket, sent_json, now_smiles, rec_energy, final_opt_val.opt_time);
 
 				cout << "\nCanSmiles: " << now_smiles << endl;
 			}

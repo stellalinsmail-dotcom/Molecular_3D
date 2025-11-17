@@ -221,16 +221,32 @@ void Mole::ProcessCircleNumber(vector<string>& s, vector<vector<int>>& v, const 
 	{
 		int seq = findcounttb[i];
 		sort(v[seq].begin(), v[seq].end());
-		for (auto& a : v[seq])
+		for (int j = 0; j < v[seq].size(); j++)
 		{
+			//if (j > 0 && v[seq][j] == v[seq][j - 1]) continue;
+			int a = v[seq][j];
 			if (newcirnum[a] == -1)
 			{
 				newcirnum[a] = circount;
 				circount++;
 			}
-			int b = newcirnum[a];
-			if (b > 9) str[seq] += "%";
-			str[seq] += to_string(b);
+			v[seq][j] = newcirnum[a];
+		}
+		//for (auto& a : v[seq])
+		//{
+		//	if (newcirnum[a] == -1)
+		//	{
+		//		newcirnum[a] = circount;
+		//		circount++;
+		//	}
+		//	a = newcirnum[a];
+
+		//}
+		sort(v[seq].begin(), v[seq].end());
+		for (auto& a : v[seq])
+		{
+			if (a > 9) str[seq] += "%";
+			str[seq] += to_string(a);
 		}
 	}
 	s = str;
@@ -249,13 +265,14 @@ void Mole::ProcessCircleNumber(vector<string>& s, vector<vector<int>>& v, const 
 
 
 // --- Mole 核心实现 ---
-Mole::Mole(const vector<Atom>& etb, const string& smiles) :com_smiles(smiles), has_circle(false),has_specialbond(false)
+Mole::Mole(const vector<Atom>& etb, const string& smiles) :com_smiles(smiles), has_circle(false), has_specialbond(false)
 {
 	vector<PreNode> p;
 	int* rec = new int[1000];
 	memset(rec, -1, 1000);
 	p.push_back({ -1, smiles });
 	string bondsym = "";
+	string circlebondsym = SINGLE_BOND;
 	int count = 0;
 	while (!p.empty())
 	{
@@ -306,9 +323,41 @@ Mole::Mole(const vector<Atom>& etb, const string& smiles) :com_smiles(smiles), h
 				int endpos = FindLastCircleNumber(ptop.str, ptop.startpos);
 				vector<int> cnum;
 				string cstr = ptop.str.substr(ptop.startpos, endpos - ptop.startpos + 1);
+				//vector<string> cnumstr;
+				//SplitToInt(cnum, cstr, '%');
+				//PrintCmdSepTitle("Circle Number Processing");
+				//PrintCommonVector(cnum);
+				bool specialcircle = false;
+				int specialstartpos = -1, specialendpos = -1;
+
 				for (int i = 0; i < cstr.length(); i++)
 				{
-					cnum.push_back(cstr[i] - '0');
+
+					if (cstr[i] == '%') {
+						specialcircle = true; 
+						if (specialstartpos!=-1) specialendpos = i; 
+						else specialstartpos = i+1;
+						continue;
+					}
+					if (!specialcircle)
+					{
+						cnum.push_back(cstr[i] - '0');
+					}
+					else if (specialendpos != -1)
+					{
+						string snum = cstr.substr(specialstartpos, specialendpos - specialstartpos+1);
+						cnum.push_back(atoi(snum.c_str()));
+						//specialcircle = false;
+						//specialstartpos = -1;
+						specialstartpos = specialendpos+1;
+						specialendpos = -1;
+
+					}
+				}
+				if (specialcircle && specialendpos == -1)
+				{
+					string snum = cstr.substr(specialstartpos, cstr.length() - specialstartpos);
+					cnum.push_back(atoi(snum.c_str()));
 				}
 				//SplitToInt(cnum, ptop.str.substr(ptop.startpos, endpos - ptop.startpos + 1), '%');
 				int aindex = ptop.frontseq;
@@ -356,11 +405,11 @@ Mole::Mole(const vector<Atom>& etb, const string& smiles) :com_smiles(smiles), h
 
 }
 Mole::Mole(const vector<MNode>& now_nodetb, const  vector<NodeBonds>& now_bondtb) :
-	nodetb(now_nodetb), bondtb(now_bondtb), sortedtb(vector<bool>(nodetb.size(), 0)), ranktb(vector<int>(nodetb.size(), 0)), has_circle(false),has_specialbond(false)
+	nodetb(now_nodetb), bondtb(now_bondtb), sortedtb(vector<bool>(nodetb.size(), 0)), ranktb(vector<int>(nodetb.size(), 0)), has_circle(false), has_specialbond(false)
 {
 }
 Mole::Mole(const Mole& m) :
-	nodetb(m.nodetb), bondtb(m.bondtb), ranktb(m.ranktb), sortedtb(m.sortedtb), com_smiles(m.com_smiles), can_smiles(m.can_smiles), has_circle(m.has_circle),has_specialbond(m.has_specialbond)
+	nodetb(m.nodetb), bondtb(m.bondtb), ranktb(m.ranktb), sortedtb(m.sortedtb), com_smiles(m.com_smiles), can_smiles(m.can_smiles), has_circle(m.has_circle), has_specialbond(m.has_specialbond)
 {
 }
 Mole::Mole(const vector<Atom>& etb, const vector<SimpleMNode>& sn_tb, const vector<AdjLine>& adj_list)
@@ -669,9 +718,11 @@ string Mole::GenerateCanSmiles(const vector<PrimeNumber>& primetable)
 
 				if (!firstchild[topseq]) { cs += "("; leftbracketcount++; };
 				//cout << top.GetBondSymbol() << endl;
-				if (top.GetBondSymbol() == DOUBLE_BOND) { cs += DOUBLE_BOND; has_specialbond = true;// PrintCmdSepTitle("special!");
+				if (top.GetBondSymbol() == DOUBLE_BOND) {
+					cs += DOUBLE_BOND; has_specialbond = true;// PrintCmdSepTitle("special!");
 				}
-				else if (top.GetBondSymbol() == TRIPLE_BOND) { cs += TRIPLE_BOND; has_specialbond = true; //PrintCmdSepTitle("special!");
+				else if (top.GetBondSymbol() == TRIPLE_BOND) {
+					cs += TRIPLE_BOND; has_specialbond = true; //PrintCmdSepTitle("special!");
 				}
 				if (nodetb[topseq].IsAroma()) cs += StringLower(nodetb[topseq].GetSym());
 				else {
@@ -701,7 +752,7 @@ string Mole::GenerateCanSmiles(const vector<PrimeNumber>& primetable)
 				//第一次记录，目标是找到主链和环
 				//drtb.back().SetFirstChild();//秩最低为主链
 				//if (maintreecal) maintree[drtb[0].GetSeq()] = true;
-				
+
 				firstchild[drtb[0].GetSeq()] = true;
 				//cout << "setFirst: " << ranktb[drtb[0].GetSeq()] << endl;
 				//cout << "LeftNode: ";

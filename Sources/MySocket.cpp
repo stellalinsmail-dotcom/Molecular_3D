@@ -499,14 +499,16 @@ vector<AdjABS_3D> GetAdjABSTb(const EnergySolidParam& esp)
 	return adjline_tb;
 }
 
-void ResultSent(string status, SOCKET clientSocket, string sentjson, string now_smiles, double energy)
+void ResultSent(string status, SOCKET clientSocket, string sentjson, string now_smiles, double energy, double opt_time)
 {
 	string smiles_json_part = "\"SMILES\":\"" + now_smiles + "\"";
-	string energy_json_part = "\"energy\":" + to_string(energy);
-	string responseJson_rec = "{\n\"status\":\"" + status + "\",\n"
+	string energy_json_part = "\"Energy\":" + to_string(energy);
+	string opttime_json_part = "\"OptTime\":" + to_string(opt_time);
+	string responseJson_rec = "{\n\"Status\":\"" + status + "\",\n"
 		+ smiles_json_part + ",\n"
 		+ energy_json_part + ",\n"
-		+ "\"data\":" + sentjson + "\n}";
+		+ opttime_json_part + ",\n"
+		+ "\"Data\":" + sentjson + "\n}";
 
 	cout << "正在发送3D结构数据到网页..." << endl;
 	if (SendHTTPResponse(clientSocket, 200, "application/json", responseJson_rec)) {

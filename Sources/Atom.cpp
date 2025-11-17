@@ -60,7 +60,7 @@ Atom SearchAtom(const vector<Atom>& atb, string symbol, bool isprecise)
 	{
 		for (auto& v : atb)
 		{
-			if (v.sym == symbol) return v;
+			if (v.GetSym() == symbol) return v;
 		}
 	}
 	int maxid;

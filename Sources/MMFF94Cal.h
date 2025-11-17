@@ -481,9 +481,9 @@ inline double CalSumEnergy(bool print_yes, const  NeedCal& need_cal,
 }
 
 //--- 初始三维坐标生成 ---
-vector<Vec3> CalXYZ(const ABOpt& ab_opt, const  HASH_TB& pro_htb, const F_BS& bs_fast_tb, const MNODE_TB& mnode_tb, const ADJ_LIST& short_adj_list, const SP_SpTable& all_sp_tb,bool print_yes=false);
+vector<Vec3> CalXYZ_Beta(const ABOpt& ab_opt, const  HASH_TB& pro_htb, const F_BS& bs_fast_tb, const MNODE_TB& mnode_tb, const ADJ_LIST& short_adj_list, const SP_SpTable& all_sp_tb,bool print_yes=false);
 
-double CalSumEnergyByXYZ(bool print_yes, XYZ_TB& xyz_tb, const NeedCal& need_cal, const ABOpt& ab_opt, const SP_SpTable& all_sp_tb,
+double CalSumEnergyByXYZ_Beta(bool print_yes, XYZ_TB& xyz_tb, const NeedCal& need_cal, const ABOpt& ab_opt, const SP_SpTable& all_sp_tb,
 	const EnergySolidParam& esp, int limitpos = -1);
 
 vector<string> GetMSymTb(int ac, const vector<MNode>& nodetb, const  ADJ_LIST& short_adj_list);
@@ -492,5 +492,7 @@ vector<int> GetMTypeTb(int ac, const vector<string>& msym_tb, const map<string, 
 
 EnergySolidParam GenEnergySolidParam(int& ac, const EnergyFundTable& eft, const Mole& d, bool print_yes = false, int max_row_count = -1);
 
-
+vector<Vec3> CalXYZ(const vector<double>& alpha_tb, const  HASH_TB& pro_htb, const F_BS& bs_fast_tb, const MNODE_TB& mnode_tb, const ADJ_LIST& short_adj_list, const SP_SpTable& all_sp_tb, bool print_yes=false);
+double CalSumEnergyByXYZ(bool print_yes, XYZ_TB& xyz_tb, const NeedCal& need_cal, const vector<double>& alpha_tb, const SP_SpTable& all_sp_tb,
+	const EnergySolidParam& esp, int limitpos = -1);
 #endif

@@ -23,10 +23,10 @@ public:
 	void Print(string sep = "\t", bool title_state = TITLE_OFF)const;
 	int GetHigherVal(int n);
 
-	friend Atom SearchAtom(const vector<Atom>& atb, string symbol, bool isprecise = NO);
+	
 };
 
 bool AtomTableCmp(Atom a, Atom b);
-
+Atom SearchAtom(const vector<Atom>& atb, string symbol, bool isprecise = NO);
 
 #endif // ATOM_H

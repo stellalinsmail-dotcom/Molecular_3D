@@ -187,12 +187,34 @@
                 flex-shrink: 0;
             }
 
+            /* 原子和键使用grid布局，两列 */
             #draw-container .button-group {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 5px;
+                padding-bottom: 5px;
+            }
+
+            #draw-container .section-title {
+                grid-column: 1 / -1;
+                font-size: 10px;
+                color: #9DA5B4;
+                text-transform: uppercase;
+                margin-bottom: 5px;
+                text-align: center;
+            }
+
+            /* 新增：功能区使用单列布局 */
+            #draw-container .function-group {
                 display: flex;
                 flex-direction: column;
                 gap: 5px;
                 padding-bottom: 5px;
             }
+
+                #draw-container .function-group button {
+                    width: 100%;
+                }
 
             #draw-container .divider {
                 height: 1px;
@@ -210,7 +232,7 @@
 
             #draw-container button {
                 width: 100%;
-                padding: 5px 3px;
+                padding: 6px 3px;
                 font-size: 12px;
                 line-height: 1.2;
                 background: transparent;
@@ -237,6 +259,26 @@
                     background: var(--active-bg);
                     border-color: var(--active-bg);
                     box-shadow: 0 0 5px rgba(97, 175, 239, 0.8);
+                }
+
+                #draw-container button[data-tool="C"] {
+                    color: #FFFFFF;
+                }
+
+                #draw-container button[data-tool="H"] {
+                    color: var(--draw-atom-H);
+                }
+
+                #draw-container button[data-tool="O"] {
+                    color: var(--draw-atom-O);
+                }
+
+                #draw-container button[data-tool="N"] {
+                    color: var(--draw-atom-N);
+                }
+
+                #draw-container button[data-tool="S"] {
+                    color: var(--draw-atom-S);
                 }
 
             #draw-container #draw-bg-controls {
@@ -282,12 +324,12 @@
                 }
 
             #draw-container .atom-btn.active {
-                color: var(--atom-color);
+                /*color: var(--atom-color);*/
                 border-color: var(--atom-color);
             }
 
             #draw-container .bond-btn.active {
-                color: var(--bond-color);
+                /*color: var(--bond-color);*/
                 border-color: var(--bond-color);
             }
 
@@ -361,7 +403,7 @@
                     stroke: transparent;
                     fill: transparent;
                     stroke-width: 2;
-                    cursor: crosshair !important; 
+                    cursor: crosshair !important;
                 }
 
                     #draw-container svg .selectable-atom.selected {
@@ -505,7 +547,7 @@
                     font-weight: 500;
                     color: var(--current-load-color);
                     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-                    padding-bottom: 4px;
+                    padding-bottom: 2px;
                     text-shadow: -0.1px -0.1px #000,0.1px 0.1px #ccc;
                 }
 
@@ -732,6 +774,25 @@
                 background: none;
                 color: #FFFFFF;
                 text-shadow: none;
+                /* 新增：限制最大宽度并允许换行 */
+                max-width: calc(100% - 5px); /* 减去右侧控制面板的宽度 */
+                word-wrap: break-word;
+                word-break: break-all;
+                overflow-wrap: break-word;
+            }
+
+                /* 新增：针对SMILES显示的特殊样式 */
+                #d3-container #highlight-info > div:last-child {
+                    max-width: 100%;
+                }
+
+            #d3-container #highlight-smiles {
+                display: inline-block;
+                max-width: 100%;
+                word-wrap: break-word;
+                word-break: break-all;
+                overflow-wrap: break-word;
+                white-space: normal; /* 允许换行 */
             }
 
             #d3-container #toggle-button-wrapper {
@@ -1128,31 +1189,73 @@
                     <button data-tool="O" class="atom-btn">O</button>
                     <button data-tool="N" class="atom-btn">N</button>
                     <button data-tool="S" class="atom-btn">S</button>
+                    <button data-tool="B" class="atom-btn">B</button>
                 </div>
                 <div class="divider"></div>
                 <div class="button-group">
                     <div class="section-title">键 (Bond)</div>
-                    <button data-bond="single" class="bond-btn active">单键</button>
-                    <button data-bond="double" class="bond-btn">双键</button>
-                    <button data-bond="triple" class="bond-btn">三键</button>
+                    <button data-bond="single" class="bond-btn active" id="singleBtn">
+                        <svg class="wedge-icon" viewBox="0 0 16 10" style="width: 16px; height: 10px;">
+                            <line x1="0" y1="5" x2="16" y2="5" stroke="#fff" stroke-width="1.5" stroke-linecap="round" />
+                        </svg>
+                    </button>
+                    <button data-bond="double" class="bond-btn" id="doubleBtn">
+                        <svg class="wedge-icon" viewBox="0 0 16 10" style="width: 16px; height: 10px;">
+                            <line x1="0" y1="3" x2="16" y2="3" stroke="#fff" stroke-width="1.5" stroke-linecap="round" />
+                            <line x1="0" y1="7" x2="16" y2="7" stroke="#fff" stroke-width="1.5" stroke-linecap="round" />
+                        </svg>
+                    </button>
+                    <button data-bond="triple" class="bond-btn" id="tripleBtn">
+                        <svg class="wedge-icon" viewBox="0 0 16 10" style="width: 16px; height: 10px;">
+                            <line x1="0" y1="2" x2="16" y2="2" stroke="#fff" stroke-width="1.5" stroke-linecap="round" />
+                            <line x1="0" y1="5" x2="16" y2="5" stroke="#fff" stroke-width="1.5" stroke-linecap="round" />
+                            <line x1="0" y1="8" x2="16" y2="8" stroke="#fff" stroke-width="1.5" stroke-linecap="round" />
+                        </svg>
+                    </button>
 
                     <button data-bond="wedge-up" class="bond-btn" id="wedgeUpBtn">
                         <svg class="wedge-icon" viewBox="0 0 16 10">
-                            <polygon points="0,5 16,10 16,0" fill="#fff" />
+                            <polygon points="0,5 16,9 16,1" fill="#fff" />
                         </svg>
                     </button>
                     <button data-bond="wedge-down" class="bond-btn" id="wedgeDownBtn">
                         <svg class="wedge-icon" viewBox="0 0 16 10">
                             <g fill="#fff">
                                 <polygon points="0,5 4,7 4,3" />
-                                <polygon points="6,6 10,8 10,2 6,4" />
-                                <polygon points="12,2 12,8 16,10 16,0" />
+                                <polygon points="6,7 10,8 10,2 6,3" />
+                                <polygon points="12,2 12,8 16,9 16,1" />
                             </g>
+                        </svg>
+                    </button>
+                    <button data-bond="benzene" class="bond-btn" id="benzeneBtn">
+                        <svg class="wedge-icon" viewBox="0 0 16 16" style="width: 20px; height: 20px;">
+                            <g fill="none" stroke="#fff" stroke-width="1.2">
+                                <!-- 外层正六边形 -->
+                                <polygon points="8,2 12.93,5 12.93,11 8,14 3.07,11 3.07,5" />
+                                <!-- 内层三条双键 -->
+                                <line x1="8" y1="4" x2="11.2" y2="5.5" />
+                                <line x1="11.2" y1="10.5" x2="8" y2="12" />
+                                <line x1="4.8" y1="10.5" x2="4.8" y2="5.5" />
+                            </g>
+                        </svg>
+                    </button>
+                    <!-- 六元环按钮 -->
+                    <button data-bond="ring6" class="bond-btn" id="ring6Btn">
+                        <svg class="wedge-icon" viewBox="0 0 16 16" style="width: 20px; height: 20px;">
+                            <polygon points="8,2 12.93,5 12.93,11 8,14 3.07,11 3.07,5" fill="none" stroke="#fff" stroke-width="1.2" />
+                        </svg>
+                    </button>
+
+                    <!-- 五元环按钮 -->
+                    <button data-bond="ring5" class="bond-btn" id="ring5Btn">
+                        <svg class="wedge-icon" viewBox="0 0 16 16" style="width: 20px; height: 20px;">
+                            <polygon points="8,2 13.85,6.5 11,13 5,13 2.15,6.5" fill="none" stroke="#fff" stroke-width="1.2" />
                         </svg>
                     </button>
                 </div>
                 <div class="divider"></div>
-                <div class="button-group">
+                <div class="function-group">
+                    <!-- 这里从 button-group 改为 function-group -->
                     <div class="section-title">功能 (Tool)</div>
                     <button id="drawBtn" class="mode-btn active">✏️ 构造</button>
                     <button id="moveBtn" class="mode-btn">🤚 移动</button>
@@ -1161,7 +1264,7 @@
                     <button id="exportPngBtn">📷 导出 PNG</button>
                     <button id="undoBtn" class="mode-btn">🔙 撤回</button>
                     <button id="deleteBtn">🗑️ 删除</button>
-             
+
                     <div class="section-title" style="margin-top: 10px;">背景 (Background)</div>
                     <div id="draw-bg-controls">
                         <div id="draw-bg-picker-container" style="background-color: #FFFFFF;">
@@ -1171,8 +1274,6 @@
                         <div class="draw-color-swatch" style="background-color: #888888;" data-color="#888888"></div>
                         <div class="draw-color-swatch" style="background-color: #000000;" data-color="#000000"></div>
                     </div>
-
-
                 </div>
             </div>
             <div id="canvas-wrapper">
@@ -1191,11 +1292,13 @@
         <!-- 右侧：3D_V3.html 内容-->
         <div id="d3-container">
             <div id="axis-renderer-container"></div>
+            <!-- 在 highlight-info 部分（约第1045行），修改为： -->
             <div id="highlight-info">
                 <div>原子符号：<span id="highlight-symbol">无</span></div>
                 <div>原子编号：<span id="highlight-index">--</span></div>
                 <div>原子颜色：<span id="highlight-color">#--</span></div>
                 <div>原子坐标：<span id="highlight-coords">----</span></div>
+                <div>优化用时：<span id="highlight-opttime">--</span> s</div>
                 <div>分子MMFF94势能：<span id="highlight-energy">--</span> kcal/mol</div>
                 <div>分子CanonicalSmiles：<span id="highlight-smiles">--</span></div>
             </div>
@@ -1294,7 +1397,7 @@
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.0/papaparse.min.js"></script>
     <!-- GLTFExporter用于导出GLB格式 -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js"></script>
-    
+
     <!-- MarkDown -->
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked-footnote@1.2.2/dist/index.umd.js"></script>
@@ -1430,40 +1533,43 @@
             // 发送到C++程序
             const result = await socketManager.sendData(JSON.stringify(drawData));
 
-            // 在转换按钮的click事件处理中，修改两处调用
-            if (result && result.status === 'success' && result.data) {
-                console.log('接收到3D数据:', result.data);
-                console.log('接收到SMILES:', result.SMILES);
-                console.log('接收到能量:', result.energy);  
+            // 在转换按钮的click事件处理中（约第1290行），修改两处调用
+            if (result && result.Status === 'success' && result.Data) {
+                //console.log('接收到3D数据:', result.Data);
+                //console.log('接收到SMILES:', result.SMILES);
+                //console.log('接收到能量:', result.Energy);
+                //console.log('接收到优化用时:', result.OptTime);
 
                 if (window.d3App && window.d3App.loadJsonData) {
                     const fullData = {
                         SMILES: result.SMILES || '--',
-                        energy: result.energy || 0,        
-                        SXYZ: result.data.SXYZ,
-                        ADJ_AB: result.data.ADJ_AB
+                        Energy: result.Energy || 0,
+                        OptTime: result.OptTime || 0,
+                        SXYZ: result.Data.SXYZ,
+                        ADJ_AB: result.Data.ADJ_AB
                     };
                     window.d3App.loadJsonData(fullData);
-                    alert('计算转换成功！\n3D结构已加载到右侧视图。');
+                    alert('计算转换成功！\n3D结构已加载到右侧视图，请点击"确定"以查看。');
                 }
             }
 
-    
-            if (result && result.status === 'precal' && result.data) {
-                console.log('接收到3D数据:', result.data);
-                console.log('接收到SMILES:', result.SMILES);
-                console.log('接收到能量:', result.energy);  
+            if (result && result.Status === 'precal' && result.Data) {
+                //console.log('接收到3D数据:', result.Data);
+                //console.log('接收到SMILES:', result.SMILES);
+                //console.log('接收到能量:', result.Energy);
+                //console.log('接收到优化用时:', result.OptTime);
 
                 if (window.d3App && window.d3App.loadJsonData) {
                     const fullData = {
                         SMILES: result.SMILES || '--',
-                        energy: result.energy || 0,        
-                        SXYZ: result.data.SXYZ,
-                        ADJ_AB: result.data.ADJ_AB
+                        Energy: result.Energy || 0,
+                        OptTime: result.OptTime || 0,
+                        SXYZ: result.Data.SXYZ,
+                        ADJ_AB: result.Data.ADJ_AB
                     };
                     window.d3App.loadJsonData(fullData);
-                    alert('转换成功！3D结构已加载到右侧视图。\n\n' +
-                        '温馨提示：\n' +
+                    alert('转换成功！3D结构已加载到右侧视图，请点击"确定"以查看。\n\n' +
+                        '温馨提示(✿ﾟvﾟ)ノ：\n' +
                         '预计计算时间可能超过10min，本次读取预计算数据。\n' +
                         '服务器将继续完成您的计算，因此将显示断开连接。\n' +
                         '当显示重新连接时，可以再次点击转换，您将获得当前最优结果。'
@@ -1596,16 +1702,24 @@
             const SELECT_COLOR = 'rgba(255, 255, 153, 0.4)';
             const CLICK_THRESHOLD = 5;
 
+            //苯环绘制
+            let isBenzeneMode = false; // 苯环模式标志
+            const BENZENE_RADIUS = 40; // 苯环半径
+            //环绘制
+            let isRingMode = false; // 环模式标志
+            let currentRingType = null; // 当前环类型: 'benzene', 'ring6', 'ring5'
+            const RING_RADIUS = 40; // 环半径
+
             //键和原子的交互范围常量
             const ATOM_HOVER_RADIUS = 10;  // 原子高亮范围
             const BOND_HOTSPOT_WIDTH = 20; // 键的可点击范围
-            const BOND_HOVER_WIDTH = BOND_HOTSPOT_WIDTH;   // 键的hover高亮宽度（
+            const BOND_HOVER_WIDTH = BOND_HOTSPOT_WIDTH;   // 键的hover高亮宽度
 
             let hoverDebounceTimer = null;
 
             // 历史记录管理
             let history = [];
-            const MAX_HISTORY = 10;
+            const MAX_HISTORY = 20;
 
             // 暴露获取JSON数据的接口
             window.drawApp = {
@@ -2035,6 +2149,463 @@
                 }
                 draw();
             }
+
+            function drawBenzeneRing(centerX, centerY, startAngle = Math.PI / 2) {
+                drawRing(centerX, centerY, 'benzene', startAngle);
+            }
+
+            function extendBenzeneFromBond(existingBond) {
+                extendRingFromBond(existingBond, 'benzene');
+            }
+
+            function extendBenzeneFromAtom(atom) {
+                extendRingFromAtom(atom, 'benzene');
+            }
+            // 通用环绘制函数
+            // ringType: 'benzene'(苯环), 'ring6'(六元环), 'ring5'(五元环)
+            function drawRing(centerX, centerY, ringType, startAngle = Math.PI / 2) {
+                saveState();
+
+                let sideCount, angleStep;
+
+                // 根据环类型确定边数和角度步长
+                if (ringType === 'ring5') {
+                    sideCount = 5;
+                    angleStep = (Math.PI * 2) / 5; // 72度
+                } else { // 'benzene' 或 'ring6'
+                    sideCount = 6;
+                    angleStep = Math.PI / 3; // 60度
+                }
+
+                const atomIds = [];
+
+                // 创建原子
+                for (let i = 0; i < sideCount; i++) {
+                    const angle = startAngle + i * angleStep;
+                    const x = centerX + RING_RADIUS * Math.cos(angle);
+                    const y = centerY + RING_RADIUS * Math.sin(angle);
+
+                    const atomId = nextAtomId;
+                    addAtom('C', x, y);
+                    atomIds.push(atomId);
+                }
+
+                // 创建键
+                for (let i = 0; i < sideCount; i++) {
+                    const nextIndex = (i + 1) % sideCount;
+                    let bondType = 'single';
+
+                    // 如果是苯环，应用单双键交替规则
+                    if (ringType === 'benzene') {
+                        bondType = i % 2 === 0 ? 'single' : 'double';
+                    }
+
+                    const bond = {
+                        id: nextBondId++,
+                        a1: atomIds[i],
+                        a2: atomIds[nextIndex],
+                        type: bondType
+                    };
+
+                    if (bondType === 'double') {
+                        bond.displayStyle = 'left'; // 双键向内
+                    }
+
+                    bonds.push(bond);
+                }
+
+                draw();
+            }
+
+            // 从现有键延伸环
+            function extendRingFromBond(existingBond, ringType) {
+                saveState();
+
+                const a1 = atoms.find(a => a.id === existingBond.a1);
+                const a2 = atoms.find(a => a.id === existingBond.a2);
+                if (!a1 || !a2) return;
+
+                // 计算键的方向
+                const dx = a2.x - a1.x;
+                const dy = a2.y - a1.y;
+                const bondAngle = Math.atan2(dy, dx);
+
+                // 决定延伸方向
+                const perpAngle = bondAngle + Math.PI / 2;
+                const midX = (a1.x + a2.x) / 2;
+                const midY = (a1.y + a2.y) / 2;
+
+                const testDist = RING_RADIUS * 0.866;
+                const testX1 = midX + testDist * Math.cos(perpAngle);
+                const testY1 = midY + testDist * Math.sin(perpAngle);
+                const testX2 = midX - testDist * Math.cos(perpAngle);
+                const testY2 = midY - testDist * Math.sin(perpAngle);
+
+                const count1 = atoms.filter(a => Math.hypot(a.x - testX1, a.y - testY1) < RING_RADIUS * 1.2).length;
+                const count2 = atoms.filter(a => Math.hypot(a.x - testX2, a.y - testY2) < RING_RADIUS * 1.2).length;
+                const direction = count1 <= count2 ? 1 : -1;
+
+                let sideCount, angleStep;
+                if (ringType === 'ring5') {
+                    sideCount = 5;
+                    angleStep = (Math.PI * 2) / 5;
+                } else {
+                    sideCount = 6;
+                    angleStep = Math.PI / 3;
+                }
+
+                // 辅助函数：检查原子是否有双键（排除指定的键）
+                function atomHasDoubleBond(atomId) {
+                    const connectedBonds = bonds.filter(b =>
+                        (b.a1 === atomId || b.a2 === atomId) &&
+                        b.type === 'double'
+                    );
+                    return connectedBonds.length > 0;
+                }
+
+                // 辅助函数：查找与指定原子成特定角度的已存在的键
+                function findBondAtAngle(fromAtomId, targetAngle, tolerance = Math.PI / 18) {
+                    const fromAtom = atoms.find(a => a.id === fromAtomId);
+                    if (!fromAtom) return null;
+
+                    const connectedBonds = bonds.filter(b =>
+                        (b.a1 === fromAtomId || b.a2 === fromAtomId) && b.id !== existingBond.id
+                    );
+
+                    for (const bond of connectedBonds) {
+                        const otherAtomId = bond.a1 === fromAtomId ? bond.a2 : bond.a1;
+                        const otherAtom = atoms.find(a => a.id === otherAtomId);
+                        if (!otherAtom) continue;
+
+                        const dx = otherAtom.x - fromAtom.x;
+                        const dy = otherAtom.y - fromAtom.y;
+                        let angle = Math.atan2(dy, dx);
+
+                        if (angle < 0) angle += 2 * Math.PI;
+                        let targetNormalized = targetAngle;
+                        while (targetNormalized < 0) targetNormalized += 2 * Math.PI;
+                        while (targetNormalized >= 2 * Math.PI) targetNormalized -= 2 * Math.PI;
+
+                        let diff = Math.abs(angle - targetNormalized);
+                        if (diff > Math.PI) diff = 2 * Math.PI - diff;
+
+                        if (diff < tolerance) {
+                            return { bond, otherAtomId };
+                        }
+                    }
+                    return null;
+                }
+
+                // 辅助函数：查找或创建原子
+                function findOrCreateAtom(baseAtom, angle) {
+                    const x = baseAtom.x + RING_RADIUS * Math.cos(angle);
+                    const y = baseAtom.y + RING_RADIUS * Math.sin(angle);
+
+                    const existingAtom = atoms.find(a =>
+                        Math.hypot(a.x - x, a.y - y) < RING_RADIUS * 0.3
+                    );
+
+                    if (existingAtom) {
+                        return existingAtom.id;
+                    } else {
+                        addAtom('C', x, y);
+                        return nextAtomId - 1;
+                    }
+                }
+
+                // 辅助函数：查找或创建键
+                function findOrCreateBond(atomId1, atomId2, expectedType, isReferenceBond = false) {
+                    const existingBond = bonds.find(b =>
+                        (b.a1 === atomId1 && b.a2 === atomId2) ||
+                        (b.a1 === atomId2 && b.a2 === atomId1)
+                    );
+
+                    if (existingBond) {
+                        // 如果是参考键，只在三键时更新为双键
+                        if (isReferenceBond) {
+                            if (existingBond.type === 'triple') {
+                                existingBond.type = 'double';
+                                existingBond.displayStyle = 'center';
+                            }
+                            // 其他情况保持不变
+                        } else {
+                            // 非参考键，正常更新
+                            if (existingBond.type !== expectedType) {
+                                existingBond.type = expectedType;
+                                if (expectedType === 'double') {
+                                    existingBond.displayStyle = direction === 1 ? 'left' : 'right';
+                                } else {
+                                    delete existingBond.displayStyle;
+                                }
+                            }
+                        }
+                        return existingBond;
+                    } else {
+                        const newBond = {
+                            id: nextBondId++,
+                            a1: atomId1,
+                            a2: atomId2,
+                            type: expectedType
+                        };
+                        if (expectedType === 'double') {
+                            newBond.displayStyle = direction === 1 ? 'left' : 'right';
+                        }
+                        bonds.push(newBond);
+                        return newBond;
+                    }
+                }
+
+                if (ringType === 'benzene') {
+                    // 处理初始参考键（用户点击的键）
+                    const originalBondType = existingBond.type;
+
+                    // 只在三键时更新为双键，其他情况保持不变
+                    if (originalBondType === 'triple') {
+                        existingBond.type = 'double';
+                        existingBond.displayStyle = 'center';
+                    }
+
+                    // 开始构建环
+                    const ringAtoms = [existingBond.a1, existingBond.a2];
+                    let currentAtomId = existingBond.a2;  // 近端原子
+                    let currentAngle = bondAngle + direction * angleStep;
+                    let currentBondId = existingBond.id;  // 当前键ID
+
+                    // 遍历剩余边
+                    for (let i = 1; i < sideCount; i++) {
+                        const currentAtom = atoms.find(a => a.id === currentAtomId);
+                        if (!currentAtom) break;
+
+                        // 查找是否存在已有键
+                        const foundBond = findBondAtAngle(currentAtomId, currentAngle, Math.PI / 18);
+                        let nextAtomId;
+                        let isReferenceBond = false;
+
+                        if (foundBond) {
+                            // 找到已有键，这是参考键
+                            nextAtomId = foundBond.otherAtomId;
+                            isReferenceBond = true;
+                        } else {
+                            // 需要创建新原子
+                            nextAtomId = findOrCreateAtom(currentAtom, currentAngle);
+                        }
+
+                        // 判断目标键类型（根据新规则）
+                        let targetBondType = 'double'; // 默认双键
+
+                        // 规则（2）：当前键两端原子任一有双键 → 单键
+                        //const currentBond = bonds.find(b => b.id === currentBondId);
+                        if (currentBond) {
+                            const nearAtomHasDouble = atomHasDoubleBond(currentAtomId);
+                            // const farAtomHasDouble = atomHasDoubleBond(currentBond.a2);
+
+                            if (nearAtomHasDouble) {
+                                targetBondType = 'single';
+                            }
+                        }
+
+                        // 规则（3）：如果（2）判断为双键，继续检查远端原子
+                        if (targetBondType === 'double') {
+                            // 检查远端原子是否已存在且有双键
+                            if (atomHasDoubleBond(nextAtomId)) {
+                                targetBondType = 'single';
+                            }
+
+                        }
+
+                        // 创建或更新键
+                        const newBond = findOrCreateBond(currentAtomId, nextAtomId, targetBondType, isReferenceBond);
+
+                        ringAtoms.push(nextAtomId);
+                        currentAtomId = nextAtomId;
+                        currentBondId = newBond.id;
+                        currentAngle += direction * angleStep;
+                    }
+
+                    // 闭环：连接最后一个原子到起始原子
+                    if (ringAtoms.length === sideCount) {
+                        // 判断闭环键类型
+                        let closingBondType = 'double';
+
+                        // 规则（2）：检查当前键（最后一条边）的两端原子
+                        const lastBond = bonds.find(b => b.id === currentBondId);
+                        if (lastBond) {
+                            const nearAtomHasDouble = atomHasDoubleBond(lastBond.a1, [currentBondId]);
+                            const farAtomHasDouble = atomHasDoubleBond(lastBond.a2, [currentBondId]);
+
+                            if (nearAtomHasDouble || farAtomHasDouble || lastBond.type === 'double') {
+                                closingBondType = 'single';
+                            }
+                        }
+
+                        // 规则（3）：检查远端原子（起始原子a1）
+                        if (closingBondType === 'double') {
+                            if (atomHasDoubleBond(existingBond.a1, [existingBond.id])) {
+                                closingBondType = 'single';
+                            }
+                        }
+
+                        findOrCreateBond(currentAtomId, existingBond.a1, closingBondType);
+                    }
+                } else {
+                    // 普通环：全部单键
+                    const originalBondType = existingBond.type;
+                    if (originalBondType === 'triple') {
+                        existingBond.type = 'single';
+                        delete existingBond.displayStyle;
+                    }
+
+                    const ringAtoms = [existingBond.a1, existingBond.a2];
+                    let currentAtomId = existingBond.a2;
+                    let currentAngle = bondAngle + direction * angleStep;
+
+                    for (let i = 1; i < sideCount; i++) {
+                        const foundBond = findBondAtAngle(currentAtomId, currentAngle, Math.PI / 18);
+
+                        if (foundBond) {
+                            const nextAtomId = foundBond.otherAtomId;
+                            findOrCreateBond(currentAtomId, nextAtomId, 'single', true);
+                            ringAtoms.push(nextAtomId);
+                            currentAtomId = nextAtomId;
+                        } else {
+                            const currentAtom = atoms.find(a => a.id === currentAtomId);
+                            if (!currentAtom) break;
+
+                            const nextAtomId = findOrCreateAtom(currentAtom, currentAngle);
+                            findOrCreateBond(currentAtomId, nextAtomId, 'single');
+                            ringAtoms.push(nextAtomId);
+                            currentAtomId = nextAtomId;
+                        }
+
+                        currentAngle += direction * angleStep;
+                    }
+
+                    if (ringAtoms.length === sideCount) {
+                        findOrCreateBond(currentAtomId, existingBond.a1, 'single');
+                    }
+                }
+
+                draw();
+            }
+            // 从原子延伸环
+            function extendRingFromAtom(atom, ringType) {
+                saveState();
+
+                const connectedBonds = bonds.filter(b => b.a1 === atom.id || b.a2 === atom.id);
+
+                let avgAngle = 0;
+
+                if (connectedBonds.length === 0) {
+                    avgAngle = 0;
+                } else if (connectedBonds.length === 1) {
+                    const bond = connectedBonds[0];
+                    const otherAtom = atoms.find(a => a.id === (bond.a1 === atom.id ? bond.a2 : bond.a1));
+                    if (otherAtom) {
+                        const dx = otherAtom.x - atom.x;
+                        const dy = otherAtom.y - atom.y;
+                        avgAngle = Math.atan2(dy, dx) + Math.PI / 2;
+                    }
+                } else if (connectedBonds.length === 2) {
+                    const angles = [];
+                    connectedBonds.forEach(bond => {
+                        const otherAtom = atoms.find(a => a.id === (bond.a1 === atom.id ? bond.a2 : bond.a1));
+                        if (otherAtom) {
+                            const dx = otherAtom.x - atom.x;
+                            const dy = otherAtom.y - atom.y;
+                            angles.push(Math.atan2(dy, dx));
+                        }
+                    });
+
+                    if (angles.length === 2) {
+                        let angle1 = angles[0];
+                        let angle2 = angles[1];
+
+                        if (angle1 < 0) angle1 += 2 * Math.PI;
+                        if (angle2 < 0) angle2 += 2 * Math.PI;
+
+                        let angleDiff = angle2 - angle1;
+                        if (angleDiff < 0) angleDiff += 2 * Math.PI;
+
+                        if (angleDiff <= Math.PI) {
+                            avgAngle = angle1 + angleDiff / 2;
+                        } else {
+                            avgAngle = angle1 + (angleDiff / 2 + Math.PI);
+                        }
+
+                        avgAngle += Math.PI / 2;
+                    }
+                } else {
+                    let sumX = 0, sumY = 0;
+                    connectedBonds.forEach(bond => {
+                        const otherAtom = atoms.find(a => a.id === (bond.a1 === atom.id ? bond.a2 : bond.a1));
+                        if (otherAtom) {
+                            sumX += otherAtom.x - atom.x;
+                            sumY += otherAtom.y - atom.y;
+                        }
+                    });
+                    avgAngle = Math.atan2(sumY, sumX) + Math.PI;
+                }
+
+                let sideCount, angleStep;
+                if (ringType === 'ring5') {
+                    sideCount = 5;
+                    angleStep = (Math.PI * 2) / 5;
+                } else {
+                    sideCount = 6;
+                    angleStep = Math.PI / 3;
+                }
+
+                const startAngle = avgAngle - angleStep / 2;
+                const newAtomIds = [atom.id];
+
+                // 创建原子
+                for (let i = 1; i < sideCount; i++) {
+                    const angle = startAngle + i * angleStep;
+                    let baseX, baseY;
+
+                    if (i === 1) {
+                        baseX = atom.x;
+                        baseY = atom.y;
+                    } else {
+                        const prevAtom = atoms.find(a => a.id === newAtomIds[newAtomIds.length - 1]);
+                        baseX = prevAtom.x;
+                        baseY = prevAtom.y;
+                    }
+
+                    const x = baseX + RING_RADIUS * Math.cos(angle);
+                    const y = baseY + RING_RADIUS * Math.sin(angle);
+
+                    addAtom('C', x, y);
+                    newAtomIds.push(nextAtomId - 1);
+                }
+
+                // 创建键
+                for (let i = 0; i < sideCount; i++) {
+                    const nextIndex = (i + 1) % sideCount;
+                    let bondType = 'single';
+
+                    // 如果是苯环，应用单双键交替
+                    if (ringType === 'benzene') {
+                        bondType = i % 2 === 0 ? 'single' : 'double';
+                    }
+
+                    const bond = {
+                        id: nextBondId++,
+                        a1: newAtomIds[i],
+                        a2: newAtomIds[nextIndex],
+                        type: bondType
+                    };
+
+                    if (bondType === 'double') {
+                        bond.displayStyle = 'left';
+                    }
+
+                    bonds.push(bond);
+                }
+
+                draw();
+            }
+
             function extendFrom(atomId, mouseX, mouseY) {
                 const parentAtom = atoms.find(a => a.id === atomId);
                 if (!parentAtom) return;
@@ -2173,7 +2744,7 @@
                 const targetElem = e.target;
                 const atomId = targetElem.getAttribute('data-atom-id');
                 const bondId = targetElem.getAttribute('data-bond-id');
-      
+
                 if (mode === 'lasso') {
 
                     if (selectedAtoms.size > 0 && isInsideSelectionBox(pos.x, pos.y)) {
@@ -2183,7 +2754,7 @@
                             selectionRect.parentNode.removeChild(selectionRect);
                         }
                     } else {
-                        
+
                         isSelecting = true;
                         startX = pos.x;
                         startY = pos.y;
@@ -2241,8 +2812,23 @@
                         clearSelection();
                     }
                 } else { // mode === 'draw'
-
-                    if (atomId) {
+                    if (isRingMode) {
+                        // 环模式
+                        if (atomId) {
+                            const atom = atoms.find(a => a.id === parseInt(atomId));
+                            if (atom) {
+                                extendRingFromAtom(atom, currentRingType);
+                            }
+                        } else if (bondId) {
+                            const bond = bonds.find(b => b.id === parseInt(bondId));
+                            if (bond) {
+                                extendRingFromBond(bond, currentRingType);
+                            }
+                        } else if (e.target.tagName === 'svg') {
+                            drawRing(pos.x, pos.y, currentRingType);
+                        }
+                    }
+                    else if (atomId) {
                         //saveState(); // 拖动开始时保存状态
                         isDraggingAtom = true;
                         dragTargetId = parseInt(atomId);
@@ -2517,7 +3103,7 @@
                         }
                     } else {
                         saveState(); // 拖动开始时保存状态
-                        
+
                         const targetAtom = atoms.find(a => a.id !== dragTargetId && Math.sqrt(Math.pow(pos.x - a.x, 2) + Math.pow(pos.y - a.y, 2)) < ATOM_RADIUS);
 
                         if (targetAtom) {
@@ -2677,9 +3263,9 @@
             document.querySelectorAll('#toolbar button').forEach(btn => {
                 btn.addEventListener('click', () => {
 
-                    if (btn.id === 'deleteBtn' || btn.id === 'exportPngBtn') {
+                    if (btn.id === 'deleteBtn' || btn.id === 'exportPngBtn' || btn.id === 'undoBtn') {
                         if (btn.id === 'deleteBtn') deleteSelectedElements();
-                        // 导出按钮逻辑已在上方实现
+                        // 导出和撤回按钮逻辑已在上方实现
                         return;
                     }
 
@@ -2690,6 +3276,22 @@
                         btn.classList.add('active');
                         mode = btn.id === 'drawBtn' ? 'draw' : btn.id === 'moveBtn' ? 'move' : 'lasso';
                     } else if (btn.classList.contains('atom-btn')) {
+                        // 【新增】如果当前处于环模式，切换到单键模式
+                        if (isRingMode) {
+                            isRingMode = false;
+                            currentRingType = null;
+                            currentBond = 'single';
+
+                            // 取消所有键按钮的激活状态
+                            document.querySelectorAll('.bond-btn').forEach(b => b.classList.remove('active'));
+                            // 激活单键按钮
+                            const singleBtn = document.getElementById('singleBtn');
+                            if (singleBtn) {
+                                singleBtn.classList.add('active');
+                            }
+                        }
+
+                        // 原有逻辑：切换原子按钮
                         document.querySelectorAll('.atom-btn').forEach(b => b.classList.remove('active'));
                         btn.classList.add('active');
                         currentTool = btn.dataset.tool;
@@ -2697,13 +3299,30 @@
                     } else if (btn.classList.contains('bond-btn')) {
                         document.querySelectorAll('.bond-btn').forEach(b => b.classList.remove('active'));
                         btn.classList.add('active');
-                        currentBond = btn.dataset.bond;
+
+                        if (btn.dataset.bond === 'benzene') {
+                            isRingMode = true;
+                            currentRingType = 'benzene';
+                            currentBond = 'single';
+                        } else if (btn.dataset.bond === 'ring6') {
+                            isRingMode = true;
+                            currentRingType = 'ring6';
+                            currentBond = 'single';
+                        } else if (btn.dataset.bond === 'ring5') {
+                            isRingMode = true;
+                            currentRingType = 'ring5';
+                            currentBond = 'single';
+                        } else {
+                            isRingMode = false;
+                            currentRingType = null;
+                            currentBond = btn.dataset.bond;
+                        }
+
                         document.getElementById('drawBtn').click();
                     }
                     updateCanvasCursor();
                 });
             });
-
             // 背景颜色选择器
             const drawBgPicker = document.getElementById('draw-bg-picker');
             const drawBgPickerContainer = document.getElementById('draw-bg-picker-container');
@@ -3259,7 +3878,7 @@
                 try {
                     const CACHE_KEY = 'molecular3d_documentation';
                     const CACHE_VERSION_KEY = 'molecular3d_doc_version';
-                    const CURRENT_VERSION = '1.2'; // 更新版本号
+                    const CURRENT_VERSION = 'v1.0.6'; // 更新版本号
 
                     const cachedDoc = localStorage.getItem(CACHE_KEY);
                     const cachedVersion = localStorage.getItem(CACHE_VERSION_KEY);
@@ -3305,22 +3924,22 @@
                             marked.use(window.markedFootnote({ description: '' }));
                         }
                         content.innerHTML = `
-                <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ffc107;">
-                    <strong>⚠️ 注意</strong>：当前显示的是缓存版本，可能不是最新内容。
-                </div>
-            ` + marked.parse(fallbackCache);
+                                <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ffc107;">
+                                    <strong>⚠️ 注意</strong>：当前显示的是缓存版本，可能不是最新内容。
+                                </div>
+                            ` + marked.parse(fallbackCache);
                     } else {
                         content.innerHTML = `
-                <h2>❌ 文档加载失败</h2>
-                <p>${error.message}</p>
-                <p>可能的原因：</p>
-                <ul>
-                    <li>服务器未启动（Main_MMFF94.exe）</li>
-                    <li><code>documentation.md</code> 文件不存在</li>
-                    <li>网络连接问题</li>
-                </ul>
-                <p><strong>提示</strong>：请启动C++服务器后刷新页面重试。</p>
-            `;
+                                <h2>❌ 文档加载失败</h2>
+                                <p>${error.message}</p>
+                                <p>可能的原因：</p>
+                                <ul>
+                                    <li>服务器未启动（Main_MMFF94.exe）</li>
+                                    <li><code>documentation.md</code> 文件不存在</li>
+                                    <li>网络连接问题</li>
+                                </ul>
+                                <p><strong>提示</strong>：请启动C++服务器后刷新页面重试。</p>
+                            `;
                     }
                 }
 
@@ -3656,13 +4275,13 @@
                 controls.update();
             }
 
-            // 添加从JSON直接加载数据的函数
+            // 在 loadJsonData 函数中（约第2836行），修改变量名
             function loadJsonData(jsonData, renderType = 'ball_stick') {
-                //console.log('加载JSON数据:', jsonData, '渲染类型:', renderType);
-
                 try {
                     const smiles = jsonData.SMILES || '--';
-                    const energy = jsonData.energy || 0;
+                    const energy = jsonData.Energy || 0;
+                    const optTime = jsonData.OptTime || 0;  // 修改变量名
+
                     const smilesElement = document.getElementById('highlight-smiles');
                     if (smilesElement) {
                         smilesElement.textContent = smiles;
@@ -3671,12 +4290,16 @@
                     // 更新能量显示
                     const energyElement = document.getElementById('highlight-energy');
                     if (energyElement) {
-                        energyElement.textContent = energy.toFixed(4);  // 保留2位小数
+                        energyElement.textContent = energy.toFixed(4);
+                    }
+
+                    // 更新优化用时显示
+                    const optTimeElement = document.getElementById('highlight-opttime');
+                    if (optTimeElement) {
+                        optTimeElement.textContent = optTime.toFixed(2);
                     }
 
                     // 将SXYZ格式转换为CSV格式
-                    // jsonData.SXYZ格式: [["C", 0.0, 0.0, 0.0], ...]
-                    // 需要转换为: [{Symbol: "C", X: 0.0, Y: 0.0, Z: 0.0}, ...]
                     const convertedSXYZ = jsonData.SXYZ.map((item, index) => ({
                         Symbol: item[0],
                         X: parseFloat(item[1]),
@@ -3684,16 +4307,12 @@
                         Z: parseFloat(item[3])
                     }));
 
-                    // jsonData.ADJ_AB格式: [[1, 2, "-"], [1, 3, "="], ...]
-                    // 需要转换为: [{A: 1, B: 2, BondType: "-"}, ...]
+                    // 转换ADJ_AB格式
                     const convertedADJ = jsonData.ADJ_AB.map(item => ({
                         A: parseInt(item[0]),
                         B: parseInt(item[1]),
-                        BondType: item[2] || "-"  // 如果没有指定键型，默认为单键
+                        BondType: item[2] || "-"
                     }));
-
-                    //console.log('转换后的SXYZ数据:', convertedSXYZ);
-                    //console.log('转换后的ADJ数据:', convertedADJ);
 
                     // 保存数据
                     sxyzData = convertedSXYZ;
@@ -3771,7 +4390,7 @@
                 exportView: exportView,
                 onWindowResize: onWindowResize,
                 controls: controls,
-                openDocumentation: openDocumentation  
+                openDocumentation: openDocumentation
             };
         })();
     </script>

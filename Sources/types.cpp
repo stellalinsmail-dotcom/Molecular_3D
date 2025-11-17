@@ -328,7 +328,7 @@ bool FileExists(const string& filename)
 }
 void PrintEnergy(double sum_E, double sum_eb, double sum_ea, double sum_eba, double sum_eoop, double sum_et, double sum_evdw)
 {
-	cout << fixed << setprecision(4);
+	
 	//PrintCmdSepTitle("Sum E");
 	cout << fixed << setprecision(8);
 	cout << "sum_EB: " << sum_eb << endl;
@@ -337,11 +337,11 @@ void PrintEnergy(double sum_E, double sum_eb, double sum_ea, double sum_eba, dou
 	cout << "sum_EOOP: " << sum_eoop << endl;
 	cout << "sum_ET: " << sum_et << endl;
 	cout << "sum_EVDW: " << sum_evdw << endl;
-
 	cout << "*sum_E: " << sum_E << endl;
 
-	//cout << "E\tEB" << "\tEA" << "\tEBA" << "\tEOOP" << "\tET" << "\tEVDW" << endl;
-	//cout << sum_E << "\t" << sum_eb << "\t" << sum_ea << "\t" << sum_eba << "\t" << sum_eoop << "\t" << sum_et << "\t" << sum_evdw << endl;
+	/*cout << fixed << setprecision(4);
+	cout << "E\tEB" << "\tEA" << "\tEBA" << "\tEOOP" << "\tET" << "\tEVDW" << endl;
+	cout << sum_E << "\t" << sum_eb << "\t" << sum_ea << "\t" << sum_eba << "\t" << sum_eoop << "\t" << sum_et << "\t" << sum_evdw << endl;*/
 }
 
 

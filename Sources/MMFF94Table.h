@@ -469,6 +469,7 @@ public:
 		double varphi = DegToRad(stod(info[titlenum[3]]));
 		rvec = RadVec3(r, theta, varphi);
 	}
+	SP_SpLine(const SP_SpLine& s) : seq(s.seq), rvec(s.rvec) {}
 	void Print(string sep = "\t", bool title_state = TITLE_OFF)const
 	{
 		if (title_state) {
