@@ -102,12 +102,17 @@ using namespace std;
 #define ADJ_AB_TB_TITLE "A,B"
 
 
-#define MMFF_CSV_FOLDER "File/Values/MMFF94_CSV/"
-#define SP_FOLDER "File/Values/C_SP_CSV/"
+#define MMFF_CSV_FOLDER "File/SolidParam/MMFF94_CSV/"
+#define SP_FOLDER "File/SolidParam/C_SP_CSV/"
 #define MMFF_OUTPUT_FOLDER "File/Output/CSV/"
 #define JSON_OUTPUT_FOLDER "File/OutputOpt/Json"
 #define OPT_OUTPUT_FOLDER "File/OutputOpt/"
 #define OPT_TIME_FOLDER "File/OutputOpt/TimeRecord/"
+
+
+#define ETB_FILEPATH "File/SolidParam/EL_PN/ElementsTable.csv";
+#define PTB_FILEPATH "File/SolidParam/EL_PN/PrimeNumber1000.csv";
+
 
 #define BS_FILENAME  "6_MMFFBOND.csv"
 #define AB_FILENAME "8_MMFFANG.csv"

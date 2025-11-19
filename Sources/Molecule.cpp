@@ -1105,8 +1105,8 @@ int IsSpecialBond(const string& bondsym)
 
 SmilesFundTable ReadSmilesSolidParam(bool print_yes, int max_row_count)
 {
-	string etb_filename = "File/Tables/ElementsTable.csv";
-	string ptb_filename = "File/Tables/PrimeNumber1000.csv";
+	string etb_filename = ETB_FILEPATH;
+	string ptb_filename = PTB_FILEPATH
 
 
 	vector<Atom> atomtable;
