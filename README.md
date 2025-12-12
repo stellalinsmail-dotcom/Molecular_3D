@@ -1,8 +1,9 @@
 # Molecular3D
 
-> **基于结构式的有机分子三维可视化交互程序** —— 使用C++后端及Web前端， 依据SMILES格式进行分子解析，并使用MMFF94力场作为分子构象优化标准
+>[!Note]
+>  **基于结构式的有机分子三维可视化交互程序** —— 使用C++后端及Web前端， 依据SMILES格式进行分子解析，并使用MMFF94力场作为分子构象优化标准
 
-![image-20251122165325153](C:\Users\Crystal\AppData\Roaming\Typora\typora-user-images\image-20251122165325153.png)
+<img width="1906" height="1009" alt="WebPage" src="https://github.com/user-attachments/assets/c63f6a59-78e7-4e46-8802-ca7b20bdfe7f" />
 
 ### 项目简介
 
@@ -14,12 +15,12 @@
 | ---------- | -------- | ------------ | ------------ |
 | 0-5        | 否       | 1s           | 1            |
 | 0-5        | 是       | 2s           | 2            |
-| 6-10       | --       | 10s          | 看情况       |
-| 10-15      | --       | 30s          |              |
+| 6-10       | --       | 10s          | 未知         |
+| 10-15      | --       | 30s          | 未知         |
 
 > [!Warning]
 >
-> An English version of the README or documentation is not yet available. If it is specifically needed, please contact the author by opening an **[issues](https://github.com/stellalinsmail-dotcom/Molecular_3D/issues)** in this repository.
+> An English version of the README or documentation is not yet available. If it is specifically needed, please contact the author by opening an **[issue](https://github.com/stellalinsmail-dotcom/Molecular_3D/issues)** in this repository.
 
 ### EXE运行方法
 
@@ -89,7 +90,7 @@ VSProject/
         └── CopyRecord.csv               # 备份记录
 ```
 
-印象中没用到什么额外的库。由于配置时间有些久远，如果有配置问题或者任何书写错误，非常欢迎在issue中提出。
+印象中没用到什么额外的库。由于配置时间有些久远，如果有配置问题或者任何书写错误，非常欢迎在 [GitHub Issues](https://github.com/stellalinsmail-dotcom/Molecular_3D/issues)中提出。
 
 ### 项目文件其他结构
 
@@ -99,8 +100,8 @@ VSProject/
 PaperRead:
     记录了在项目开发的过程中用到的一些参考文献的AI翻译。
     然后还包括在算法设计过程中的一些思考，主要在公式梳理和计算示例中，还有一些散落在开发日志中。
-    还有一份开发日志，但格式很混乱，因为有些天忙，忘记写了。或者偶尔写一半有新思路了，就没写了。
-    注意：上述文件中的算法可能不是当前的算法。因为在写完算法设计后着手实现的过程中，有很多改动的地方，没能及时更新到文档中。
+    还有一份开发日志，但格式很混乱，因为有些天忙，忘记写了。或者偶尔写一半有新思路了就转而去改代码了。
+    注意：上述文件中的算法可能不是当前的算法。因为在写完算法设计后着手实现的过程中，有很多改动的地方，没能及时更新到文档中。后续可能会将论文中的部分算法设计内容给出。
     
 OtherCode: 
     包含一些Matlab文件。
@@ -114,7 +115,7 @@ TestOutputOpt:
 
 关于前端的界面的实现及前后端交互的Socket通信功能，部分借鉴了AI给出的回答。
 
-后端的任何算法设计、算法实现及计算验证，包括CANGEN算法相关和MMFF94计算相关以及构象优化算法，均未使用任何AI，未照搬现有的任何化学库如RDKit，完全由作者基于参考文献文本或者自行设计并实现。
+后端的任何算法设计、算法实现及计算验证，包括CANGEN算法相关和MMFF94计算相关以及构象优化算法，均未使用任何AI，未照搬现有的任何化学库如RDKit，完全由作者基于参考文献文本复现或者自行设计并实现。
 
 因为语言及论文理解的问题，生成的CanonicalSMILES格式和MMFF94力场可能与当下计算软件中给出的内容不同。目前已知生成的CanonicalSMILES与SciFinder中对环内特殊键的处理逻辑不同，但是[SMILES Parser Demo](https://doc.gdb.tools/smilesDrawer/sd/example/index_light.html)中验证显示结构可正确绘制。作者认为该问题是非原则性错误因而暂未处理，所以生成结果可能仅供参考。
 
@@ -126,7 +127,7 @@ TestOutputOpt:
 
 **作者**：Stella Lam
 
-作者将非常高兴能够看到自己的项目获得引用。因为毕设的某些原因，大概率无法在知网看到作者的论文(；′⌒`)，所以暂时只能引用作者的GitHub项目。
+作者将非常高兴能够看到自己的项目获得引用。因为毕设的某些原因，大概率无法在知网看到作者的论文(X_X)，所以暂时只能引用作者的GitHub项目。
 
 这是作者近三个月的心血，所以希望看到项目的任何使用者都遵循学术诚信原则，加上引用。如果个人使用者不慎违反，虽然作者明确反对，但至少不要让作者知道。
 
@@ -136,7 +137,9 @@ TestOutputOpt:
 
 更多的详细信息在界面的帮助文档中（Web文件夹下的documentation.md）。
 
-如有Readme和帮助文档中均未提及的问题或任何建议，欢迎在 [GitHub Issues](https://github.com/stellalinsmail-dotcom/Molecular_3D/issues) 提出。 
+如有Readme和帮助文档中均未提及的问题或任何建议，欢迎在 [GitHub Issues](https://github.com/stellalinsmail-dotcom/Molecular_3D/issues) 提出。
+
+作者将非常高兴收到Issue和Star(o゜▽゜)o☆
 
 **README更新日期**：2025.12.10
 
@@ -178,14 +181,21 @@ TestOutputOpt:
 
 ### 参考文献
 
-[^1]: Weininger D. SMILES, a chemical language and information system. 1. Introduction to methodology and encoding rules[J]. Journal of Chemical Information and Computer Sciences, 1988, 28(1): 31-36. DOI: 10.1021/ci00062a008
-[^2]: Weininger D, Weininger A, Weininger J L. SMILES. 2. Algorithm for generation of unique SMILES notation[J]. Journal of Chemical Information and Computer Sciences, 1989, 29(2): 97-101. DOI: 10.1021/ci00057a005
-[^3]: Halgren T A. Merck molecular force field. I. Basis, form, scope, parameterization, and performance of MMFF94[J]. J. Comput. Chem., 1996, 17: 490-519.
-[^4]: Halgren T A. Merck molecular force field. II. MMFF94 van der Waals and electrostatic parameters for intermolecular interactions[J]. J. Comput. Chem., 1996, 17(5/6): 520-552. DOI:10.1002/(SICI)1096-987X(199604)17:5/6<520::AID-JCC2>3.0.CO;2-W.
-[^5]: Halgren T A. Merck molecular force field. III. Molecular geometries and vibrational frequencies for MMFF94[J]. J. Comput. Chem., 1996, 17(5/6): 553-586. DOI:10.1002/(SICI)1096-987X(199604)17:5/6<553::AID-JCC3>3.0.CO;2-T
-[^6]:  Halgren T A, Nachbar R B. Merck molecular force field. IV. Conformational energies and geometries for MMFF94[J]. J. Comput. Chem., 1996, 17(5/6): 587-615. DOI:10.1002/(SICI)1096-987X(199604)17:5/6<587::AID-JCC4>3.0.CO;2-Q
-[^7]: Halgren T A. Merck molecular force field. V. Extension of MMFF94 using experimental data, additional computational data, and empirical rules[J]. J. Comput. Chem., 1996, 17(5/6): 616-641. DOI:10.1002/(SICI)1096-987X(199604)17:5/6<616::AID-JCC5>3.0.CO;2-X
-[^8]: Probst D, Reymond J L. SmilesDrawer: Parsing and drawing SMILES-encoded molecular structures using client-side JavaScript[J]. Journal of Chemical Information and Modeling, 2018, 58(1): 1-7. DOI:10.1021/acs.jcim.7b00425.
+[1] Weininger D. SMILES, a chemical language and information system. 1. Introduction to methodology and encoding rules[J]. Journal of Chemical Information and Computer Sciences, 1988, 28(1): 31-36. DOI: 10.1021/ci00062a008
+
+[2] Weininger D, Weininger A, Weininger J L. SMILES. 2. Algorithm for generation of unique SMILES notation[J]. Journal of Chemical Information and Computer Sciences, 1989, 29(2): 97-101. DOI: 10.1021/ci00057a005
+
+[3] Halgren T A. Merck molecular force field. I. Basis, form, scope, parameterization, and performance of MMFF94[J]. J. Comput. Chem., 1996, 17: 490-519.
+
+[4] Halgren T A. Merck molecular force field. II. MMFF94 van der Waals and electrostatic parameters for intermolecular interactions[J]. J. Comput. Chem., 1996, 17(5/6): 520-552. DOI:10.1002/(SICI)1096-987X(199604)17:5/6<520::AID-JCC2>3.0.CO;2-W.
+
+[5] Halgren T A. Merck molecular force field. III. Molecular geometries and vibrational frequencies for MMFF94[J]. J. Comput. Chem., 1996, 17(5/6): 553-586. DOI:10.1002/(SICI)1096-987X(199604)17:5/6<553::AID-JCC3>3.0.CO;2-T
+
+[6] Halgren T A, Nachbar R B. Merck molecular force field. IV. Conformational energies and geometries for MMFF94[J]. J. Comput. Chem., 1996, 17(5/6): 587-615. DOI:10.1002/(SICI)1096-987X(199604)17:5/6<587::AID-JCC4>3.0.CO;2-Q
+
+[7] Halgren T A. Merck molecular force field. V. Extension of MMFF94 using experimental data, additional computational data, and empirical rules[J]. J. Comput. Chem., 1996, 17(5/6): 616-641. DOI:10.1002/(SICI)1096-987X(199604)17:5/6<616::AID-JCC5>3.0.CO;2-X
+
+[8] Probst D, Reymond J L. SmilesDrawer: Parsing and drawing SMILES-encoded molecular structures using client-side JavaScript[J]. Journal of Chemical Information and Modeling, 2018, 58(1): 1-7. DOI:10.1021/acs.jcim.7b00425.
 
 
 
