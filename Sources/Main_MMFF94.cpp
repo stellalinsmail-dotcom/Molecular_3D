@@ -269,11 +269,11 @@ int main()
 			bool update_optrec_yes = false;
 
 			PrintCmdSepTitle("Alpha优化前");
-			double alpha_before_energy = CalSumEnergyByXYZ_Beta(YES, old_alpha_xyz_tb, NeedCal(), old_ab_opt, all_sp_tb, esp);
+			double alpha_before_energy = CalSumEnergyByXYZ(YES, old_alpha_xyz_tb, NeedCal(), old_ab_opt.alpha_tb, all_sp_tb, esp);
 			//WriteTable(GetXYZTbPath(now_smiles, 1), XYZ_TB_TITLE, xyz_tb);
 
 			PrintCmdSepTitle("Alpha优化进度-记时");
-			cout << "Alpha优化中……\n";
+			cout << "Alpha优化中……\n\n";
 
 			XYZ_TB new_alpha_xyz_tb;
 			OptRecVal alpha_opt_val;
@@ -308,7 +308,7 @@ int main()
 			OptRecVal beta_opt_val;
 
 			PrintCmdSepTitle("Beta优化进度-记时");
-			cout << "优化中……\n";
+			cout << "Beta优化中……\n";
 			new_ab_opt.beta_tb = BetaOpt(has_circle, new_ab_opt.alpha_tb, beta_opt_val, new_beta_xyz_tb, all_sp_tb, esp, false);
 			//
 			////new_beta_xyz_tb = CalXYZ(new_ab_opt, esp.pro_htb, esp.bs_fast_tb, esp.mnode_tb, esp.short_adj_list, all_sp_tb);
@@ -356,6 +356,8 @@ int main()
 			//}
 
 			//---------------------------**JSON格式传输**----------------------------------
+			//final_energy = alpha_before_energy;
+			//final_xyz_tb = old_alpha_xyz_tb;
 
 			string sent_json;
 			//final_energy < rec_energy

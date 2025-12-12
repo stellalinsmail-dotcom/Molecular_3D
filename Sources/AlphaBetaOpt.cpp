@@ -65,7 +65,7 @@ V1_DTB AlphaOpt(bool has_circle, const V2_DTB& beta_tb, OptRecVal& alpha_result,
 
 	V1_DTB& new_alpha_tb = new_ab_opt.alpha_tb;
 	V1_DTB& old_alpha_tb = old_ab_opt.alpha_tb;
-	new_alpha_tb[0] = 0;
+	//new_alpha_tb[0] = 0;
 
 	int cyc = 0;
 	for (int i = 0; i < nhc; i++)
@@ -287,7 +287,7 @@ AlphaOpt1:
 	//	if (asep_tb[i] < acc_angle) asep_tb[i] = acc_angle;
 	//}
 
-	 cout << "粗略优化" << rough_turncount << "轮完成，进入精细优化阶段..." << endl;
+	 cout << "\n粗略优化" << rough_turncount << "轮完成，进入精细优化阶段...\n" << endl;
 
 	vector<double> acc_asep_tb(nhc, acc_angle);
 
@@ -1737,7 +1737,7 @@ BetaOpt1:
 	//	if (asep_tb[i] < acc_angle) asep_tb[i] = acc_angle;
 	//}
 
-	cout << "粗略优化" << rough_turncount << "轮完成，进入精细优化阶段..." << endl;
+	cout << "\n粗略优化" << rough_turncount << "轮完成，进入精细优化阶段...\n" << endl;
 
 	V2_DTB acc_bsep_tb(nhc, V1_DTB(MAX_ADJ_NODE_SIZE, acc_angle));
 

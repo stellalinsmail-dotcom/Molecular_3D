@@ -607,11 +607,11 @@ vector<Vec3> CalXYZ_Beta(const ABOpt& ab_opt, const  HASH_TB& pro_htb, const F_B
 				}
 				else if (m == 4)
 				{
-					SP_SpLine spline_a(all_sp_tb.GetSPLine(4, 1));
-					SP_SpLine spline_b(spline_a);
+					SP_SpLine spline_a(all_sp_tb.GetSPLine(3, 1));
+					SP_SpLine spline_b(all_sp_tb.GetSPLine(3, 2));
 					spline_a.SpinVarphi(ab_opt.beta_tb[j][2]);
 					spline_b.SpinVarphi(ab_opt.beta_tb[j][3]);
-					spline_b.SpinTheta(PI);
+					//spline_b.SpinTheta(PI);
 					m_rect_arr[2] = SP_ReLine(2, SP_ReLine(spline_a).GetVec());
 					m_rect_arr[3] = SP_ReLine(3, SP_ReLine(spline_b).GetVec());
 
@@ -1015,7 +1015,7 @@ vector<Vec3> CalXYZ(const vector<double>& alpha_tb, const  HASH_TB& pro_htb, con
 		vector<PointTo> nb_node = short_adj_list[j].GetBonds();
 		int nsize = nb_node.size();
 		int m = nsize, startseq = 0;
-
+		int firstchild = -1;
 		bool solidbond = false;
 		int solidparent = -1;
 		for (int i = 0; i < nsize; i++)
@@ -1069,6 +1069,7 @@ vector<Vec3> CalXYZ(const vector<double>& alpha_tb, const  HASH_TB& pro_htb, con
 
 			if (i == 0)
 			{
+				firstchild = child;
 				if (j == 0)
 				{
 					xyz_tb[child] = Vec3(0, 0, r0);
@@ -1122,24 +1123,36 @@ vector<Vec3> CalXYZ(const vector<double>& alpha_tb, const  HASH_TB& pro_htb, con
 			}
 			else if (rec_xyz[child] == true && i == 1)
 			{
-				Vec3 ox_ref(xyz_tb[child] - xyz_tb[parent]);
-				if (!solidbond)
-				{
-					CoordSys3 csys(oz, ox_ref);
-					R = csys.GetMatrixR();
+				Vec3 v1 = xyz_tb[child] - xyz_tb[parent];
+				Vec3 v2 = xyz_tb[firstchild] - xyz_tb[parent];
+
+				v1.Normalize();
+				v2.Normalize();
+
+				const double EPS = 1e-8;
+				// 角平分线
+				Vec3 bis = v1 + v2;
+				if (bis.GetLen() < EPS) {
+					// 两向量几乎相反，无法取角平分线：退回到任一子向量（或其它策略）
+					bis = v1;
 				}
+				else {
+					bis.Normalize();
+				}
+
+				// 垂直平面方向（叉积）
+				Vec3 ox_ref = Cross(v1, v2);
+				if (ox_ref.GetLen() < EPS) {
+					// 共线或接近共线，选择任一与 v1 垂直的参考向量作为叉积输入
+					Vec3 tmp(1.0, 0.0, 0.0);
+					if (fabs(v1.x) > 0.9) tmp = Vec3(0.0, 1.0, 0.0);
+					ox_ref = Cross(tmp, v1);
+				}
+				ox_ref.Normalize();
+
+				CoordSys3 csys(bis, ox_ref);
+				R = csys.GetMatrixR();
 				//cout <<"重新建系：" << parent << "\t" << child << endl;
-	/*			if (print_yes) {
-					PrintCmdSepTitle("重新建系R矩阵");
-					R.Print();
-				}*/
-				for (int sp_i = 0; sp_i < m; sp_i++)
-				{
-					SP_SpLine spline(all_sp_tb.GetSPLine(m, sp_i));
-					//spline.SpinTheta(alpha_tb[j]);
-					SP_ReLine reline(spline);
-					m_rect_arr[sp_i] = reline;
-				}
 			}
 			else if (child > parent && rec_xyz[child] == false)
 			{
